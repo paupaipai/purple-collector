@@ -97,11 +97,21 @@ function AppShell({ session, loading, authLoading, signInWithGoogle, signInWithA
       // trigger for every signup, so row existence alone can't signal
       // "completed onboarding" — onboarding_completed is the real flag.
       try {
-        const { data } = await supabase
+        // On Android, the network connection can still be settling right after
+        // control returns from the Google Custom Tab, which can leave this
+        // request hanging with no error — without a timeout, `onboarded` would
+        // never resolve and the app gets stuck on the loading screen until the
+        // user force-closes and reopens it.
+        const query = supabase
           .from('user_profiles')
           .select('onboarding_completed')
           .eq('id', session.user.id)
           .single();
+        const timeout = new Promise<never>((_, reject) =>
+          setTimeout(() => reject(new Error('onboarding check timed out')), 8000)
+        );
+
+        const { data } = await Promise.race([query, timeout]);
 
         if (data?.onboarding_completed) {
           await AsyncStorage.setItem(onboardedKey(session.user.id), 'true');
