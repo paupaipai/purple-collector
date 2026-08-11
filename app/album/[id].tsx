@@ -20,6 +20,7 @@ import FilterBottomSheet, { FilterSection } from '../../components/FilterBottomS
 import GalaxyBackground from '../../components/GalaxyBackground';
 import NeonBar from '../../components/NeonBar';
 import Photocard from '../../components/Photocard';
+import StatusHelpModal from '../../components/StatusHelpModal';
 import { useAuth } from '../../hooks/useAuth';
 import { useAlbumCards } from '../../hooks/useCards';
 import { COLORS, MEMBER_MAP, MEMBERS, STATUS_CONFIG, STATUS_LABEL_KEY } from '../../lib/constants';
@@ -38,14 +39,6 @@ const MEMBER_IMAGES: Record<string, any> = {
   'V':        require('../../assets/images/bts/v.png'),
   'Jungkook': require('../../assets/images/bts/jungkook.png'),
 };
-
-const HELP_ITEMS = [
-  { icon: 'time-outline' as const,             color: COLORS.textMuted, labelKey: 'clearStatus',         descKey: 'statusHelpPending' },
-  { icon: 'checkmark-circle-outline' as const, color: '#4ADE80',        labelKey: 'statusHave',          descKey: 'statusHelpHave' },
-  { icon: 'heart-outline' as const,            color: '#E040A0',        labelKey: 'statusWant',          descKey: 'statusHelpWant' },
-  { icon: 'send-outline' as const,             color: '#60A5FA',        labelKey: 'statusOtw',           descKey: 'statusHelpOtw' },
-  { icon: 'close-circle-outline' as const,     color: '#FF6B6B',        labelKey: 'statusNotCollecting', descKey: 'statusHelpNotCollecting' },
-] as const;
 
 export default function AlbumDetailScreen() {
   const { id } = useLocalSearchParams<{ id: string }>();
@@ -76,6 +69,7 @@ export default function AlbumDetailScreen() {
 
   const filtered = useMemo(() => {
     let result = cards;
+    if (statusFilter === 'All') result = result.filter(c => c.status !== 'not_collecting');
     if (memberFilter !== 'All') result = result.filter(c => c.member === memberFilter);
     if (categoryFilter !== 'All') result = result.filter(c => c.category_name === categoryFilter);
     if (statusFilter === 'none') result = result.filter(c => c.status === null);
@@ -91,13 +85,15 @@ export default function AlbumDetailScreen() {
     return result;
   }, [cards, memberFilter, categoryFilter, statusFilter, searchQuery]);
 
-  const grouped = useMemo(() => {
+  const groupedEntries = useMemo(() => {
     const groups: Record<string, CardWithStatus[]> = {};
     filtered.forEach(c => {
       if (!groups[c.category_name]) groups[c.category_name] = [];
       groups[c.category_name].push(c);
     });
-    return groups;
+    return Object.entries(groups).sort(
+      ([, a], [, b]) => a[0].category_sort_order - b[0].category_sort_order
+    );
   }, [filtered]);
 
   const activeFilterCount = (categoryFilter !== 'All' ? 1 : 0) + (statusFilter !== 'All' ? 1 : 0) + (memberFilter !== 'All' ? 1 : 0);
@@ -126,7 +122,10 @@ export default function AlbumDetailScreen() {
       ],
       value: statusFilter,
       onChange: setStatusFilter,
-      onHelp: () => setShowHelp(true),
+      onHelp: () => {
+        setShowFilters(false);
+        setTimeout(() => setShowHelp(true), 300);
+      },
     },
     {
       key: 'member',
@@ -146,13 +145,16 @@ export default function AlbumDetailScreen() {
   const albumColor = cards[0]?.album_color || album?.color || COLORS.purple2;
   const albumCover = cards[0]?.album_cover || album?.cover_image_url || null;
   const totalOwned = cards.filter(c => c.status === 'have').length;
+  // "not_collecting" cards don't count toward the album's total — a card the
+  // user has explicitly opted out of shouldn't block 100% completion.
+  const collectibleCount = cards.filter(c => c.status !== 'not_collecting').length;
 
   // Completion celebration trigger
   useEffect(() => {
-    if (!loading && cards.length > 0) {
+    if (!loading && collectibleCount > 0) {
       if (
         prevOwnedRef.current !== null &&
-        totalOwned === cards.length &&
+        totalOwned === collectibleCount &&
         prevOwnedRef.current < totalOwned
       ) {
         setShowCelebration(true);
@@ -163,7 +165,7 @@ export default function AlbumDetailScreen() {
       }
       prevOwnedRef.current = totalOwned;
     }
-  }, [totalOwned, cards.length, loading]);
+  }, [totalOwned, collectibleCount, loading]);
 
   const handleStatusSelect = (status: CardStatus) => {
     if (!selectedCard) return;
@@ -223,15 +225,15 @@ export default function AlbumDetailScreen() {
           </View>
 
           <Text style={styles.countText}>
-            {t('photocardsOf', { owned: totalOwned, total: cards.length })}
+            {t('photocardsOf', { owned: totalOwned, total: collectibleCount })}
           </Text>
 
           <View style={styles.barWrap}>
             <NeonBar
               value={totalOwned}
-              max={cards.length}
+              max={collectibleCount}
               height={6}
-              color={totalOwned === cards.length && cards.length > 0 ? COLORS.gold : undefined}
+              color={totalOwned === collectibleCount && collectibleCount > 0 ? COLORS.gold : undefined}
             />
           </View>
         </View>
@@ -272,7 +274,7 @@ export default function AlbumDetailScreen() {
                 color={activeFilterCount > 0 ? albumColor : COLORS.textSecondary}
               />
               <Text style={[styles.filterBtnText, activeFilterCount > 0 && { color: albumColor }]}>
-                Filtros
+                {t('filtersLabel')}
               </Text>
               {activeFilterCount > 0 && (
                 <View style={[styles.filterBadge, { backgroundColor: albumColor }]}>
@@ -281,7 +283,7 @@ export default function AlbumDetailScreen() {
               )}
             </TouchableOpacity>
             <Text style={styles.filterResultCount}>
-              {filtered.length} {filtered.length === 1 ? 'carta' : 'cartas'}
+              {filtered.length} {t(filtered.length === 1 ? 'cardWordSingular' : 'cardWordPlural')}
             </Text>
           </View>
 
@@ -320,7 +322,7 @@ export default function AlbumDetailScreen() {
         ) : error ? (
           <ErrorView message={error} onRetry={refetch} />
         ) : (
-          Object.entries(grouped).map(([catName, catCards]) => {
+          groupedEntries.map(([catName, catCards]) => {
             const catOwned = catCards.filter(c => c.status === 'have').length;
             return (
               <View key={catName} style={styles.catSection}>
@@ -352,7 +354,13 @@ export default function AlbumDetailScreen() {
           })
         )}
 
-        {!loading && filtered.length === 0 && (
+        {!loading && cards.length === 0 ? (
+          <View style={styles.emptyWrap}>
+            <Ionicons name="albums-outline" size={32} color={COLORS.textMuted} />
+            <Text style={styles.emptyText}>{t('noPhotocardsYet')}</Text>
+            <Text style={styles.emptyTextSub}>{t('noPhotocardsYetDesc')}</Text>
+          </View>
+        ) : !loading && filtered.length === 0 && (
           <View style={styles.emptyWrap}>
             <Ionicons name="search" size={32} color={COLORS.textMuted} />
             <Text style={styles.emptyText}>{t('noCardsFilter')}</Text>
@@ -411,7 +419,7 @@ export default function AlbumDetailScreen() {
                       activeOpacity={0.7}
                     >
                       <View style={[styles.statusIcon, { backgroundColor: 'rgba(139,112,170,0.15)', borderColor: 'rgba(139,112,170,0.3)' }]}>
-                        <Text style={[styles.statusIconText, { color: COLORS.textMuted }]}>○</Text>
+                        <Ionicons name="ellipse-outline" size={17} color={COLORS.textMuted} />
                       </View>
                       <Text style={[styles.statusLabel, { color: isActive ? COLORS.textSecondary : '#fff' }]}>{t('clearStatus')}</Text>
                       {isActive && <Text style={[styles.statusCheck, { color: COLORS.textMuted }]}>✓</Text>}
@@ -487,46 +495,7 @@ export default function AlbumDetailScreen() {
       </Modal>
 
 
-      {/* Status help modal */}
-      <Modal
-        visible={showHelp}
-        transparent
-        animationType="slide"
-        onRequestClose={() => setShowHelp(false)}
-      >
-        <TouchableOpacity style={styles.backdrop} activeOpacity={1} onPress={() => setShowHelp(false)}>
-          <TouchableOpacity activeOpacity={1} style={styles.sheet}>
-            <View style={styles.sheetHandle} />
-            <View style={styles.helpHeader}>
-              <Text style={styles.helpTitle}>{t('statusHelpTitle')}</Text>
-              <TouchableOpacity onPress={() => setShowHelp(false)} activeOpacity={0.7} style={styles.helpCloseBtn}>
-                <Ionicons name="close" size={20} color={COLORS.textSecondary} />
-              </TouchableOpacity>
-            </View>
-            {HELP_ITEMS.map(item => (
-              <View key={item.labelKey} style={styles.helpRow}>
-                <View style={[styles.helpIconWrap, { backgroundColor: item.color + '22', borderColor: item.color + '55' }]}>
-                  <Ionicons name={item.icon} size={20} color={item.color} />
-                </View>
-                <View style={{ flex: 1 }}>
-                  <Text style={styles.helpRowTitle}>{t(item.labelKey as any)}</Text>
-                  <Text style={styles.helpRowDesc}>{t(item.descKey as any)}</Text>
-                </View>
-              </View>
-            ))}
-            <TouchableOpacity onPress={() => setShowHelp(false)} activeOpacity={0.8} style={styles.helpBtn}>
-              <LinearGradient
-                colors={[COLORS.pink, COLORS.purple1]}
-                start={{ x: 0, y: 0 }}
-                end={{ x: 1, y: 0 }}
-                style={styles.helpBtnGrad}
-              >
-                <Text style={styles.helpBtnText}>{t('statusHelpGotIt')}</Text>
-              </LinearGradient>
-            </TouchableOpacity>
-          </TouchableOpacity>
-        </TouchableOpacity>
-      </Modal>
+      <StatusHelpModal visible={showHelp} onClose={() => setShowHelp(false)} />
 
       {/* Album completion celebration */}
       <Modal visible={showCelebration} transparent animationType="none" onRequestClose={closeCelebration}>
@@ -648,8 +617,9 @@ const styles = StyleSheet.create({
   catCount: { color: COLORS.textSecondary, fontSize: 11, fontWeight: '600' },
   catBarWrap: { marginBottom: 12 },
   pcGrid: { flexDirection: 'row', flexWrap: 'wrap', gap: 10, justifyContent: 'flex-start' },
-  emptyWrap: { alignItems: 'center', marginTop: 50, gap: 10 },
+  emptyWrap: { alignItems: 'center', marginTop: 50, gap: 10, paddingHorizontal: 32 },
   emptyText: { color: COLORS.textMuted, fontSize: 14 },
+  emptyTextSub: { color: COLORS.textMuted, fontSize: 12, textAlign: 'center', opacity: 0.7, marginTop: -4 },
 
 
   // Status picker
@@ -699,30 +669,6 @@ const styles = StyleSheet.create({
   dupBtnText: { color: COLORS.purple3, fontSize: 18, fontWeight: '800' },
   dupCount: { color: '#fff', fontSize: 20, fontWeight: '900', minWidth: 24, textAlign: 'center' },
 
-  // Status help modal
-  helpHeader: {
-    flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between',
-    paddingHorizontal: 20, marginBottom: 16,
-  },
-  helpTitle: { color: '#fff', fontSize: 18, fontWeight: '900', flex: 1 },
-  helpCloseBtn: {
-    width: 32, height: 32, borderRadius: 16,
-    backgroundColor: 'rgba(255,255,255,0.08)',
-    alignItems: 'center', justifyContent: 'center',
-  },
-  helpRow: {
-    flexDirection: 'row', alignItems: 'center', gap: 14,
-    paddingHorizontal: 20, paddingVertical: 12,
-  },
-  helpIconWrap: {
-    width: 40, height: 40, borderRadius: 12,
-    alignItems: 'center', justifyContent: 'center', borderWidth: 1,
-  },
-  helpRowTitle: { color: '#fff', fontSize: 14, fontWeight: '700' },
-  helpRowDesc: { color: COLORS.textMuted, fontSize: 12, marginTop: 2 },
-  helpBtn: { marginHorizontal: 20, marginTop: 20, marginBottom: 8, borderRadius: 14, overflow: 'hidden' },
-  helpBtnGrad: { paddingVertical: 15, alignItems: 'center' },
-  helpBtnText: { color: '#fff', fontSize: 16, fontWeight: '900' },
 
   // Celebration modal
   celebBackdrop: { flex: 1, backgroundColor: 'rgba(0,0,0,0.75)', alignItems: 'center', justifyContent: 'center', padding: 32 },

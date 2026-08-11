@@ -58,12 +58,35 @@ export const RARITIES = {
   Limited:      { symbol: '☆', color: '#F0C040', glow: 'rgba(240,192,64,0.5)' },
 } as const;
 
+export const RARITY_LABEL_KEY = {
+  Common:       'rarityCommon',
+  Rare:         'rarityRare',
+  'Ultra Rare': 'rarityUltraRare',
+  Limited:      'rarityLimited',
+} as const;
+
 export const STATUS_LABEL_KEY = {
   have:           'statusHave',
   want:           'statusWant',
   otw:            'statusOtw',
   not_collecting: 'statusNotCollecting',
 } as const;
+
+// Sort priority for the country column on cards. Countries not listed here
+// (or null) sort last, alphabetically by card_name.
+export const COUNTRY_ORDER: Record<string, number> = {
+  KOREA: 0,
+  JAPAN: 1,
+  USA: 2,
+};
+
+// Sort priority for the draw_type column on cards (R1 before R2, etc).
+// Cards without a draw_type (null) are treated as the base/R1 version.
+export const DRAW_TYPE_ORDER: Record<string, number> = {
+  R1: 0,
+  R2: 1,
+  R3: 2,
+};
 
 export const STATUS_CONFIG = {
   have:            { label: 'Have',            color: '#4ADE80', icon: '✓' },

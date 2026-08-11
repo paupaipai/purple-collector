@@ -5,6 +5,7 @@ import {
   TouchableOpacity, View,
 } from 'react-native';
 import { COLORS } from '../lib/constants';
+import { useI18n } from '../lib/I18nContext';
 
 export interface FilterSection {
   key: string;
@@ -34,6 +35,7 @@ export default function FilterBottomSheet({
   onReset,
   resultCount,
 }: Props) {
+  const { t } = useI18n();
   const hasActive = sections.some(s => !s.premiumLocked && s.value !== 'All');
 
   return (
@@ -43,7 +45,7 @@ export default function FilterBottomSheet({
           <View style={styles.handle} />
 
           <View style={styles.header}>
-            <Text style={styles.title}>Filtros</Text>
+            <Text style={styles.title}>{t('filtersLabel')}</Text>
             {hasActive && (
               <TouchableOpacity onPress={onReset} activeOpacity={0.7} style={styles.resetBtn}>
                 <Text style={styles.resetText}>Limpiar</Text>

@@ -11,3 +11,12 @@ entrypoint = "./functions/delete-account/index.ts"
 # Specifies static files to be bundled with the function. Supports glob patterns.
 # For example, if you want to serve static HTML pages in your function:
 # static_files = [ "./functions/delete-account/*.html" ]
+
+[functions.send-notification]
+enabled = true
+# Platform-level JWT verification stays on (contract requirement) — the
+# withSupabase({ auth: ["user"] }) check inside the handler is on top of it,
+# not instead of it, and additionally enforces the is_admin check.
+verify_jwt = true
+import_map = "./functions/send-notification/deno.json"
+entrypoint = "./functions/send-notification/index.ts"

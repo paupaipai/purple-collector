@@ -37,12 +37,18 @@ const en = {
   filterAll: 'All',
   filterGroup: 'Group',
   searchPlaceholder: 'Search by card, member or album...',
+  cancel: 'Cancel',
+  filtersLabel: 'Filters',
+  cardWordSingular: 'card',
+  cardWordPlural: 'cards',
 
   // Album detail
   photocardsOf: '{owned} of {total} Photocards',
   wordOf: 'of',
   wordPhotocards: 'Photocards',
   loadingCards: 'Loading cards...',
+  noPhotocardsYet: 'No photocards yet',
+  noPhotocardsYetDesc: 'This album isn\'t catalogued for photocards yet. Other formats may be added later.',
 
   // Wishlist
   wishlist: 'Wishlist',
@@ -67,6 +73,10 @@ const en = {
   cardsLeft: '{n} cards left to complete your collection',
   collectionComplete: 'Collection complete!',
   rarityBreakdown: 'Rarity Breakdown',
+  rarityCommon: 'Common',
+  rarityRare: 'Rare',
+  rarityUltraRare: 'Ultra Rare',
+  rarityLimited: 'Limited',
   memberCollection: 'Member Collection',
   albumProgress: 'Album Progress',
   account: 'Account',
@@ -186,7 +196,7 @@ const es: Translations = {
   photocardsOwned: '{n} photocards en mi colección',
   labelAlbums: 'Álbumes',
   labelMembers: 'Miembros',
-  labelRarePlus: 'Rare+',
+  labelRarePlus: 'Rara+',
   labelTotal: 'total',
   noCards: 'Sin cards aún',
   noCardsDesc: 'Marca photocards como "Have" en\ncualquier álbum para armar tu colección',
@@ -196,12 +206,18 @@ const es: Translations = {
   filterAll: 'Todos',
   filterGroup: 'Grupo',
   searchPlaceholder: 'Buscar por card, miembro o álbum...',
+  cancel: 'Cancelar',
+  filtersLabel: 'Filtros',
+  cardWordSingular: 'carta',
+  cardWordPlural: 'cartas',
 
   // Album detail
   photocardsOf: '{owned} de {total} Photocards',
   wordOf: 'de',
   wordPhotocards: 'Photocards',
   loadingCards: 'Cargando cards...',
+  noPhotocardsYet: 'Aún no hay photocards',
+  noPhotocardsYetDesc: 'Este álbum todavía no tiene photocards catalogadas. Más adelante podrían sumarse otros formatos.',
 
   // Wishlist
   wishlist: 'Wishlist',
@@ -211,12 +227,12 @@ const es: Translations = {
   wishlistEmptyDesc: 'Marca photocards como "Want" o "OTW"\nen cualquier álbum para rastrearlas aquí',
 
   // Photocard status labels
-  clearStatus: 'Pending',
-  statusHave: 'Have',
-  statusWant: 'Want',
-  statusOtw: 'OTW',
-  statusNotCollecting: 'Not Collecting',
-  statusNone: 'Pending',
+  clearStatus: 'Pendiente',
+  statusHave: 'Tengo',
+  statusWant: 'Quiero',
+  statusOtw: 'En camino',
+  statusNotCollecting: 'No Colecciono',
+  statusNone: 'Pendiente',
 
   // Profile
   owned: 'Tengo',
@@ -226,6 +242,10 @@ const es: Translations = {
   cardsLeft: '{n} cards para completar tu colección',
   collectionComplete: '¡Colección completa!',
   rarityBreakdown: 'Desglose por Rareza',
+  rarityCommon: 'Común',
+  rarityRare: 'Raras',
+  rarityUltraRare: 'Ultra Rara',
+  rarityLimited: 'Limitada',
   memberCollection: 'Colección por Miembro',
   albumProgress: 'Progreso por Álbum',
   account: 'Cuenta',

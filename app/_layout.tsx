@@ -10,6 +10,7 @@ import GalaxyBackground from '../components/GalaxyBackground';
 import LoginScreen from '../components/LoginScreen';
 import OnboardingScreen from '../components/OnboardingScreen';
 import { useAuth } from '../hooks/useAuth';
+import { usePushNotifications } from '../hooks/usePushNotifications';
 import { BiasProvider, useBias } from '../lib/BiasContext';
 import { I18nProvider } from '../lib/I18nContext';
 import { PremiumProvider } from '../lib/PremiumContext';
@@ -174,6 +175,8 @@ function AppShell({ session, loading, authLoading, signInWithGoogle, signInWithA
 export default Sentry.wrap(function RootLayout() {
   const { session, loading, authLoading, signInWithGoogle, signInWithApple } = useAuth();
   const userId = session?.user?.id ?? null;
+
+  usePushNotifications(userId);
 
   return (
     <I18nProvider>

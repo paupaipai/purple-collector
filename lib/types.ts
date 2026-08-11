@@ -5,6 +5,7 @@ export type CardStatus = 'have' | 'want' | 'otw' | 'not_collecting';
 export interface CollectionType {
   id: number;
   name: string;
+  name_en: string | null;
   short_name: string;
   color: string;
   icon: string | null;
@@ -67,6 +68,8 @@ export interface CardFull {
   member_emoji: string | null;
   card_name: string;
   retailer: string | null;
+  country: string | null;
+  draw_type: string | null;
   rarity: Rarity;
   image_path: string | null;
   is_group: boolean;
@@ -85,6 +88,7 @@ export interface CardFull {
   category_name: string;
   category_short: string;
   category_color: string;
+  category_sort_order: number;
 }
 
 export interface CardWithStatus extends CardFull {

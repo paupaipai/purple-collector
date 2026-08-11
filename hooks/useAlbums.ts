@@ -12,20 +12,20 @@ export function useAlbums(userId: string | null) {
     if (!silent) setLoading(true);
     setError(null);
 
-    const ownedQuery = userId
-      ? supabase.from('user_cards').select('card_id, cards!inner(album_id)').eq('user_id', userId).eq('status', 'have')
+    const userCardsQuery = userId
+      ? supabase.from('user_cards').select('status, cards!inner(album_id)').eq('user_id', userId).in('status', ['have', 'not_collecting'])
       : Promise.resolve({ data: null as any, error: null });
 
     const [
       { data: albumsData, error: aErr },
       { data: versionsData },
       { data: cardCounts },
-      { data: ownedData },
+      { data: userCardsData },
     ] = await Promise.all([
       supabase.from('albums').select('*').eq('is_active', true).order('sort_order'),
       supabase.from('album_versions').select('*').order('sort_order'),
       supabase.from('cards').select('album_id'),
-      ownedQuery,
+      userCardsQuery,
     ]);
 
     if (aErr || !albumsData) {
@@ -35,18 +35,22 @@ export function useAlbums(userId: string | null) {
       return;
     }
 
+    // "not_collecting" cards are excluded from total_cards below — they
+    // shouldn't count toward an album's completion total.
     const ownedByAlbum: Record<number, number> = {};
-    if (ownedData) {
-      ownedData.forEach((uc: any) => {
+    const notCollectingByAlbum: Record<number, number> = {};
+    if (userCardsData) {
+      userCardsData.forEach((uc: any) => {
         const aid = uc.cards.album_id;
-        ownedByAlbum[aid] = (ownedByAlbum[aid] || 0) + 1;
+        if (uc.status === 'have') ownedByAlbum[aid] = (ownedByAlbum[aid] || 0) + 1;
+        else if (uc.status === 'not_collecting') notCollectingByAlbum[aid] = (notCollectingByAlbum[aid] || 0) + 1;
       });
     }
 
     const result: AlbumWithStats[] = albumsData.map(album => ({
       ...album,
       versions: (versionsData || []).filter((v: AlbumVersion) => v.album_id === album.id),
-      total_cards: (cardCounts || []).filter((c: any) => c.album_id === album.id).length,
+      total_cards: (cardCounts || []).filter((c: any) => c.album_id === album.id).length - (notCollectingByAlbum[album.id] || 0),
       owned_cards: ownedByAlbum[album.id] || 0,
     }));
 

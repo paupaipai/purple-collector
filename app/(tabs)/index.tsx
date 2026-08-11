@@ -54,7 +54,7 @@ function TypeCard({
   onPress: () => void;
   index: number;
 }) {
-  const { t } = useI18n();
+  const { t, lang } = useI18n();
   const slideAnim = useRef(new Animated.Value(30)).current;
   const fadeAnim = useRef(new Animated.Value(0)).current;
 
@@ -66,6 +66,7 @@ function TypeCard({
   }, []);
 
   const iconSource = type.icon ? TYPE_ICONS[type.icon] : null;
+  const displayName = lang === 'en' ? (type.name_en || type.name) : type.name;
 
   return (
     <Animated.View style={[styles.typeCardWrap, { opacity: fadeAnim, transform: [{ translateY: slideAnim }] }]}>
@@ -89,7 +90,7 @@ function TypeCard({
 
           {/* Text */}
           <View style={styles.typeContent}>
-            <Text style={styles.typeName} numberOfLines={2}>{type.name}</Text>
+            <Text style={styles.typeName} numberOfLines={2}>{displayName}</Text>
             {type.album_count > 0 && (
               <Text style={styles.typeStat}>
                 <Text style={[styles.typeStatNum, { color: type.color }]}>{type.album_count}</Text>

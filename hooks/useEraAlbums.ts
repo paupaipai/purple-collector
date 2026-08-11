@@ -7,6 +7,7 @@ import { t } from '../lib/i18n';
 export function useEraAlbums(collectionTypeId: number | null, userId: string | null) {
   const [eras, setEras] = useState<AlbumEraWithAlbums[]>([]);
   const [typeName, setTypeName] = useState('');
+  const [typeNameEn, setTypeNameEn] = useState<string | null>(null);
   const [typeColor, setTypeColor] = useState('');
   const [typeIcon, setTypeIcon] = useState('');
   const [loading, setLoading] = useState(true);
@@ -22,7 +23,7 @@ export function useEraAlbums(collectionTypeId: number | null, userId: string | n
       { data: typeData },
       { data: erasData, error: erasError },
     ] = await Promise.all([
-      supabase.from('collection_types').select('name, color, icon').eq('id', collectionTypeId).single(),
+      supabase.from('collection_types').select('name, name_en, color, icon').eq('id', collectionTypeId).single(),
       supabase.from('album_eras').select('*').eq('collection_type_id', collectionTypeId).order('sort_order'),
     ]);
 
@@ -34,6 +35,7 @@ export function useEraAlbums(collectionTypeId: number | null, userId: string | n
 
     if (typeData) {
       setTypeName(typeData.name);
+      setTypeNameEn(typeData.name_en || null);
       setTypeColor(typeData.color);
       setTypeIcon(typeData.icon || '');
     }
@@ -47,39 +49,46 @@ export function useEraAlbums(collectionTypeId: number | null, userId: string | n
     }
 
     // Step 2: álbumes filtrados por era_id directamente en Supabase
-    const ownedQuery = userId
+    const userCardsQuery = userId
       ? supabase
           .from('user_cards')
-          .select('card_id, cards!inner(album_id)')
+          .select('status, cards!inner(album_id)')
           .eq('user_id', userId)
-          .eq('status', 'have')
+          .in('status', ['have', 'not_collecting'])
       : Promise.resolve({ data: null as any, error: null });
 
     const [
       { data: albumsData, error: albumsError },
       { data: versionsData },
       { data: cardCounts },
-      { data: ownedData },
+      { data: userCardsData },
     ] = await Promise.all([
       supabase.from('albums').select('*').in('era_id', eraIds).eq('is_active', true).order('sort_order'),
       supabase.from('album_versions').select('*').order('sort_order'),
       supabase.from('cards').select('album_id'),
-      ownedQuery,
+      userCardsQuery,
     ]);
 
-    // Owned count per album
+    // Owned / not-collecting count per album
     const ownedByAlbum: Record<number, number> = {};
-    if (ownedData) {
-      ownedData.forEach((uc: any) => {
+    const notCollectingByAlbum: Record<number, number> = {};
+    if (userCardsData) {
+      userCardsData.forEach((uc: any) => {
         const aid = uc.cards?.album_id;
-        if (aid) ownedByAlbum[aid] = (ownedByAlbum[aid] || 0) + 1;
+        if (!aid) return;
+        if (uc.status === 'have') ownedByAlbum[aid] = (ownedByAlbum[aid] || 0) + 1;
+        else if (uc.status === 'not_collecting') notCollectingByAlbum[aid] = (notCollectingByAlbum[aid] || 0) + 1;
       });
     }
 
-    // Total cards per album
+    // Total cards per album — "not_collecting" cards don't count toward it.
     const totalByAlbum: Record<number, number> = {};
     (cardCounts || []).forEach((c: any) => {
       totalByAlbum[c.album_id] = (totalByAlbum[c.album_id] || 0) + 1;
+    });
+    Object.keys(notCollectingByAlbum).forEach((aidStr) => {
+      const aid = Number(aidStr);
+      totalByAlbum[aid] = (totalByAlbum[aid] || 0) - notCollectingByAlbum[aid];
     });
 
     const albums = albumsData || [];
@@ -111,6 +120,7 @@ export function useEraAlbums(collectionTypeId: number | null, userId: string | n
   return {
     eras,
     typeName,
+    typeNameEn,
     typeColor,
     typeIcon,
     loading,

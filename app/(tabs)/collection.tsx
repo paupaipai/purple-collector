@@ -20,7 +20,7 @@ import Photocard from '../../components/Photocard';
 import PremiumLock from '../../components/PremiumLock';
 import { useAuth } from '../../hooks/useAuth';
 import { useCollection } from '../../hooks/useCollection';
-import { COLORS, MEMBERS, RARITIES } from '../../lib/constants';
+import { COLORS, MEMBERS, RARITIES, RARITY_LABEL_KEY } from '../../lib/constants';
 import { useI18n } from '../../lib/I18nContext';
 import { usePremium } from '../../lib/PremiumContext';
 import { CardWithStatus } from '../../lib/types';
@@ -211,7 +211,9 @@ export default function CollectionScreen() {
                 <GlassCard key={name} style={styles.rarityCard}>
                   <Text style={[styles.raritySymbol, { color: r.color }]}>{r.symbol}</Text>
                   <Text style={[styles.rarityCount, { color: r.color }]}>{rarityCount[name] || 0}</Text>
-                  <Text style={styles.rarityName}>{name === 'Ultra Rare' ? 'UR' : name}</Text>
+                  <Text style={styles.rarityName}>
+                    {name === 'Ultra Rare' ? 'UR' : t(RARITY_LABEL_KEY[name as keyof typeof RARITY_LABEL_KEY] as any)}
+                  </Text>
                 </GlassCard>
               ))}
             </View>
@@ -260,7 +262,7 @@ export default function CollectionScreen() {
                   color={activeFilterCount > 0 ? COLORS.purple3 : COLORS.textSecondary}
                 />
                 <Text style={[styles.filterBtnText, activeFilterCount > 0 && styles.filterBtnTextActive]}>
-                  Filtros
+                  {t('filtersLabel')}
                 </Text>
                 {activeFilterCount > 0 && (
                   <View style={styles.filterBadge}>
@@ -269,7 +271,7 @@ export default function CollectionScreen() {
                 )}
               </TouchableOpacity>
               <Text style={styles.filterResultCount}>
-                {filtered.length} {filtered.length === 1 ? 'carta' : 'cartas'}
+                {filtered.length} {t(filtered.length === 1 ? 'cardWordSingular' : 'cardWordPlural')}
               </Text>
             </View>
 

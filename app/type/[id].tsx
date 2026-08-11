@@ -94,17 +94,23 @@ function AlbumRow({
               )}
             </View>
             <Text style={styles.albumMeta}>{album.release_year}</Text>
-            <Text style={styles.albumCount}>
-              <Text style={{ color: COLORS.pink, fontWeight: '900' }}>{album.owned_cards}</Text>
-              <Text style={{ color: COLORS.textSecondary }}> {t('wordOf')} </Text>
-              <Text style={{ fontWeight: '900', color: '#fff' }}>{album.total_cards}</Text>
-              <Text style={{ color: COLORS.textSecondary }}> {t('wordPhotocards')}</Text>
-            </Text>
-            <NeonBar
-              value={album.owned_cards}
-              max={album.total_cards}
-              color={complete ? COLORS.gold : accentColor}
-            />
+            {album.total_cards > 0 ? (
+              <>
+                <Text style={styles.albumCount}>
+                  <Text style={{ color: COLORS.pink, fontWeight: '900' }}>{album.owned_cards}</Text>
+                  <Text style={{ color: COLORS.textSecondary }}> {t('wordOf')} </Text>
+                  <Text style={{ fontWeight: '900', color: '#fff' }}>{album.total_cards}</Text>
+                  <Text style={{ color: COLORS.textSecondary }}> {t('wordPhotocards')}</Text>
+                </Text>
+                <NeonBar
+                  value={album.owned_cards}
+                  max={album.total_cards}
+                  color={complete ? COLORS.gold : accentColor}
+                />
+              </>
+            ) : (
+              <Text style={styles.albumNoCards}>{t('noPhotocardsYet')}</Text>
+            )}
           </View>
         </GlassCard>
       </TouchableOpacity>
@@ -157,11 +163,12 @@ export default function TypeDetailScreen() {
   const { id } = useLocalSearchParams<{ id: string }>();
   const router = useRouter();
   const { userId } = useAuth();
-  const { eras, typeName, typeColor, typeIcon, loading, error, refetch, silentRefetch } = useEraAlbums(
+  const { eras, typeName, typeNameEn, typeColor, typeIcon, loading, error, refetch, silentRefetch } = useEraAlbums(
     Number(id),
     userId
   );
-  const { t } = useI18n();
+  const { t, lang } = useI18n();
+  const displayTypeName = lang === 'en' ? (typeNameEn || typeName) : typeName;
 
   const headerOpacity = useRef(new Animated.Value(0)).current;
 
@@ -191,7 +198,7 @@ export default function TypeDetailScreen() {
         )}
         <View style={{ flex: 1 }}>
           <Text style={[styles.headerTitle, { color: accentColor }]} numberOfLines={1}>
-            {typeName}
+            {displayTypeName}
           </Text>
           {!loading && totalAlbums > 0 && (
             <Text style={styles.headerSub}>
@@ -291,6 +298,7 @@ const styles = StyleSheet.create({
   albumName: { flex: 1, fontSize: 14, fontWeight: '800', color: '#fff' },
   albumMeta: { fontSize: 10, color: COLORS.textSecondary, marginBottom: 6 },
   albumCount: { fontSize: 11, fontWeight: '700', color: '#fff', marginBottom: 6 },
+  albumNoCards: { fontSize: 11, fontWeight: '600', color: COLORS.textMuted, fontStyle: 'italic', marginBottom: 6 },
   completeBadge: { paddingHorizontal: 6, paddingVertical: 2, borderRadius: 5 },
   completeBadgeText: { fontSize: 7, fontWeight: '800', color: '#1a0a00', letterSpacing: 0.5 },
 });

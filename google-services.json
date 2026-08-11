@@ -1,0 +1,29 @@
+{
+  "project_info": {
+    "project_number": "481545397161",
+    "project_id": "purple-collector",
+    "storage_bucket": "purple-collector.firebasestorage.app"
+  },
+  "client": [
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:481545397161:android:f1bfdfe15dc361d460dab8",
+        "android_client_info": {
+          "package_name": "com.paupaipai.purplecollector"
+        }
+      },
+      "oauth_client": [],
+      "api_key": [
+        {
+          "current_key": "AIzaSyDVDlTlGhVq1dkINGAOWbcZ1ve3khoCC_o"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": []
+        }
+      }
+    }
+  ],
+  "configuration_version": "1"
+}

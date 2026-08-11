@@ -104,10 +104,12 @@ export default function Photocard({ card, onPress, onLongPress }: PhotocardProps
               <Ionicons name="heart" size={17} color={STATUS_CONFIG.want.color} />
             ) : card.status === 'otw' ? (
               <Ionicons name="cart" size={17} color={STATUS_CONFIG.otw.color} />
-            ) : (
+            ) : card.status === 'not_collecting' ? (
               <View style={styles.dotNone}>
                 <Text style={styles.checkNone}>{STATUS_CONFIG.not_collecting.icon}</Text>
               </View>
+            ) : (
+              <Ionicons name="ellipse-outline" size={16} color={COLORS.textMuted} />
             )}
           </View>
 

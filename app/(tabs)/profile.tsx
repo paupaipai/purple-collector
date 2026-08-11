@@ -16,7 +16,7 @@ import { useAuth } from '../../hooks/useAuth';
 import { useCollection } from '../../hooks/useCollection';
 import { useWishlist } from '../../hooks/useWishlist';
 import { useBias } from '../../lib/BiasContext';
-import { COLORS, getMemberByKey, MEMBERS, PREMIUM_ENABLED, PRIVACY_URL, RARITIES } from '../../lib/constants';
+import { COLORS, getMemberByKey, MEMBERS, PREMIUM_ENABLED, PRIVACY_URL, RARITIES, RARITY_LABEL_KEY } from '../../lib/constants';
 import { useI18n } from '../../lib/I18nContext';
 import { usePremium } from '../../lib/PremiumContext';
 import { supabase } from '../../lib/supabase';
@@ -252,7 +252,9 @@ export default function ProfileScreen() {
                 <View key={name} style={styles.rarityItem}>
                   <Text style={[styles.raritySymbol, { color: r.color }]}>{r.symbol}</Text>
                   <Text style={[styles.rarityCount, { color: r.color }]}>{rarityCounts[name] || 0}</Text>
-                  <Text style={styles.rarityName}>{name === 'Ultra Rare' ? 'UR' : name}</Text>
+                  <Text style={styles.rarityName}>
+                    {name === 'Ultra Rare' ? 'UR' : t(RARITY_LABEL_KEY[name as keyof typeof RARITY_LABEL_KEY] as any)}
+                  </Text>
                 </View>
               ))}
             </View>

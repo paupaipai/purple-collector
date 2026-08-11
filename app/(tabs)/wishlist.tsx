@@ -1,7 +1,7 @@
 import { Image } from 'expo-image';
 import {
   View, Text, StyleSheet, ScrollView, TouchableOpacity,
-  ActivityIndicator, Animated,
+  ActivityIndicator, Animated, Modal,
 } from 'react-native';
 import { useFocusEffect, useRouter } from 'expo-router';
 import { SafeAreaView } from 'react-native-safe-area-context';
@@ -14,6 +14,7 @@ import { getPhotocardUrl } from '../../lib/supabase';
 import { CardWithStatus, CardStatus } from '../../lib/types';
 import FilterBottomSheet, { FilterSection } from '../../components/FilterBottomSheet';
 import GlassCard from '../../components/GlassCard';
+import StatusHelpModal from '../../components/StatusHelpModal';
 import GalaxyBackground from '../../components/GalaxyBackground';
 import ErrorView from '../../components/ErrorView';
 import { Ionicons } from '@expo/vector-icons';
@@ -22,68 +23,136 @@ import { useI18n } from '../../lib/I18nContext';
 // ─── Status pill ────────────────────────────────────────────────────────────
 const STATUS_ORDER: CardStatus[] = ['want', 'otw'];
 
-function StatusChip({ status }: { status: CardStatus }) {
-  const cfg = STATUS_CONFIG[status];
-  const { t } = useI18n();
+// ─── Wishlist grid card ──────────────────────────────────────────────────────
+function WishGridCard({
+  card, onPress,
+}: {
+  card: CardWithStatus;
+  onPress: () => void;
+}) {
+  const status = card.status as CardStatus;
+  const borderColor = STATUS_CONFIG[status]?.color + '55' || card.album_color + '55';
+
   return (
-    <View style={[styles.statusChip, { backgroundColor: cfg.color + '22', borderColor: cfg.color + '55' }]}>
-      <Text style={[styles.statusChipText, { color: cfg.color }]}>{cfg.icon} {t(STATUS_LABEL_KEY[status] as any)}</Text>
+    <View style={styles.gridItem}>
+      <TouchableOpacity
+        onPress={onPress}
+        activeOpacity={0.85}
+        style={[styles.gridCard, { borderColor }]}
+      >
+        {card.image_path ? (
+          <Image
+            source={{ uri: getPhotocardUrl(card.image_path) }}
+            style={styles.gridImage}
+            contentFit="cover"
+            transition={150}
+          />
+        ) : (
+          <View style={[styles.gridPlaceholder, { backgroundColor: card.album_color + '33' }]}>
+            <Text style={styles.memberInitial}>{card.member?.charAt(0) || '?'}</Text>
+          </View>
+        )}
+
+        <LinearGradient colors={['transparent', 'rgba(0,0,0,0.55)']} style={styles.bottomGrad} />
+
+        <View style={styles.statusCorner}>
+          {status === 'want' ? (
+            <Ionicons name="heart" size={17} color={STATUS_CONFIG.want.color} />
+          ) : status === 'otw' ? (
+            <Ionicons name="cart" size={17} color={STATUS_CONFIG.otw.color} />
+          ) : null}
+        </View>
+      </TouchableOpacity>
+
+      <View style={styles.gridInfo}>
+        {card.version_short && (
+          <Text style={styles.versionTag}>Ver. {card.version_short}</Text>
+        )}
+        {card.card_name ? (
+          <Text style={styles.gridName} numberOfLines={2}>{card.card_name.toUpperCase()}</Text>
+        ) : null}
+      </View>
     </View>
   );
 }
 
-// ─── Wishlist card row ───────────────────────────────────────────────────────
-function WishCard({
-  card, onStatusPress, onMarkHave,
+// ─── Status action popup ─────────────────────────────────────────────────────
+function StatusActionModal({
+  card, onClose, onSetStatus,
 }: {
-  card: CardWithStatus;
-  onStatusPress: (card: CardWithStatus) => void;
-  onMarkHave: (card: CardWithStatus) => void;
+  card: CardWithStatus | null;
+  onClose: () => void;
+  onSetStatus: (status: CardStatus) => void;
 }) {
+  const { t } = useI18n();
+  const visible = !!card;
+  const status = card?.status as CardStatus | undefined;
+
   return (
-    <View style={styles.wishRow}>
-      {/* Color stripe */}
-      <View style={[styles.stripe, { backgroundColor: card.album_color }]} />
-
-      <View style={styles.wishContent}>
-        <View style={styles.wishMain}>
-          <View style={[styles.cardThumb, { borderColor: card.album_color + '55' }]}>
-            {card.image_path ? (
-              <Image
-                source={{ uri: getPhotocardUrl(card.image_path) }}
-                style={styles.cardThumbImg}
-                contentFit="cover"
-                transition={150}
-              />
-            ) : (
-              <View style={[styles.cardThumbPlaceholder, { backgroundColor: card.album_color + '33' }]}>
-                <Text style={styles.memberInitial}>{card.member?.charAt(0) || '?'}</Text>
+    <Modal visible={visible} transparent animationType="fade" onRequestClose={onClose}>
+      <TouchableOpacity style={styles.popupBackdrop} activeOpacity={1} onPress={onClose}>
+        <TouchableOpacity activeOpacity={1} style={styles.popupCard}>
+          {card && (
+            <>
+              <View style={styles.popupThumbWrap}>
+                {card.image_path ? (
+                  <Image
+                    source={{ uri: getPhotocardUrl(card.image_path) }}
+                    style={styles.popupThumb}
+                    contentFit="cover"
+                    transition={150}
+                  />
+                ) : (
+                  <View style={[styles.popupThumb, styles.gridPlaceholder, { backgroundColor: card.album_color + '33' }]}>
+                    <Text style={styles.memberInitial}>{card.member?.charAt(0) || '?'}</Text>
+                  </View>
+                )}
               </View>
-            )}
-          </View>
 
-          <View style={styles.wishInfo}>
-            <Text style={styles.wishMember} numberOfLines={1}>{card.member}</Text>
-            <Text style={styles.wishName} numberOfLines={1}>{card.card_name}</Text>
-            <Text style={styles.wishAlbum} numberOfLines={1}>
-              {card.album_short} · {card.category_short}
-            </Text>
-          </View>
-        </View>
+              <Text style={styles.popupTitle} numberOfLines={1}>{card.card_name}</Text>
+              <Text style={styles.popupSub} numberOfLines={1}>{card.member} · {card.album_short}</Text>
 
-        <View style={styles.rowActions}>
-          {/* Mark as have */}
-          <TouchableOpacity onPress={() => onMarkHave(card)} activeOpacity={0.7} style={styles.gotItBtn}>
-            <Text style={styles.gotItText}>+ Tengo</Text>
-          </TouchableOpacity>
+              <View style={styles.popupActions}>
+                <TouchableOpacity
+                  onPress={() => onSetStatus('have')}
+                  activeOpacity={0.7}
+                  style={[styles.popupBtn, { backgroundColor: 'rgba(74,222,128,0.14)', borderColor: 'rgba(74,222,128,0.4)' }]}
+                >
+                  <Ionicons name="checkmark-circle" size={20} color="#4ADE80" />
+                  <Text style={[styles.popupBtnText, { color: '#4ADE80' }]}>{t(STATUS_LABEL_KEY.have)}</Text>
+                </TouchableOpacity>
+                <TouchableOpacity
+                  onPress={() => onSetStatus('want')}
+                  activeOpacity={0.7}
+                  style={[
+                    styles.popupBtn,
+                    { backgroundColor: STATUS_CONFIG.want.color + (status === 'want' ? '33' : '14'), borderColor: STATUS_CONFIG.want.color + '55' },
+                  ]}
+                >
+                  <Ionicons name="heart" size={20} color={STATUS_CONFIG.want.color} />
+                  <Text style={[styles.popupBtnText, { color: STATUS_CONFIG.want.color }]}>{t(STATUS_LABEL_KEY.want)}</Text>
+                </TouchableOpacity>
+                <TouchableOpacity
+                  onPress={() => onSetStatus('otw')}
+                  activeOpacity={0.7}
+                  style={[
+                    styles.popupBtn,
+                    { backgroundColor: STATUS_CONFIG.otw.color + (status === 'otw' ? '33' : '14'), borderColor: STATUS_CONFIG.otw.color + '55' },
+                  ]}
+                >
+                  <Ionicons name="cart" size={20} color={STATUS_CONFIG.otw.color} />
+                  <Text style={[styles.popupBtnText, { color: STATUS_CONFIG.otw.color }]}>{t(STATUS_LABEL_KEY.otw)}</Text>
+                </TouchableOpacity>
+              </View>
 
-          {/* Tap to cycle status */}
-          <TouchableOpacity onPress={() => onStatusPress(card)} activeOpacity={0.7}>
-            <StatusChip status={card.status!} />
-          </TouchableOpacity>
-        </View>
-      </View>
-    </View>
+              <TouchableOpacity onPress={onClose} activeOpacity={0.7} style={styles.popupCloseBtn}>
+                <Text style={styles.popupCloseText}>{t('cancel')}</Text>
+              </TouchableOpacity>
+            </>
+          )}
+        </TouchableOpacity>
+      </TouchableOpacity>
+    </Modal>
   );
 }
 
@@ -97,6 +166,8 @@ export default function WishlistScreen() {
   const [statusFilter, setStatusFilter] = useState<'All' | CardStatus>('All');
   const [memberFilter, setMemberFilter] = useState('All');
   const [showFilters, setShowFilters] = useState(false);
+  const [showStatusHelp, setShowStatusHelp] = useState(false);
+  const [activeCard, setActiveCard] = useState<CardWithStatus | null>(null);
 
   const fadeAnim = useRef(new Animated.Value(0)).current;
   const slideAnim = useRef(new Animated.Value(20)).current;
@@ -144,6 +215,10 @@ export default function WishlistScreen() {
       ],
       value: statusFilter,
       onChange: (v) => setStatusFilter(v as 'All' | CardStatus),
+      onHelp: () => {
+        setShowFilters(false);
+        setTimeout(() => setShowStatusHelp(true), 300);
+      },
     },
     {
       key: 'member',
@@ -168,14 +243,10 @@ export default function WishlistScreen() {
     return groups;
   }, [filtered]);
 
-  const handleStatusPress = (card: CardWithStatus) => {
-    const idx = STATUS_ORDER.indexOf(card.status as CardStatus);
-    const next = STATUS_ORDER[(idx + 1) % STATUS_ORDER.length];
-    setCardStatus(card.id, next);
-  };
-
-  const handleMarkHave = (card: CardWithStatus) => {
-    setCardStatus(card.id, 'have');
+  const handleSetStatus = (status: CardStatus) => {
+    if (!activeCard) return;
+    setCardStatus(activeCard.id, status);
+    setActiveCard(null);
   };
 
   return (
@@ -211,7 +282,7 @@ export default function WishlistScreen() {
               return (
                 <View key={s} style={[styles.statItem, i < STATUS_ORDER.length - 1 && styles.statItemBorder]}>
                   <Text style={[styles.statValue, { color: cfg.color }]}>{counts[s]}</Text>
-                  <Text style={styles.statLabel}>{cfg.icon} {cfg.label}</Text>
+                  <Text style={styles.statLabel}>{cfg.icon} {t(STATUS_LABEL_KEY[s] as any)}</Text>
                 </View>
               );
             })}
@@ -233,7 +304,7 @@ export default function WishlistScreen() {
                   color={activeFilterCount > 0 ? COLORS.pink : COLORS.textSecondary}
                 />
                 <Text style={[styles.filterBtnText, activeFilterCount > 0 && styles.filterBtnTextActive]}>
-                  Filtros
+                  {t('filtersLabel')}
                 </Text>
                 {activeFilterCount > 0 && (
                   <View style={styles.filterBadge}>
@@ -242,7 +313,7 @@ export default function WishlistScreen() {
                 )}
               </TouchableOpacity>
               <Text style={styles.filterResultCount}>
-                {filtered.length} {filtered.length === 1 ? 'carta' : 'cartas'}
+                {filtered.length} {t(filtered.length === 1 ? 'cardWordSingular' : 'cardWordPlural')}
               </Text>
             </View>
 
@@ -323,14 +394,15 @@ export default function WishlistScreen() {
               </TouchableOpacity>
 
               {/* Cards */}
-              <GlassCard style={styles.cardList}>
-                {group.cards.map((card, i) => (
-                  <View key={card.id}>
-                    <WishCard card={card} onStatusPress={handleStatusPress} onMarkHave={handleMarkHave} />
-                    {i < group.cards.length - 1 && <View style={styles.rowDivider} />}
-                  </View>
+              <View style={styles.pcGrid}>
+                {group.cards.map(card => (
+                  <WishGridCard
+                    key={card.id}
+                    card={card}
+                    onPress={() => setActiveCard(card)}
+                  />
                 ))}
-              </GlassCard>
+              </View>
             </View>
           ))
         )}
@@ -344,6 +416,14 @@ export default function WishlistScreen() {
         onReset={() => { setStatusFilter('All'); setMemberFilter('All'); }}
         resultCount={filtered.length}
       />
+
+      <StatusActionModal
+        card={activeCard}
+        onClose={() => setActiveCard(null)}
+        onSetStatus={handleSetStatus}
+      />
+
+      <StatusHelpModal visible={showStatusHelp} onClose={() => setShowStatusHelp(false)} />
     </SafeAreaView>
   );
 }
@@ -451,59 +531,78 @@ const styles = StyleSheet.create({
   albumGroupCount: { fontSize: 11, fontWeight: '800' },
   albumArrow: { color: COLORS.textMuted, fontSize: 18 },
 
-  cardList: { padding: 0, overflow: 'hidden' },
-  rowDivider: { height: 1, backgroundColor: 'rgba(255,255,255,0.05)', marginLeft: 56 },
+  pcGrid: { flexDirection: 'row', flexWrap: 'wrap', gap: 10, justifyContent: 'flex-start' },
 
-  wishRow: { flexDirection: 'row', alignItems: 'center' },
-  stripe: { width: 3, alignSelf: 'stretch', borderRadius: 2, marginRight: 0 },
-  wishContent: {
-    flex: 1,
-    flexDirection: 'row',
+  gridItem: {
+    width: '31%',
     alignItems: 'center',
-    justifyContent: 'space-between',
-    paddingHorizontal: 12,
-    paddingVertical: 10,
+    gap: 5,
+    marginBottom: 8,
   },
-  wishMain: { flexDirection: 'row', alignItems: 'center', gap: 10, flex: 1 },
-  cardThumb: {
-    width: 40, height: 60, borderRadius: 6,
-    overflow: 'hidden', borderWidth: 1.5,
+  gridCard: {
+    width: '100%',
+    aspectRatio: 2 / 3,
+    borderRadius: 10,
+    overflow: 'hidden',
+    borderWidth: 2,
   },
-  cardThumbImg: { width: '100%', height: '100%' },
-  cardThumbPlaceholder: {
+  gridImage: { width: '100%', height: '100%' },
+  gridPlaceholder: {
     width: '100%', height: '100%',
     alignItems: 'center', justifyContent: 'center',
   },
-  memberInitial: { fontSize: 16, fontWeight: '900', color: '#fff' },
-  wishInfo: { flex: 1 },
-  wishMember: { fontSize: 13, fontWeight: '800', color: '#fff' },
-  wishName: { fontSize: 11, color: COLORS.textSecondary, marginTop: 1 },
-  wishAlbum: { fontSize: 10, color: COLORS.textMuted, marginTop: 1 },
-
-  statusChip: {
-    paddingHorizontal: 8, paddingVertical: 4,
-    borderRadius: 7, borderWidth: 1,
+  memberInitial: { fontSize: 28, fontWeight: '900', color: '#fff' },
+  bottomGrad: {
+    position: 'absolute', bottom: 0, left: 0, right: 0, height: 35,
   },
-  statusChipText: { fontSize: 10, fontWeight: '800' },
-
-  rowActions: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 8,
+  statusCorner: {
+    position: 'absolute', bottom: 6, right: 6,
+    alignItems: 'center', justifyContent: 'center',
   },
-  gotItBtn: {
-    paddingHorizontal: 10,
-    paddingVertical: 5,
-    borderRadius: 8,
-    backgroundColor: 'rgba(74, 222, 128, 0.12)',
-    borderWidth: 1.5,
-    borderColor: 'rgba(74, 222, 128, 0.35)',
+  gridInfo: {
+    flexDirection: 'column', alignItems: 'center', gap: 3, width: '100%',
+  },
+  versionTag: {
+    fontSize: 10, fontWeight: '800', color: COLORS.purple3, letterSpacing: 0.5,
+  },
+  gridName: {
+    fontSize: 9, fontWeight: '600', color: COLORS.textMuted,
+    letterSpacing: 0.3, textAlign: 'center',
+  },
+
+  popupBackdrop: {
+    flex: 1,
+    backgroundColor: 'rgba(0,0,0,0.65)',
     alignItems: 'center',
     justifyContent: 'center',
+    padding: 32,
   },
-  gotItText: {
-    color: '#4ADE80',
-    fontSize: 11,
-    fontWeight: '800',
+  popupCard: {
+    width: '100%',
+    maxWidth: 300,
+    borderRadius: 20,
+    padding: 20,
+    alignItems: 'center',
+    backgroundColor: '#160A30',
+    borderWidth: 1,
+    borderColor: 'rgba(168,85,247,0.25)',
   },
+  popupThumbWrap: {
+    width: 96, height: 144, borderRadius: 12,
+    overflow: 'hidden', marginBottom: 14,
+    borderWidth: 2, borderColor: 'rgba(255,255,255,0.1)',
+  },
+  popupThumb: { width: '100%', height: '100%' },
+  popupTitle: { color: '#fff', fontSize: 15, fontWeight: '800', textAlign: 'center' },
+  popupSub: { color: COLORS.textMuted, fontSize: 12, marginTop: 3, marginBottom: 16, textAlign: 'center' },
+  popupActions: {
+    flexDirection: 'row', gap: 8, width: '100%',
+  },
+  popupBtn: {
+    flex: 1, alignItems: 'center', justifyContent: 'center',
+    gap: 4, paddingVertical: 12, borderRadius: 12, borderWidth: 1.5,
+  },
+  popupBtnText: { fontSize: 11, fontWeight: '800' },
+  popupCloseBtn: { marginTop: 16, paddingVertical: 6, paddingHorizontal: 12 },
+  popupCloseText: { color: COLORS.textMuted, fontSize: 13, fontWeight: '700' },
 });

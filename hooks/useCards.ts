@@ -3,6 +3,7 @@ import { Image } from 'expo-image';
 import { supabase, getPhotocardUrl } from '../lib/supabase';
 import { Album, CardWithStatus, CardStatus } from '../lib/types';
 import { t } from '../lib/i18n';
+import { COUNTRY_ORDER, DRAW_TYPE_ORDER } from '../lib/constants';
 
 export function useAlbumCards(albumId: number | null, userId: string | null) {
   const [cards, setCards] = useState<CardWithStatus[]>([]);
@@ -18,9 +19,13 @@ export function useAlbumCards(albumId: number | null, userId: string | null) {
     const [
       { data: albumData },
       { data: cardsData, error: fetchError },
+      { data: cardExtraData },
+      { data: categoryData },
     ] = await Promise.all([
       supabase.from('albums').select('*').eq('id', albumId).single(),
       supabase.from('cards_full').select('*').eq('album_id', albumId),
+      supabase.from('cards').select('id, country, draw_type').eq('album_id', albumId),
+      supabase.from('card_categories').select('id, sort_order'),
     ]);
 
     if (albumData) setAlbum(albumData);
@@ -50,11 +55,36 @@ export function useAlbumCards(albumId: number | null, userId: string | null) {
       }
     }
 
+    const countryMap: Record<number, string | null> = {};
+    const drawTypeMap: Record<number, string | null> = {};
+    (cardExtraData || []).forEach((c: any) => {
+      countryMap[c.id] = c.country;
+      drawTypeMap[c.id] = c.draw_type;
+    });
+
+    const categoryOrderMap: Record<number, number> = {};
+    (categoryData || []).forEach((c: any) => { categoryOrderMap[c.id] = c.sort_order; });
+
     const combined: CardWithStatus[] = cardsData.map((card: any) => ({
       ...card,
+      country: countryMap[card.id] ?? null,
+      draw_type: drawTypeMap[card.id] ?? null,
+      category_sort_order: categoryOrderMap[card.category_id] ?? 999,
       status: statusMap[card.id] || null,
       duplicate_count: dupMap[card.id] ?? 0,
     }));
+
+    combined.sort((a, b) => {
+      const drawA = DRAW_TYPE_ORDER[a.draw_type ?? 'R1'] ?? DRAW_TYPE_ORDER.R1;
+      const drawB = DRAW_TYPE_ORDER[b.draw_type ?? 'R1'] ?? DRAW_TYPE_ORDER.R1;
+      if (drawA !== drawB) return drawA - drawB;
+
+      const countryA = COUNTRY_ORDER[a.country ?? ''] ?? Infinity;
+      const countryB = COUNTRY_ORDER[b.country ?? ''] ?? Infinity;
+      if (countryA !== countryB) return countryA - countryB;
+
+      return a.card_name.localeCompare(b.card_name);
+    });
 
     setCards(combined);
     setLoading(false);
