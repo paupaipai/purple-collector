@@ -1,5 +1,5 @@
 import { useState, useEffect, useCallback } from 'react';
-import { supabase } from '../lib/supabase';
+import { supabase, fetchAllRows } from '../lib/supabase';
 import { AlbumWithStats, AlbumVersion } from '../lib/types';
 import { t } from '../lib/i18n';
 
@@ -19,12 +19,12 @@ export function useAlbums(userId: string | null) {
     const [
       { data: albumsData, error: aErr },
       { data: versionsData },
-      { data: cardCounts },
+      cardCounts,
       { data: userCardsData },
     ] = await Promise.all([
       supabase.from('albums').select('*').eq('is_active', true).order('sort_order'),
       supabase.from('album_versions').select('*').order('sort_order'),
-      supabase.from('cards').select('album_id'),
+      fetchAllRows<{ album_id: number }>('cards', 'album_id'),
       userCardsQuery,
     ]);
 

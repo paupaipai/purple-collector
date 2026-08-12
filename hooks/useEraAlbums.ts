@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useState } from 'react';
 import { Image } from 'expo-image';
-import { supabase, getPhotocardUrl } from '../lib/supabase';
+import { supabase, getPhotocardUrl, fetchAllRows } from '../lib/supabase';
 import { AlbumEraWithAlbums, AlbumVersion, AlbumWithStats } from '../lib/types';
 import { t } from '../lib/i18n';
 
@@ -60,12 +60,12 @@ export function useEraAlbums(collectionTypeId: number | null, userId: string | n
     const [
       { data: albumsData, error: albumsError },
       { data: versionsData },
-      { data: cardCounts },
+      cardCounts,
       { data: userCardsData },
     ] = await Promise.all([
       supabase.from('albums').select('*').in('era_id', eraIds).eq('is_active', true).order('sort_order'),
       supabase.from('album_versions').select('*').order('sort_order'),
-      supabase.from('cards').select('album_id'),
+      fetchAllRows<{ album_id: number }>('cards', 'album_id'),
       userCardsQuery,
     ]);
 

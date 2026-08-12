@@ -31,3 +31,22 @@ export function getPhotocardUrl(imagePath: string): string {
   const { data } = supabase.storage.from('photocards').getPublicUrl(imagePath);
   return `${data.publicUrl}?v=${IMAGE_CACHE_VERSION}`;
 }
+
+// PostgREST caps unbounded selects at 1000 rows by default, so any table
+// that can grow past that (e.g. 'cards') needs explicit pagination or a
+// select silently truncates instead of erroring.
+const PAGE_SIZE = 1000;
+
+export async function fetchAllRows<T = any>(table: string, columns: string): Promise<T[]> {
+  const rows: T[] = [];
+  let from = 0;
+  while (true) {
+    const { data, error } = await supabase.from(table).select(columns).range(from, from + PAGE_SIZE - 1);
+    if (error) throw error;
+    if (!data || data.length === 0) break;
+    rows.push(...(data as T[]));
+    if (data.length < PAGE_SIZE) break;
+    from += PAGE_SIZE;
+  }
+  return rows;
+}
