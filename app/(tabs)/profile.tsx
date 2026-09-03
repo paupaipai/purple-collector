@@ -19,7 +19,6 @@ import { useBias } from '../../lib/BiasContext';
 import { BIAS_ENABLED, COLORS, getMemberByKey, MEMBERS, PREMIUM_ENABLED, PRIVACY_URL, RARITIES, RARITY_LABEL_KEY } from '../../lib/constants';
 import { useI18n } from '../../lib/I18nContext';
 import { usePremium } from '../../lib/PremiumContext';
-import { PROMO_MODE, getPromoProfilePhoto } from '../../lib/promoMode';
 import { supabase } from '../../lib/supabase';
 import { BiasKey } from '../../lib/types';
 
@@ -173,11 +172,7 @@ export default function ProfileScreen() {
             start={{ x: 0.5, y: 0 }}
             end={{ x: 0.5, y: 1 }}
           />
-          {PROMO_MODE ? (
-            <View style={styles.avatarWrap}>
-              <Image source={getPromoProfilePhoto()} style={styles.avatarImage} />
-            </View>
-          ) : userAvatar ? (
+          {userAvatar ? (
             <View style={styles.avatarWrap}>
               <Image source={{ uri: userAvatar }} style={styles.avatarImage} />
             </View>
@@ -187,7 +182,7 @@ export default function ProfileScreen() {
             </LinearGradient>
           )}
           <Text style={styles.name}>{userName || 'ARMY'}</Text>
-          <Text style={styles.email}>{PROMO_MODE ? '@paupau.collector' : (user?.email || '')}</Text>
+          <Text style={styles.email}>{user?.email || ''}</Text>
 
           {/* Premium badge or CTA */}
           {!PREMIUM_ENABLED ? null : isPremium ? (
@@ -323,7 +318,7 @@ export default function ProfileScreen() {
           <View style={styles.divider} />
           <View style={styles.infoRow}>
             <Text style={styles.infoLabel}>{t('labelEmail')}</Text>
-            <Text style={styles.infoValue} numberOfLines={1}>{PROMO_MODE ? '@paupau.collector' : (user?.email || '—')}</Text>
+            <Text style={styles.infoValue} numberOfLines={1}>{user?.email || '—'}</Text>
           </View>
           <View style={styles.rowSep} />
           <View style={styles.infoRow}>

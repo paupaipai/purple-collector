@@ -25,7 +25,6 @@ import { useAuth } from '../../hooks/useAuth';
 import { useAlbumCards } from '../../hooks/useCards';
 import { COLORS, MEMBER_MAP, MEMBERS, STATUS_CONFIG, STATUS_LABEL_KEY } from '../../lib/constants';
 import { useI18n } from '../../lib/I18nContext';
-import { PROMO_MODE, promoAlbumCover, promoMemberAvatar } from '../../lib/promoMode';
 import { getPhotocardUrl } from '../../lib/supabase';
 import { CardStatus, CardWithStatus } from '../../lib/types';
 
@@ -208,9 +207,9 @@ export default function AlbumDetailScreen() {
               end={{ x: 1, y: 1 }}
             />
             <View style={[styles.coverBox, { borderColor: albumColor + '44' }]}>
-              {PROMO_MODE || albumCover ? (
+              {albumCover ? (
                 <Image
-                  source={PROMO_MODE ? promoAlbumCover : { uri: getPhotocardUrl(albumCover!) }}
+                  source={{ uri: getPhotocardUrl(albumCover!) }}
                   style={{ width: '100%', height: '100%', borderRadius: 13 }}
                   contentFit="cover"
                   cachePolicy="disk"
@@ -392,9 +391,7 @@ export default function AlbumDetailScreen() {
                     styles.sheetMemberDot,
                     { borderColor: MEMBER_MAP[selectedCard.member]?.colors[1] || COLORS.purple2 },
                   ]}>
-                    {PROMO_MODE ? (
-                      <Image source={promoMemberAvatar} style={styles.sheetMemberImg} contentFit="cover" />
-                    ) : selectedCard.is_group ? (
+                    {selectedCard.is_group ? (
                       <Image source={GROUP_IMAGE} style={styles.sheetMemberImg} contentFit="contain" />
                     ) : MEMBER_IMAGES[selectedCard.member] ? (
                       <Image source={MEMBER_IMAGES[selectedCard.member]} style={styles.sheetMemberImg} contentFit="cover" />

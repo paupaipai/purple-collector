@@ -14,13 +14,6 @@
         "buildType": "apk"
       }
     },
-    "promo": {
-      "extends": "preview",
-      "env": {
-        "EXPO_PUBLIC_PROMO_MODE": "true",
-        "EXPO_PUBLIC_PROMO_PROFILE_PHOTO": "true"
-      }
-    },
     "production": {
       "autoIncrement": true,
       "android": {

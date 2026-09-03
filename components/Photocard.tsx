@@ -6,7 +6,6 @@ import { LinearGradient } from 'expo-linear-gradient';
 import { COLORS, MEMBER_MAP, RARITIES, STATUS_CONFIG } from '../lib/constants';
 import { CardWithStatus } from '../lib/types';
 import { getPhotocardUrl } from '../lib/supabase';
-import { PROMO_MODE, getPromoCardImage } from '../lib/promoMode';
 import { useI18n } from '../lib/I18nContext';
 
 // Atenuacion de las cartas NO marcadas como "Tengo". Son los dos unicos valores
@@ -26,10 +25,7 @@ export default function Photocard({ card, onPress, onLongPress }: PhotocardProps
   const member = MEMBER_MAP[card.member];
   const rarity = RARITIES[card.rarity];
   const isOwned = card.status === 'have';
-  const promoImage = PROMO_MODE
-    ? getPromoCardImage({ seed: card.id, categoryShort: card.category_short })
-    : null;
-  const hasImage = !!promoImage || (card.image_path && !card.is_blurred);
+  const hasImage = card.image_path && !card.is_blurred;
 
   const { t } = useI18n();
 
@@ -60,7 +56,7 @@ export default function Photocard({ card, onPress, onLongPress }: PhotocardProps
             <>
               <View style={styles.imageBg} />
               <Image
-                source={promoImage ?? { uri: getPhotocardUrl(card.image_path!) }}
+                source={{ uri: getPhotocardUrl(card.image_path!) }}
                 style={[styles.image, !isOwned && styles.imageNotOwned]}
                 contentFit="contain"
                 cachePolicy="disk"

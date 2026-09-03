@@ -22,7 +22,6 @@ import { useAuth } from '../../hooks/useAuth';
 import { useEraAlbums } from '../../hooks/useEraAlbums';
 import { COLORS } from '../../lib/constants';
 import { useI18n } from '../../lib/I18nContext';
-import { PROMO_MODE, promoAlbumCover } from '../../lib/promoMode';
 import { getPhotocardUrl } from '../../lib/supabase';
 import { AlbumEraWithAlbums, AlbumWithStats } from '../../lib/types';
 
@@ -64,9 +63,9 @@ function AlbumRow({
         <GlassCard style={[styles.albumRow, complete && { borderColor: COLORS.gold + '33' }]}>
           {/* Cover */}
           <View style={[styles.albumCover, { borderColor: album.color + '44' }]}>
-            {PROMO_MODE || album.cover_image_url ? (
+            {album.cover_image_url ? (
               <Image
-                source={PROMO_MODE ? promoAlbumCover : { uri: getPhotocardUrl(album.cover_image_url!) }}
+                source={{ uri: getPhotocardUrl(album.cover_image_url!) }}
                 style={{ width: '100%', height: '100%', borderRadius: 9 }}
                 contentFit="cover"
                 cachePolicy="disk"
