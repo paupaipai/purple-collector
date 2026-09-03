@@ -22,7 +22,7 @@ export { promoAlbumCover, promoMemberAvatar } from './promoImages';
 export const PROMO_MODE = process.env.EXPO_PUBLIC_PROMO_MODE === 'true';
 
 // Opt-in, separate from PROMO_MODE: only true once a real personal photo has
-// been dropped into assets/promo/profile-photo.png (replacing its placeholder)
+// been dropped into assets/promo/profile-photo.jpg (replacing its placeholder)
 // AND this is explicitly set. Otherwise the Purple Collector logo is shown
 // instead of the real Google/Apple account photo — there's no reliable way to
 // detect "is this file still the placeholder" at runtime, so this flag is the
