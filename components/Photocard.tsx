@@ -6,7 +6,15 @@ import { LinearGradient } from 'expo-linear-gradient';
 import { COLORS, MEMBER_MAP, RARITIES, STATUS_CONFIG } from '../lib/constants';
 import { CardWithStatus } from '../lib/types';
 import { getPhotocardUrl } from '../lib/supabase';
+import { PROMO_MODE, getPromoCardImage } from '../lib/promoMode';
 import { useI18n } from '../lib/I18nContext';
+
+// Atenuacion de las cartas NO marcadas como "Tengo". Son los dos unicos valores
+// que hay que tocar para calibrar: la opacidad apaga la foto, el velo le mete el
+// lila. Subirlos aclara las no adquiridas; bajarlos las apaga mas.
+const NOT_OWNED_IMAGE_OPACITY = 0.65;
+const NOT_OWNED_OVERLAY_OPACITY = 0.32;
+const NOT_OWNED_OVERLAY_COLOR = `rgba(88,28,135,${NOT_OWNED_OVERLAY_OPACITY})`;
 
 interface PhotocardProps {
   card: CardWithStatus;
@@ -18,7 +26,10 @@ export default function Photocard({ card, onPress, onLongPress }: PhotocardProps
   const member = MEMBER_MAP[card.member];
   const rarity = RARITIES[card.rarity];
   const isOwned = card.status === 'have';
-  const hasImage = card.image_path && !card.is_blurred;
+  const promoImage = PROMO_MODE
+    ? getPromoCardImage({ seed: card.id, categoryShort: card.category_short })
+    : null;
+  const hasImage = !!promoImage || (card.image_path && !card.is_blurred);
 
   const { t } = useI18n();
 
@@ -49,7 +60,7 @@ export default function Photocard({ card, onPress, onLongPress }: PhotocardProps
             <>
               <View style={styles.imageBg} />
               <Image
-                source={{ uri: getPhotocardUrl(card.image_path!) }}
+                source={promoImage ?? { uri: getPhotocardUrl(card.image_path!) }}
                 style={[styles.image, !isOwned && styles.imageNotOwned]}
                 contentFit="contain"
                 cachePolicy="disk"
@@ -155,11 +166,11 @@ const styles = StyleSheet.create({
     height: '100%',
   },
   imageNotOwned: {
-    opacity: 0.65,
+    opacity: NOT_OWNED_IMAGE_OPACITY,
   },
   purpleOverlay: {
     ...StyleSheet.absoluteFillObject,
-    backgroundColor: 'rgba(88,28,135,0.45)',
+    backgroundColor: NOT_OWNED_OVERLAY_COLOR,
   },
   placeholder: {
     width: '100%',

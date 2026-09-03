@@ -5,6 +5,12 @@ import { MemberInfo } from './types';
 // true  = comportamiento premium normal (v1.1+).
 export const PREMIUM_ENABLED = false;
 
+// Misma idea que PREMIUM_ENABLED: apaga la eleccion de bias sin sacar el codigo.
+// false = no se pide bias en el onboarding, no aparece en el perfil ni en el home.
+// true  = comportamiento normal (onboarding de bias + tarjeta "Mis bias" editable).
+// Los bias ya guardados en Supabase/AsyncStorage se conservan intactos.
+export const BIAS_ENABLED = false;
+
 // Hosted from the paupaipai/purple-collector-legal repo (GitHub Pages), not this repo.
 export const PRIVACY_URL = 'https://paupaipai.github.io/purple-collector-legal/';
 

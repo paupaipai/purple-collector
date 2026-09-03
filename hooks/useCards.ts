@@ -16,17 +16,37 @@ export function useAlbumCards(albumId: number | null, userId: string | null) {
     setLoading(true);
     setError(null);
 
+    let results;
+    try {
+      // Right after a cold start (e.g. opening the app from a tapped
+      // notification), the network can still be settling — without a
+      // timeout a hung request here would leave this screen spinning
+      // forever instead of surfacing the retryable error state below.
+      const timeout = new Promise<never>((_, reject) =>
+        setTimeout(() => reject(new Error('album fetch timed out')), 8000)
+      );
+      results = await Promise.race([
+        Promise.all([
+          supabase.from('albums').select('*').eq('id', albumId).single(),
+          supabase.from('cards_full').select('*').eq('album_id', albumId),
+          supabase.from('cards').select('id, country, draw_type').eq('album_id', albumId),
+          supabase.from('card_categories').select('id, sort_order'),
+        ]),
+        timeout,
+      ]);
+    } catch (err) {
+      console.error('Error fetching cards:', err);
+      setError(t('errorCards'));
+      setLoading(false);
+      return;
+    }
+
     const [
       { data: albumData },
       { data: cardsData, error: fetchError },
       { data: cardExtraData },
       { data: categoryData },
-    ] = await Promise.all([
-      supabase.from('albums').select('*').eq('id', albumId).single(),
-      supabase.from('cards_full').select('*').eq('album_id', albumId),
-      supabase.from('cards').select('id, country, draw_type').eq('album_id', albumId),
-      supabase.from('card_categories').select('id, sort_order'),
-    ]);
+    ] = results;
 
     if (albumData) setAlbum(albumData);
 

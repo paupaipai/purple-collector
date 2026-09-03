@@ -20,16 +20,45 @@ export function useAuth() {
   const [authProvider, setAuthProvider] = useState<'google' | 'apple' | null>(null);
 
   useEffect(() => {
-    supabase.auth.getSession().then(({ data: { session } }) => {
-      setSession(session);
+    let settled = false;
+
+    // getSession() can trigger a network call to refresh an expired token.
+    // Right after a cold start — e.g. the OS launching the app from a killed
+    // state to handle a tapped notification — the network can still be
+    // settling (same class of issue already fixed for the onboarding check
+    // in app/_layout.tsx), and without a timeout this hangs forever with no
+    // error, leaving `loading` stuck true and the app stuck on the splash
+    // screen. onAuthStateChange still fires independently once the real
+    // session becomes available, so this fails open safely.
+    const timeout = setTimeout(() => {
+      if (settled) return;
+      settled = true;
       setLoading(false);
-    });
+    }, 8000);
+
+    supabase.auth.getSession()
+      .then(({ data: { session } }) => {
+        if (settled) return;
+        settled = true;
+        clearTimeout(timeout);
+        setSession(session);
+        setLoading(false);
+      })
+      .catch(() => {
+        if (settled) return;
+        settled = true;
+        clearTimeout(timeout);
+        setLoading(false);
+      });
 
     const { data: { subscription } } = supabase.auth.onAuthStateChange(
       (_event, session) => setSession(session)
     );
 
-    return () => subscription.unsubscribe();
+    return () => {
+      clearTimeout(timeout);
+      subscription.unsubscribe();
+    };
   }, []);
 
   useEffect(() => {

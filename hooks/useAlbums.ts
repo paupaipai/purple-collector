@@ -24,11 +24,17 @@ export function useAlbums(userId: string | null) {
     ] = await Promise.all([
       supabase.from('albums').select('*').eq('is_active', true).order('sort_order'),
       supabase.from('album_versions').select('*').order('sort_order'),
-      fetchAllRows<{ album_id: number }>('cards', 'album_id'),
+      // fetchAllRows lanza si una pagina falla; sin capturarlo la promesa quedaba
+      // rechazada en silencio y la pantalla se quedaba con albums=[] y loading=true,
+      // que es lo que hacia que el perfil mostrara "N / 0" y "coleccion completa".
+      fetchAllRows<{ album_id: number }>('cards', 'album_id').catch((e) => {
+        console.error('Error fetching card counts:', e);
+        return null;
+      }),
       userCardsQuery,
     ]);
 
-    if (aErr || !albumsData) {
+    if (aErr || !albumsData || !cardCounts) {
       console.error('Error fetching albums:', aErr);
       setError(t('errorAlbums'));
       setLoading(false);

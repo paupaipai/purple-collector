@@ -86,13 +86,6 @@ export default function LoginScreen({ onGoogleSignIn, onAppleSignIn, loading }: 
           ))}
         </View>
       </View>
-
-      {/* Bottom quote */}
-      <View style={styles.quoteRow}>
-        <Ionicons name="heart" size={11} color={COLORS.purple3} style={{ opacity: 0.7 }} />
-        <Text style={styles.quote}>{t('loginQuote')}</Text>
-        <Ionicons name="heart" size={11} color={COLORS.purple3} style={{ opacity: 0.7 }} />
-      </View>
     </View>
   );
 }
@@ -224,19 +217,5 @@ const styles = StyleSheet.create({
     fontSize: 13,
     fontWeight: '600',
     flex: 1,
-  },
-  quoteRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'center',
-    gap: 6,
-    paddingBottom: 40,
-  },
-  quote: {
-    color: COLORS.purple3,
-    fontSize: 12,
-    fontStyle: 'italic',
-    textAlign: 'center',
-    opacity: 0.7,
   },
 });

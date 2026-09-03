@@ -15,7 +15,7 @@ import { BiasProvider, useBias } from '../lib/BiasContext';
 import { I18nProvider } from '../lib/I18nContext';
 import { PremiumProvider } from '../lib/PremiumContext';
 import { supabase } from '../lib/supabase';
-import { COLORS } from '../lib/constants';
+import { BIAS_ENABLED, COLORS } from '../lib/constants';
 import { BiasKey } from '../lib/types';
 import * as Sentry from '@sentry/react-native';
 
@@ -133,7 +133,17 @@ function AppShell({ session, loading, authLoading, signInWithGoogle, signInWithA
     setOnboarded(true);
   };
 
-  const isLoading = loading || (!!session && onboarded === null);
+  // El onboarding es solo la eleccion de bias: con BIAS_ENABLED en false no hay
+  // nada que preguntar, asi que ni se muestra ni se espera la consulta de
+  // onboarding_completed (que ademas tiene su propio timeout de 8s).
+  const showOnboarding = BIAS_ENABLED && !!session && !onboarded;
+  const isLoading = loading || (BIAS_ENABLED && !!session && onboarded === null);
+  // Mirrors the exact condition that renders the authenticated <Stack> below
+  // (with the album/[id] route) — anything looser lets navigation fire
+  // before that route exists.
+  const stackReady = !isLoading && !!session && !showOnboarding;
+
+  usePushNotifications(session?.user?.id ?? null, stackReady);
 
   useEffect(() => {
     if (!isLoading) SplashScreen.hideAsync();
@@ -148,7 +158,7 @@ function AppShell({ session, loading, authLoading, signInWithGoogle, signInWithA
         <LoadingScreen />
       ) : !session ? (
         <LoginScreen onGoogleSignIn={signInWithGoogle} onAppleSignIn={signInWithApple} loading={authLoading} />
-      ) : !onboarded ? (
+      ) : showOnboarding ? (
         <OnboardingScreen onFinish={finishOnboarding} />
       ) : (
         <Stack
@@ -175,8 +185,6 @@ function AppShell({ session, loading, authLoading, signInWithGoogle, signInWithA
 export default Sentry.wrap(function RootLayout() {
   const { session, loading, authLoading, signInWithGoogle, signInWithApple } = useAuth();
   const userId = session?.user?.id ?? null;
-
-  usePushNotifications(userId);
 
   return (
     <I18nProvider>

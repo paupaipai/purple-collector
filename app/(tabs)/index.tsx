@@ -20,7 +20,7 @@ import GlassCard from '../../components/GlassCard';
 import { useAuth } from '../../hooks/useAuth';
 import { useCollectionTypes } from '../../hooks/useCollectionTypes';
 import { useBias } from '../../lib/BiasContext';
-import { COLORS, getMemberByKey } from '../../lib/constants';
+import { BIAS_ENABLED, COLORS, getMemberByKey } from '../../lib/constants';
 import { useI18n } from '../../lib/I18nContext';
 import { CollectionTypeWithStats, BiasKey } from '../../lib/types';
 
@@ -126,7 +126,7 @@ export default function HomeScreen() {
   }, []);
 
   const firstName = userName?.split(' ')[0] || 'ARMY';
-  const biasLine = getBiasLine(biases, t('bias'), t('biases'));
+  const biasLine = BIAS_ENABLED ? getBiasLine(biases, t('bias'), t('biases')) : null;
 
   return (
     <SafeAreaView style={styles.container}>

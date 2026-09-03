@@ -1,5 +1,5 @@
 import { FontAwesome, Ionicons } from '@expo/vector-icons';
-import { Image as ExpoImage } from 'expo-image';
+import * as Application from 'expo-application';
 import { LinearGradient } from 'expo-linear-gradient';
 import { useFocusEffect, useRouter } from 'expo-router';
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
@@ -16,36 +16,19 @@ import { useAuth } from '../../hooks/useAuth';
 import { useCollection } from '../../hooks/useCollection';
 import { useWishlist } from '../../hooks/useWishlist';
 import { useBias } from '../../lib/BiasContext';
-import { COLORS, getMemberByKey, MEMBERS, PREMIUM_ENABLED, PRIVACY_URL, RARITIES, RARITY_LABEL_KEY } from '../../lib/constants';
+import { BIAS_ENABLED, COLORS, getMemberByKey, MEMBERS, PREMIUM_ENABLED, PRIVACY_URL, RARITIES, RARITY_LABEL_KEY } from '../../lib/constants';
 import { useI18n } from '../../lib/I18nContext';
 import { usePremium } from '../../lib/PremiumContext';
+import { PROMO_MODE, getPromoProfilePhoto } from '../../lib/promoMode';
 import { supabase } from '../../lib/supabase';
 import { BiasKey } from '../../lib/types';
-
-const MEMBER_IMAGES: Record<string, any> = {
-  'RM': require('../../assets/images/bts/rm.png'),
-  'Jin': require('../../assets/images/bts/jin.png'),
-  'Suga': require('../../assets/images/bts/suga.png'),
-  'J-Hope': require('../../assets/images/bts/jhope.png'),
-  'Jimin': require('../../assets/images/bts/jimin.png'),
-  'V': require('../../assets/images/bts/v.png'),
-  'Jungkook': require('../../assets/images/bts/jungkook.png'),
-  'Group': require('../../assets/images/bts/bts.png'),
-};
 
 function BiasChip({ biasKey }: { biasKey: BiasKey }) {
   const m = getMemberByKey(biasKey);
   if (!m) return null;
   return (
-    <View style={styles.biasChip}>
-      <View style={[styles.biasChipPhoto, { borderColor: m.colors[1] + '99' }]}>
-        {MEMBER_IMAGES[m.name] ? (
-          <ExpoImage source={MEMBER_IMAGES[m.name]} style={styles.biasChipImg} contentFit="cover" />
-        ) : (
-          <Text style={styles.biasChipInitial}>{m.name[0]}</Text>
-        )}
-      </View>
-      <Text style={styles.biasChipName}>{m.name}</Text>
+    <View style={[styles.biasChip, { borderColor: m.colors[1] + '66' }]}>
+      <Text style={[styles.biasChipName, { color: m.colors[1] }]}>{m.name}</Text>
     </View>
   );
 }
@@ -53,13 +36,6 @@ function BiasChip({ biasKey }: { biasKey: BiasKey }) {
 function MemberRow({ name, owned, total, color }: { emoji: string; name: string; owned: number; total: number; color: string }) {
   return (
     <View style={styles.memberRow}>
-      <View style={[styles.memberAvatarDot, { borderColor: color }]}>
-        {MEMBER_IMAGES[name] ? (
-          <Image source={MEMBER_IMAGES[name]} style={styles.memberAvatarImg} resizeMode="cover" />
-        ) : (
-          <Text style={styles.memberAvatarEmoji}>{name.charAt(0)}</Text>
-        )}
-      </View>
       <View style={styles.memberRowInfo}>
         <View style={styles.memberRowTop}>
           <Text style={styles.memberRowName}>{name}</Text>
@@ -94,9 +70,7 @@ export default function ProfileScreen() {
   const { biases, saveBiases } = useBias();
   const { cards: ownedCards, silentRefetch: silentRefetchCollection } = useCollection(userId);
   const { cards: wishCards } = useWishlist(userId);
-  const { albums, silentRefetch: silentRefetchAlbums } = useAlbums(userId);
-
-  useFocusEffect(useCallback(() => { silentRefetchCollection(); silentRefetchAlbums(); }, [silentRefetchCollection, silentRefetchAlbums]));
+  const { albums, loading: albumsLoading, silentRefetch: silentRefetchAlbums } = useAlbums(userId);
 
   const fadeAnim = useRef(new Animated.Value(0)).current;
   const scaleAnim = useRef(new Animated.Value(0.92)).current;
@@ -128,23 +102,50 @@ export default function ProfileScreen() {
 
   const [totalByMember, setTotalByMember] = useState<Record<string, number>>({});
   const [totalGroup, setTotalGroup] = useState(0);
-  useEffect(() => {
-    supabase
-      .from('cards')
-      .select('member, is_group')
-      .eq('is_group', false)
-      .then(({ data }) => {
-        if (!data) return;
-        const counts: Record<string, number> = {};
-        data.forEach((c: any) => { counts[c.member] = (counts[c.member] || 0) + 1; });
-        setTotalByMember(counts);
-      });
-    supabase
-      .from('cards')
-      .select('id', { count: 'exact', head: true })
-      .eq('is_group', true)
-      .then(({ count }) => { if (count != null) setTotalGroup(count); });
-  }, []);
+
+  const fetchMemberTotals = useCallback(async () => {
+    const [{ data: memberCards }, { count: groupTotal }] = await Promise.all([
+      supabase.from('cards').select('member, is_group').eq('is_group', false),
+      supabase.from('cards').select('id', { count: 'exact', head: true }).eq('is_group', true),
+    ]);
+
+    const byMember: Record<string, number> = {};
+    (memberCards || []).forEach((c: any) => { byMember[c.member] = (byMember[c.member] || 0) + 1; });
+    let group = groupTotal ?? 0;
+
+    // Cards the user opted out of don't count toward their own totals —
+    // same convention as the album screen's collectibleCount.
+    if (userId) {
+      const { data: notCollectingRows } = await supabase
+        .from('user_cards')
+        .select('card_id')
+        .eq('user_id', userId)
+        .eq('status', 'not_collecting');
+
+      if (notCollectingRows && notCollectingRows.length > 0) {
+        const { data: notCollectingCards } = await supabase
+          .from('cards')
+          .select('member, is_group')
+          .in('id', notCollectingRows.map((r: any) => r.card_id));
+
+        (notCollectingCards || []).forEach((c: any) => {
+          if (c.is_group) group -= 1;
+          else byMember[c.member] = (byMember[c.member] || 0) - 1;
+        });
+      }
+    }
+
+    setTotalByMember(byMember);
+    setTotalGroup(group);
+  }, [userId]);
+
+  useEffect(() => { fetchMemberTotals(); }, [fetchMemberTotals]);
+
+  useFocusEffect(useCallback(() => {
+    silentRefetchCollection();
+    silentRefetchAlbums();
+    fetchMemberTotals();
+  }, [silentRefetchCollection, silentRefetchAlbums, fetchMemberTotals]));
 
   const rarityCounts = useMemo(() => {
     const c: Record<string, number> = { Common: 0, Rare: 0, 'Ultra Rare': 0, Limited: 0 };
@@ -153,6 +154,10 @@ export default function ProfileScreen() {
   }, [ownedCards]);
 
   const completionPct = totalCards > 0 ? Math.round((ownedCards.length / totalCards) * 100) : 0;
+  // Hasta que `albums` llega, totalCards es 0: sin este guard la tarjeta mostraba
+  // "N / 0" con la barra vacia y, peor, el mensaje de coleccion completa (porque
+  // total - owned deja de ser > 0). Mientras no haya total real no afirmamos nada.
+  const hasTotals = totalCards > 0;
   const firstName = userName?.split(' ')[0] || 'ARMY';
 
   return (
@@ -168,7 +173,11 @@ export default function ProfileScreen() {
             start={{ x: 0.5, y: 0 }}
             end={{ x: 0.5, y: 1 }}
           />
-          {userAvatar ? (
+          {PROMO_MODE ? (
+            <View style={styles.avatarWrap}>
+              <Image source={getPromoProfilePhoto()} style={styles.avatarImage} />
+            </View>
+          ) : userAvatar ? (
             <View style={styles.avatarWrap}>
               <Image source={{ uri: userAvatar }} style={styles.avatarImage} />
             </View>
@@ -178,7 +187,7 @@ export default function ProfileScreen() {
             </LinearGradient>
           )}
           <Text style={styles.name}>{userName || 'ARMY'}</Text>
-          <Text style={styles.email}>{user?.email || ''}</Text>
+          <Text style={styles.email}>{PROMO_MODE ? '@paupau.collector' : (user?.email || '')}</Text>
 
           {/* Premium badge or CTA */}
           {!PREMIUM_ENABLED ? null : isPremium ? (
@@ -205,19 +214,19 @@ export default function ProfileScreen() {
               </LinearGradient>
             </TouchableOpacity>
           )}
-
-          <View style={styles.quoteBubble}>
-            <Ionicons name="heart" size={11} color={COLORS.purple3} style={{ opacity: 0.7 }} />
-            <Text style={styles.quote}>{t('loginQuote')}</Text>
-            <Ionicons name="heart" size={11} color={COLORS.purple3} style={{ opacity: 0.7 }} />
-          </View>
         </Animated.View>
+
+        {/* Aviso de no afiliacion — arriba y visible sin scrollear, no al final */}
+        <View style={styles.disclaimerBanner}>
+          <Ionicons name="information-circle-outline" size={15} color={COLORS.purple3} />
+          <Text style={styles.disclaimer}>{t('affiliationDisclaimer')}</Text>
+        </View>
 
         {/* Quick stats */}
         <View style={styles.statsGrid}>
           <StatCard value={ownedCards.length} label={t('owned')} color={COLORS.green} icon="✓" />
           <StatCard value={wishCards.length} label={t('wishlist')} color={COLORS.pink} icon="♡" />
-          <StatCard value={`${completionPct}%`} label={t('labelComplete')} color={COLORS.purple3} icon="★" />
+          <StatCard value={hasTotals ? `${completionPct}%` : '—'} label={t('labelComplete')} color={COLORS.purple3} icon="★" />
           <StatCard value={completedAlbums} label={t('fullSets')} color={COLORS.gold} icon="◆" />
         </View>
 
@@ -227,12 +236,14 @@ export default function ProfileScreen() {
             <Text style={styles.cardTitle}>{t('overallProgress')}</Text>
             <Text style={styles.cardBadge}>
               <Text style={{ color: COLORS.pink, fontWeight: '900' }}>{ownedCards.length}</Text>
-              <Text style={{ color: COLORS.textMuted }}> / {totalCards}</Text>
+              <Text style={{ color: COLORS.textMuted }}> / {hasTotals ? totalCards : '—'}</Text>
             </Text>
           </View>
           <View style={styles.divider} />
-          <NeonBar value={ownedCards.length} max={totalCards} height={8} />
-          {totalCards - ownedCards.length > 0 ? (
+          <NeonBar value={ownedCards.length} max={hasTotals ? totalCards : 1} height={8} />
+          {!hasTotals ? (
+            <Text style={styles.progressHint}>{albumsLoading ? t('loadingCollection') : t('errorAlbums')}</Text>
+          ) : totalCards - ownedCards.length > 0 ? (
             <Text style={styles.progressHint}>{t('cardsLeft', { n: totalCards - ownedCards.length })}</Text>
           ) : (
             <View style={styles.progressComplete}>
@@ -285,24 +296,26 @@ export default function ProfileScreen() {
           </GlassCard>
         ) : null}
 
-        {/* Mis bias */}
-        <GlassCard style={styles.card}>
-          <View style={styles.cardHeader}>
-            <Text style={styles.cardTitle}>{t('myBiases')}</Text>
-            <TouchableOpacity onPress={() => setShowBiasEdit(true)} activeOpacity={0.7} style={styles.editBtn}>
-              <Ionicons name="pencil" size={13} color={COLORS.purple3} />
-              <Text style={styles.editBtnText}>{t('edit')}</Text>
-            </TouchableOpacity>
-          </View>
-          <View style={styles.divider} />
-          {biases.length === 0 ? (
-            <Text style={styles.noBiasText}>{t('noBiasesSelected')}</Text>
-          ) : (
-            <View style={styles.biasChips}>
-              {biases.map(key => <BiasChip key={key} biasKey={key} />)}
+        {/* "Mis bias" oculto mientras BIAS_ENABLED este en false (lib/constants.ts) */}
+        {BIAS_ENABLED && (
+          <GlassCard style={styles.card}>
+            <View style={styles.cardHeader}>
+              <Text style={styles.cardTitle}>{t('myBiases')}</Text>
+              <TouchableOpacity onPress={() => setShowBiasEdit(true)} activeOpacity={0.7} style={styles.editBtn}>
+                <Ionicons name="pencil" size={13} color={COLORS.purple3} />
+                <Text style={styles.editBtnText}>{t('edit')}</Text>
+              </TouchableOpacity>
             </View>
-          )}
-        </GlassCard>
+            <View style={styles.divider} />
+            {biases.length === 0 ? (
+              <Text style={styles.noBiasText}>{t('noBiasesSelected')}</Text>
+            ) : (
+              <View style={styles.biasChips}>
+                {biases.map(key => <BiasChip key={key} biasKey={key} />)}
+              </View>
+            )}
+          </GlassCard>
+        )}
 
         {/* Account */}
         <GlassCard style={styles.card}>
@@ -310,7 +323,7 @@ export default function ProfileScreen() {
           <View style={styles.divider} />
           <View style={styles.infoRow}>
             <Text style={styles.infoLabel}>{t('labelEmail')}</Text>
-            <Text style={styles.infoValue} numberOfLines={1}>{user?.email || '—'}</Text>
+            <Text style={styles.infoValue} numberOfLines={1}>{PROMO_MODE ? '@paupau.collector' : (user?.email || '—')}</Text>
           </View>
           <View style={styles.rowSep} />
           <View style={styles.infoRow}>
@@ -366,11 +379,15 @@ export default function ProfileScreen() {
           <Text style={styles.privacyLinkText}>{t('privacyPolicy')}</Text>
         </TouchableOpacity>
 
-        <Text style={styles.disclaimer}>{t('affiliationDisclaimer')}</Text>
+        <Text style={styles.versionText}>
+          {Application.nativeApplicationVersion
+            ? `v${Application.nativeApplicationVersion} (${Application.nativeBuildVersion})`
+            : ''}
+        </Text>
       </ScrollView>
 
       {/* Bias edit modal */}
-      <Modal visible={showBiasEdit} animationType="slide" statusBarTranslucent onRequestClose={() => setShowBiasEdit(false)}>
+      <Modal visible={BIAS_ENABLED && showBiasEdit} animationType="slide" statusBarTranslucent onRequestClose={() => setShowBiasEdit(false)}>
         <View style={{ flex: 1, backgroundColor: COLORS.bg }}>
           <OnboardingScreen
             initialBiases={biases}
@@ -474,16 +491,6 @@ const styles = StyleSheet.create({
   premiumCTAGrad: { flexDirection: 'row', alignItems: 'center', gap: 6, paddingHorizontal: 14, paddingVertical: 7 },
   premiumCTAText: { color: COLORS.purple3, fontSize: 12, fontWeight: '700' },
 
-  quoteBubble: {
-    marginTop: 12,
-    flexDirection: 'row', alignItems: 'center', gap: 7,
-    paddingHorizontal: 16, paddingVertical: 7,
-    backgroundColor: COLORS.purple1 + '44',
-    borderRadius: 20,
-    borderWidth: 1, borderColor: COLORS.purple2 + '33',
-  },
-  quote: { color: COLORS.purple3, fontSize: 11, fontStyle: 'italic' },
-
   statsGrid: { flexDirection: 'row', flexWrap: 'wrap', gap: 10, marginBottom: 14 },
   statCard: { width: '47%', alignItems: 'center', paddingVertical: 16, paddingHorizontal: 8 },
   statCardIcon: { fontSize: 18, marginBottom: 4 },
@@ -506,9 +513,6 @@ const styles = StyleSheet.create({
 
   memberList: { gap: 14 },
   memberRow: { flexDirection: 'row', alignItems: 'center', gap: 10 },
-  memberAvatarDot: { width: 50, height: 50, borderRadius: 25, overflow: 'hidden', alignItems: 'center', justifyContent: 'center', borderWidth: 2, backgroundColor: 'rgba(139,112,170,0.15)' },
-  memberAvatarImg: { width: 50, height: 50 },
-  memberAvatarEmoji: { fontSize: 20 },
   memberRowInfo: { flex: 1 },
   memberRowTop: { flexDirection: 'row', justifyContent: 'space-between', marginBottom: 5 },
   memberRowName: { color: '#fff', fontSize: 13, fontWeight: '700' },
@@ -545,7 +549,19 @@ const styles = StyleSheet.create({
 
   versionRow: { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', marginBottom: 8 },
   version: { color: COLORS.textMuted, fontSize: 11, opacity: 0.5 },
-  disclaimer: { color: COLORS.textMuted, fontSize: 10, opacity: 0.45, textAlign: 'center', paddingHorizontal: 32, marginBottom: 16 },
+  disclaimerBanner: {
+    flexDirection: 'row', alignItems: 'center', gap: 9,
+    paddingHorizontal: 13, paddingVertical: 11,
+    marginBottom: 14,
+    borderRadius: 10, borderWidth: 1,
+    borderColor: 'rgba(168,85,247,0.35)',
+    backgroundColor: 'rgba(139,112,170,0.16)',
+  },
+  // textSecondary en vez de textMuted y sin `opacity`, que era lo que fundia el
+  // texto con el fondo (3.2:1). Asi queda ~9:1 sin gritar: el tamano se mantiene
+  // chico y el panel apagado lo dejan como nota, no como contenido principal.
+  disclaimer: { flex: 1, color: COLORS.textSecondary, fontSize: 11, fontWeight: '500', lineHeight: 15 },
+  versionText: { color: COLORS.textMuted, fontSize: 10, opacity: 0.35, textAlign: 'center', marginBottom: 8 },
   privacyLink: { alignItems: 'center', marginBottom: 10 },
   privacyLinkText: { color: COLORS.purple3, fontSize: 12, fontWeight: '600', textDecorationLine: 'underline' },
 
@@ -564,16 +580,12 @@ const styles = StyleSheet.create({
   editBtnText: { color: COLORS.purple3, fontSize: 12, fontWeight: '700' },
   noBiasText: { color: COLORS.textMuted, fontSize: 13, fontStyle: 'italic' },
   biasChips: { flexDirection: 'row', flexWrap: 'wrap', gap: 10, marginTop: 4 },
-  biasChip: { alignItems: 'center', gap: 5, width: 60 },
-  biasChipPhoto: {
-    width: 48, height: 48, borderRadius: 24,
-    overflow: 'hidden', borderWidth: 2,
-    backgroundColor: 'rgba(139,112,170,0.15)',
-    alignItems: 'center', justifyContent: 'center',
+  biasChip: {
+    paddingHorizontal: 14, paddingVertical: 7,
+    borderRadius: 16, borderWidth: 1,
+    backgroundColor: 'rgba(139,112,170,0.12)',
   },
-  biasChipImg: { width: 48, height: 48 },
-  biasChipInitial: { fontSize: 18, color: COLORS.purple3, fontWeight: '700' },
-  biasChipName: { color: COLORS.textSecondary, fontSize: 10, fontWeight: '700', textAlign: 'center' },
+  biasChipName: { fontSize: 12, fontWeight: '800', textAlign: 'center' },
 
   // Delete modal
   modalOverlay: {

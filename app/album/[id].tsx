@@ -25,6 +25,7 @@ import { useAuth } from '../../hooks/useAuth';
 import { useAlbumCards } from '../../hooks/useCards';
 import { COLORS, MEMBER_MAP, MEMBERS, STATUS_CONFIG, STATUS_LABEL_KEY } from '../../lib/constants';
 import { useI18n } from '../../lib/I18nContext';
+import { PROMO_MODE, promoAlbumCover, promoMemberAvatar } from '../../lib/promoMode';
 import { getPhotocardUrl } from '../../lib/supabase';
 import { CardStatus, CardWithStatus } from '../../lib/types';
 
@@ -70,7 +71,8 @@ export default function AlbumDetailScreen() {
   const filtered = useMemo(() => {
     let result = cards;
     if (statusFilter === 'All') result = result.filter(c => c.status !== 'not_collecting');
-    if (memberFilter !== 'All') result = result.filter(c => c.member === memberFilter);
+    if (memberFilter === 'Group') result = result.filter(c => c.is_group);
+    else if (memberFilter !== 'All') result = result.filter(c => c.member === memberFilter);
     if (categoryFilter !== 'All') result = result.filter(c => c.category_name === categoryFilter);
     if (statusFilter === 'none') result = result.filter(c => c.status === null);
     else if (statusFilter !== 'All') result = result.filter(c => c.status === statusFilter);
@@ -191,7 +193,6 @@ export default function AlbumDetailScreen() {
         </TouchableOpacity>
         <View style={{ flex: 1 }}>
           <Text style={styles.albumTitle} numberOfLines={1}>{albumName}</Text>
-          <Text style={styles.albumArtist}>BTS</Text>
         </View>
       </View>
 
@@ -207,19 +208,16 @@ export default function AlbumDetailScreen() {
               end={{ x: 1, y: 1 }}
             />
             <View style={[styles.coverBox, { borderColor: albumColor + '44' }]}>
-              {albumCover ? (
+              {PROMO_MODE || albumCover ? (
                 <Image
-                  source={{ uri: getPhotocardUrl(albumCover) }}
+                  source={PROMO_MODE ? promoAlbumCover : { uri: getPhotocardUrl(albumCover!) }}
                   style={{ width: '100%', height: '100%', borderRadius: 13 }}
                   contentFit="cover"
                   cachePolicy="disk"
                   transition={150}
                 />
               ) : (
-                <>
-                  <Text style={[styles.coverText, { color: albumColor }]}>{albumShort}</Text>
-                  <Text style={styles.coverSub}>BTS</Text>
-                </>
+                <Text style={[styles.coverText, { color: albumColor }]}>{albumShort}</Text>
               )}
             </View>
           </View>
@@ -394,7 +392,9 @@ export default function AlbumDetailScreen() {
                     styles.sheetMemberDot,
                     { borderColor: MEMBER_MAP[selectedCard.member]?.colors[1] || COLORS.purple2 },
                   ]}>
-                    {selectedCard.is_group ? (
+                    {PROMO_MODE ? (
+                      <Image source={promoMemberAvatar} style={styles.sheetMemberImg} contentFit="cover" />
+                    ) : selectedCard.is_group ? (
                       <Image source={GROUP_IMAGE} style={styles.sheetMemberImg} contentFit="contain" />
                     ) : MEMBER_IMAGES[selectedCard.member] ? (
                       <Image source={MEMBER_IMAGES[selectedCard.member]} style={styles.sheetMemberImg} contentFit="cover" />
@@ -552,7 +552,6 @@ const styles = StyleSheet.create({
   },
   backText: { color: COLORS.purple3, fontSize: 18 },
   albumTitle: { color: '#fff', fontSize: 22, fontWeight: '900' },
-  albumArtist: { color: COLORS.textSecondary, fontSize: 12, marginTop: 1 },
   coverSection: { alignItems: 'center', marginBottom: 20, paddingHorizontal: 16 },
   coverOuter: { width: 140, height: 140, borderRadius: 16, alignItems: 'center', justifyContent: 'center', overflow: 'hidden' },
   coverBox: {
@@ -561,7 +560,6 @@ const styles = StyleSheet.create({
     borderWidth: 1, backgroundColor: 'rgba(255,255,255,0.03)',
   },
   coverText: { fontSize: 20, fontWeight: '900', letterSpacing: 2 },
-  coverSub: { fontSize: 10, color: 'rgba(255,255,255,0.4)', marginTop: 4, fontWeight: '600' },
   countText: { fontSize: 15, color: '#fff', fontWeight: '700', marginTop: 16, marginBottom: 10 },
   barWrap: { width: '75%' },
 

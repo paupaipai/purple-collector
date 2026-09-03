@@ -1,13 +1,12 @@
 const en = {
   // Login
-  loginTagline: 'Your BTS Photocard Tracker',
-  loginDescription: 'Track, organize and grow your BTS photocard collection in one place',
+  loginTagline: 'Your Photocard Tracker',
+  loginDescription: 'Track, organize and grow your photocard collection in one place',
   loginButton: 'Sign in with Google',
   loginDivider: 'your collection, tracked',
   loginFeature1: 'Sync across devices',
   loginFeature2: 'Track owned & wishlist',
   loginFeature3: 'Collection stats',
-  loginQuote: '"I Purple You" — Kim Taehyung',
 
   // Tabs
   tabHome: 'Home',
@@ -169,14 +168,13 @@ const en = {
 
 const es: Translations = {
   // Login
-  loginTagline: 'Tu Tracker de Photocards de BTS',
-  loginDescription: 'Registra, organiza y haz crecer tu colección de photocards de BTS en un solo lugar',
+  loginTagline: 'Tu Tracker de Photocards',
+  loginDescription: 'Registra, organiza y haz crecer tu colección de photocards en un solo lugar',
   loginButton: 'Iniciar sesión con Google',
   loginDivider: 'tu colección, registrada',
   loginFeature1: 'Sincroniza entre dispositivos',
   loginFeature2: 'Registra lo que tienes y tu wishlist',
   loginFeature3: 'Estadísticas de tu colección',
-  loginQuote: '"I Purple You" — Kim Taehyung',
 
   // Tabs
   tabHome: 'Inicio',
@@ -198,14 +196,14 @@ const es: Translations = {
   labelMembers: 'Miembros',
   labelRarePlus: 'Rara+',
   labelTotal: 'total',
-  noCards: 'Sin cards aún',
-  noCardsDesc: 'Marca photocards como "Have" en\ncualquier álbum para armar tu colección',
+  noCards: 'Sin cartas aún',
+  noCardsDesc: 'Marca photocards como "Tengo" en\ncualquier álbum para armar tu colección',
   browseAlbums: 'Ver Álbumes',
   noCardsFilter: 'Sin resultados para estos filtros',
   filterAllAlbums: 'Todos los Álbumes',
   filterAll: 'Todos',
   filterGroup: 'Grupo',
-  searchPlaceholder: 'Buscar por card, miembro o álbum...',
+  searchPlaceholder: 'Buscar por carta, miembro o álbum...',
   cancel: 'Cancelar',
   filtersLabel: 'Filtros',
   cardWordSingular: 'carta',
@@ -215,7 +213,7 @@ const es: Translations = {
   photocardsOf: '{owned} de {total} Photocards',
   wordOf: 'de',
   wordPhotocards: 'Photocards',
-  loadingCards: 'Cargando cards...',
+  loadingCards: 'Cargando cartas...',
   noPhotocardsYet: 'Aún no hay photocards',
   noPhotocardsYetDesc: 'Este álbum todavía no tiene photocards catalogadas. Más adelante podrían sumarse otros formatos.',
 
@@ -224,7 +222,7 @@ const es: Translations = {
   photocardsTracked: '{n} photocards en seguimiento',
   loadingWishlist: 'Cargando wishlist...',
   wishlistEmpty: 'Wishlist vacía',
-  wishlistEmptyDesc: 'Marca photocards como "Want" o "OTW"\nen cualquier álbum para rastrearlas aquí',
+  wishlistEmptyDesc: 'Marca photocards como "Quiero" o "En camino"\nen cualquier álbum para rastrearlas aquí',
 
   // Photocard status labels
   clearStatus: 'Pendiente',
@@ -239,7 +237,7 @@ const es: Translations = {
   fullSets: 'Sets completos',
   labelComplete: 'Completo',
   overallProgress: 'Progreso General',
-  cardsLeft: '{n} cards para completar tu colección',
+  cardsLeft: '{n} cartas para completar tu colección',
   collectionComplete: '¡Colección completa!',
   rarityBreakdown: 'Desglose por Rareza',
   rarityCommon: 'Común',
@@ -269,7 +267,7 @@ const es: Translations = {
   errorAlbums: 'No se pudieron cargar los álbumes. Verifica tu conexión.',
   errorCollection: 'No se pudo cargar la colección. Verifica tu conexión.',
   errorWishlist: 'No se pudo cargar la wishlist. Verifica tu conexión.',
-  errorCards: 'No se pudieron cargar las cards. Verifica tu conexión.',
+  errorCards: 'No se pudieron cargar las cartas. Verifica tu conexión.',
 
   // Onboarding
   onboardingTitle: 'Bienvenida a Purple Collector',

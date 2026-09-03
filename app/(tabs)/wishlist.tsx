@@ -11,6 +11,7 @@ import { useWishlist } from '../../hooks/useWishlist';
 import { useAuth } from '../../hooks/useAuth';
 import { COLORS, MEMBERS, STATUS_CONFIG, STATUS_LABEL_KEY } from '../../lib/constants';
 import { getPhotocardUrl } from '../../lib/supabase';
+import { PROMO_MODE, getPromoCardImage } from '../../lib/promoMode';
 import { CardWithStatus, CardStatus } from '../../lib/types';
 import FilterBottomSheet, { FilterSection } from '../../components/FilterBottomSheet';
 import GlassCard from '../../components/GlassCard';
@@ -32,6 +33,9 @@ function WishGridCard({
 }) {
   const status = card.status as CardStatus;
   const borderColor = STATUS_CONFIG[status]?.color + '55' || card.album_color + '55';
+  const promoImage = PROMO_MODE
+    ? getPromoCardImage({ seed: card.id, categoryShort: card.category_short, isWishlist: true })
+    : null;
 
   return (
     <View style={styles.gridItem}>
@@ -40,9 +44,9 @@ function WishGridCard({
         activeOpacity={0.85}
         style={[styles.gridCard, { borderColor }]}
       >
-        {card.image_path ? (
+        {promoImage || card.image_path ? (
           <Image
-            source={{ uri: getPhotocardUrl(card.image_path) }}
+            source={promoImage ?? { uri: getPhotocardUrl(card.image_path!) }}
             style={styles.gridImage}
             contentFit="cover"
             transition={150}
@@ -94,20 +98,27 @@ function StatusActionModal({
         <TouchableOpacity activeOpacity={1} style={styles.popupCard}>
           {card && (
             <>
-              <View style={styles.popupThumbWrap}>
-                {card.image_path ? (
-                  <Image
-                    source={{ uri: getPhotocardUrl(card.image_path) }}
-                    style={styles.popupThumb}
-                    contentFit="cover"
-                    transition={150}
-                  />
-                ) : (
-                  <View style={[styles.popupThumb, styles.gridPlaceholder, { backgroundColor: card.album_color + '33' }]}>
-                    <Text style={styles.memberInitial}>{card.member?.charAt(0) || '?'}</Text>
+              {(() => {
+                const promoImage = PROMO_MODE
+                  ? getPromoCardImage({ seed: card.id, categoryShort: card.category_short, isWishlist: true })
+                  : null;
+                return (
+                  <View style={styles.popupThumbWrap}>
+                    {promoImage || card.image_path ? (
+                      <Image
+                        source={promoImage ?? { uri: getPhotocardUrl(card.image_path!) }}
+                        style={styles.popupThumb}
+                        contentFit="cover"
+                        transition={150}
+                      />
+                    ) : (
+                      <View style={[styles.popupThumb, styles.gridPlaceholder, { backgroundColor: card.album_color + '33' }]}>
+                        <Text style={styles.memberInitial}>{card.member?.charAt(0) || '?'}</Text>
+                      </View>
+                    )}
                   </View>
-                )}
-              </View>
+                );
+              })()}
 
               <Text style={styles.popupTitle} numberOfLines={1}>{card.card_name}</Text>
               <Text style={styles.popupSub} numberOfLines={1}>{card.member} · {card.album_short}</Text>

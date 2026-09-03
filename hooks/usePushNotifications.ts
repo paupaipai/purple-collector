@@ -26,8 +26,14 @@ type NotificationData = {
 function navigateFromNotificationData(data: NotificationData) {
   // Card sets have no dedicated screen — they're just a category label
   // filtered inside the album screen — so both kinds land on the album.
-  if (data.albumId) {
+  if (!data.albumId) return;
+  try {
     router.push(`/album/${data.albumId}`);
+  } catch (err) {
+    // router.push throws if called before the target route is actually
+    // mounted. Callers are expected to gate on `ready`, but this is a
+    // last-resort guard so a race never surfaces as an unhandled rejection.
+    console.error('[usePushNotifications] navigation failed:', err);
   }
 }
 
@@ -66,8 +72,21 @@ async function registerPushToken() {
   }
 }
 
-export function usePushNotifications(userId: string | null) {
+// `ready` should reflect whether the authenticated Stack (and therefore the
+// `album/[id]` route) is actually mounted — i.e. auth + onboarding have
+// resolved. On a cold start from a tapped notification, this hook mounts
+// immediately while the app is still on the loading/login/onboarding screen,
+// long before that Stack exists. Calling router.push before its target route
+// is mounted silently fails (or throws), so the deep link would otherwise be
+// lost with no visible symptom other than "notification tap does nothing" —
+// and if it happened to fire during the loading screen, it could also throw
+// an uncaught error inside a native-event callback. Buffering until `ready`
+// flips true fixes both.
+export function usePushNotifications(userId: string | null, ready: boolean) {
   const responseListener = useRef<Notifications.EventSubscription | null>(null);
+  const pendingDataRef = useRef<NotificationData | null>(null);
+  const readyRef = useRef(ready);
+  readyRef.current = ready;
 
   useEffect(() => {
     if (!userId) return;
@@ -75,20 +94,36 @@ export function usePushNotifications(userId: string | null) {
   }, [userId]);
 
   useEffect(() => {
+    const handleData = (data: NotificationData | undefined) => {
+      if (!data) return;
+      if (readyRef.current) {
+        navigateFromNotificationData(data);
+      } else {
+        pendingDataRef.current = data;
+      }
+    };
+
     // Cold start: app opened directly from a tapped notification.
     Notifications.getLastNotificationResponseAsync().then((response) => {
-      const data = response?.notification.request.content.data as NotificationData | undefined;
-      if (data) navigateFromNotificationData(data);
+      handleData(response?.notification.request.content.data as NotificationData | undefined);
     });
 
     // Warm start: app already running/backgrounded when the user taps it.
     responseListener.current = Notifications.addNotificationResponseReceivedListener((response) => {
-      const data = response.notification.request.content.data as NotificationData;
-      navigateFromNotificationData(data);
+      handleData(response.notification.request.content.data as NotificationData);
     });
 
     return () => {
       responseListener.current?.remove();
     };
   }, []);
+
+  // Flush a buffered tap once the Stack actually mounts.
+  useEffect(() => {
+    if (ready && pendingDataRef.current) {
+      const data = pendingDataRef.current;
+      pendingDataRef.current = null;
+      navigateFromNotificationData(data);
+    }
+  }, [ready]);
 }
