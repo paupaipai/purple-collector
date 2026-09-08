@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useState } from 'react';
 import { Image } from 'expo-image';
-import { supabase, getPhotocardUrl, fetchAllRows } from '../lib/supabase';
+import { supabase, getPhotocardUrl } from '../lib/supabase';
 import { AlbumEraWithAlbums, AlbumVersion, AlbumWithStats } from '../lib/types';
 import { t } from '../lib/i18n';
 
@@ -60,12 +60,13 @@ export function useEraAlbums(collectionTypeId: number | null, userId: string | n
     const [
       { data: albumsData, error: albumsError },
       { data: versionsData },
-      cardCounts,
+      { data: cardCounts },
       { data: userCardsData },
     ] = await Promise.all([
       supabase.from('albums').select('*').in('era_id', eraIds).eq('is_active', true).order('sort_order'),
       supabase.from('album_versions').select('*').order('sort_order'),
-      fetchAllRows<{ album_id: number }>('cards', 'album_id'),
+      // Ver nota en useAlbums: vista agregada en vez de bajar `cards` entera.
+      supabase.from('album_card_counts').select('album_id, total'),
       userCardsQuery,
     ]);
 
@@ -84,7 +85,7 @@ export function useEraAlbums(collectionTypeId: number | null, userId: string | n
     // Total cards per album — "not_collecting" cards don't count toward it.
     const totalByAlbum: Record<number, number> = {};
     (cardCounts || []).forEach((c: any) => {
-      totalByAlbum[c.album_id] = (totalByAlbum[c.album_id] || 0) + 1;
+      totalByAlbum[c.album_id] = c.total;
     });
     Object.keys(notCollectingByAlbum).forEach((aidStr) => {
       const aid = Number(aidStr);

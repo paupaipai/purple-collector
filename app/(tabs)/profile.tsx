@@ -103,14 +103,20 @@ export default function ProfileScreen() {
   const [totalGroup, setTotalGroup] = useState(0);
 
   const fetchMemberTotals = useCallback(async () => {
-    const [{ data: memberCards }, { count: groupTotal }] = await Promise.all([
-      supabase.from('cards').select('member, is_group').eq('is_group', false),
-      supabase.from('cards').select('id', { count: 'exact', head: true }).eq('is_group', true),
-    ]);
+    // Vista agregada (8 filas). El select anterior pedia todas las cards que no
+    // son de grupo y PostgREST se lo cortaba en 1000 de 4286, asi que los
+    // totales por miembro salian mal — el mismo bug de truncado que ya se
+    // arreglo en useAlbums, que aca habia quedado suelto.
+    const { data: counts } = await supabase
+      .from('member_card_counts')
+      .select('member, is_group, total');
 
     const byMember: Record<string, number> = {};
-    (memberCards || []).forEach((c: any) => { byMember[c.member] = (byMember[c.member] || 0) + 1; });
-    let group = groupTotal ?? 0;
+    let group = 0;
+    (counts || []).forEach((c: any) => {
+      if (c.is_group) group += c.total;
+      else byMember[c.member] = (byMember[c.member] || 0) + c.total;
+    });
 
     // Cards the user opted out of don't count toward their own totals —
     // same convention as the album screen's collectibleCount.

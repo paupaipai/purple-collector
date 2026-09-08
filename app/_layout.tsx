@@ -5,7 +5,7 @@ import { Stack } from 'expo-router';
 import * as SplashScreen from 'expo-splash-screen';
 import { StatusBar } from 'expo-status-bar';
 import { useEffect, useRef, useState } from 'react';
-import { Animated, StyleSheet, View } from 'react-native';
+import { Animated, Platform, StyleSheet, View } from 'react-native';
 import GalaxyBackground from '../components/GalaxyBackground';
 import LoginScreen from '../components/LoginScreen';
 import OnboardingScreen from '../components/OnboardingScreen';
@@ -150,10 +150,16 @@ function AppShell({ session, loading, authLoading, signInWithGoogle, signInWithA
   }, [isLoading]);
 
   return (
-    <View style={{ flex: 1, backgroundColor: COLORS.bg }}>
+    <View style={styles.root}>
       <StatusBar style="light" />
       <GalaxyBackground />
 
+      {/* En web la app se sirve en una columna centrada del ancho de un
+          telefono: el layout esta hecho para ~400px y sin esto se estira a
+          todo el navegador (las photocards, que miden 31% del contenedor,
+          terminaban mas anchas que el telefono entero). El fondo de galaxia
+          queda a sangre completa detras porque es absoluteFill. */}
+      <View style={styles.column}>
       {isLoading ? (
         <LoadingScreen />
       ) : !session ? (
@@ -178,6 +184,7 @@ function AppShell({ session, loading, authLoading, signInWithGoogle, signInWithA
           />
         </Stack>
       )}
+      </View>
     </View>
   );
 }
@@ -203,7 +210,28 @@ export default Sentry.wrap(function RootLayout() {
   );
 });
 
+// Ancho de la columna en web. Un poco mas que un telefono grande (430pt del
+// iPhone Pro Max) para que respire, sin llegar a romper las proporciones.
+const WEB_COLUMN_MAX_WIDTH = 480;
+
 const styles = StyleSheet.create({
+  root: {
+    flex: 1,
+    backgroundColor: COLORS.bg,
+    ...(Platform.OS === 'web' ? { alignItems: 'center' as const } : null),
+  },
+  column: {
+    flex: 1,
+    width: '100%',
+    ...(Platform.OS === 'web'
+      ? {
+          maxWidth: WEB_COLUMN_MAX_WIDTH,
+          borderLeftWidth: 1,
+          borderRightWidth: 1,
+          borderColor: 'rgba(168,85,247,0.14)',
+        }
+      : null),
+  },
   loadingWrap: {
     flex: 1,
     alignItems: 'center',

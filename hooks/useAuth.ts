@@ -4,6 +4,7 @@ import * as AppleAuthentication from 'expo-apple-authentication';
 import * as Linking from 'expo-linking';
 import * as WebBrowser from 'expo-web-browser';
 import { useEffect, useState } from 'react';
+import { Platform } from 'react-native';
 import { supabase } from '../lib/supabase';
 
 WebBrowser.maybeCompleteAuthSession();
@@ -79,6 +80,24 @@ export function useAuth() {
   const signInWithGoogle = async () => {
     setAuthLoading('google');
     try {
+      // En web no hay WebBrowser que abrir: el patron nativo (popup +
+      // skipBrowserRedirect) lo bloquea cualquier bloqueador de popups. Se deja
+      // que supabase-js navegue la pagina entera a Google y, al volver a
+      // /auth/callback, `detectSessionInUrl` (activado en lib/supabase.ts para
+      // web) recoge la sesion del fragmento y dispara onAuthStateChange.
+      if (Platform.OS === 'web') {
+        const { error } = await supabase.auth.signInWithOAuth({
+          provider: 'google',
+          options: {
+            redirectTo: `${window.location.origin}/auth/callback`,
+            queryParams: { prompt: 'select_account' },
+          },
+        });
+        if (error) { console.error('[Auth] signInWithOAuth error:', error); throw error; }
+        // La navegacion ya esta en curso; no hay nada mas que hacer aqui.
+        return;
+      }
+
       const redirectTo = Linking.createURL('auth/callback');
 
       const { data, error } = await supabase.auth.signInWithOAuth({

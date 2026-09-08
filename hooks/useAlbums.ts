@@ -1,5 +1,5 @@
 import { useState, useEffect, useCallback } from 'react';
-import { supabase, fetchAllRows } from '../lib/supabase';
+import { supabase } from '../lib/supabase';
 import { AlbumWithStats, AlbumVersion } from '../lib/types';
 import { t } from '../lib/i18n';
 
@@ -19,18 +19,16 @@ export function useAlbums(userId: string | null) {
     const [
       { data: albumsData, error: aErr },
       { data: versionsData },
-      cardCounts,
+      { data: cardCounts },
       { data: userCardsData },
     ] = await Promise.all([
       supabase.from('albums').select('*').eq('is_active', true).order('sort_order'),
       supabase.from('album_versions').select('*').order('sort_order'),
-      // fetchAllRows lanza si una pagina falla; sin capturarlo la promesa quedaba
-      // rechazada en silencio y la pantalla se quedaba con albums=[] y loading=true,
-      // que es lo que hacia que el perfil mostrara "N / 0" y "coleccion completa".
-      fetchAllRows<{ album_id: number }>('cards', 'album_id').catch((e) => {
-        console.error('Error fetching card counts:', e);
-        return null;
-      }),
+      // Vista agregada: ~130 filas en una sola peticion. Antes se bajaba la
+      // tabla `cards` completa (4500+ filas en 5 viajes secuenciales, ~3s)
+      // solo para contar cuantas cards tiene cada album, y encima se repetia
+      // en cada useFocusEffect.
+      supabase.from('album_card_counts').select('album_id, total'),
       userCardsQuery,
     ]);
 
@@ -53,10 +51,13 @@ export function useAlbums(userId: string | null) {
       });
     }
 
+    const countByAlbum: Record<number, number> = {};
+    (cardCounts || []).forEach((c: any) => { countByAlbum[c.album_id] = c.total; });
+
     const result: AlbumWithStats[] = albumsData.map(album => ({
       ...album,
       versions: (versionsData || []).filter((v: AlbumVersion) => v.album_id === album.id),
-      total_cards: (cardCounts || []).filter((c: any) => c.album_id === album.id).length - (notCollectingByAlbum[album.id] || 0),
+      total_cards: (countByAlbum[album.id] || 0) - (notCollectingByAlbum[album.id] || 0),
       owned_cards: ownedByAlbum[album.id] || 0,
     }));
 
