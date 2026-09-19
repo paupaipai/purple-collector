@@ -1,5 +1,5 @@
 import { useState, useEffect, useCallback } from 'react';
-import { supabase } from '../lib/supabase';
+import { fetchAllPages, supabase } from '../lib/supabase';
 import { AlbumWithStats, AlbumVersion } from '../lib/types';
 import { t } from '../lib/i18n';
 
@@ -12,8 +12,11 @@ export function useAlbums(userId: string | null) {
     if (!silent) setLoading(true);
     setError(null);
 
+    // Paginado: sin esto, un usuario con mas de 1000 filas en have/not_collecting
+    // veia mal el "owned" de sus ultimos albumes, porque PostgREST cortaba la
+    // lista en 1000 y los albumes que quedaban fuera contaban 0.
     const userCardsQuery = userId
-      ? supabase.from('user_cards').select('status, cards!inner(album_id)').eq('user_id', userId).in('status', ['have', 'not_collecting'])
+      ? fetchAllPages<any>(() => supabase.from('user_cards').select('status, cards!inner(album_id)').eq('user_id', userId).in('status', ['have', 'not_collecting']))
       : Promise.resolve({ data: null as any, error: null });
 
     const [

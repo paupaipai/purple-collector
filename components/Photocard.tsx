@@ -125,9 +125,6 @@ export default function Photocard({ card, onPress, onLongPress }: PhotocardProps
 
       {/* Card name below card */}
       <View style={styles.status}>
-        {card.version_short && (
-          <Text style={styles.versionTag}>Ver. {card.version_short}</Text>
-        )}
         {card.card_name ? (
           <Text style={styles.cardSetName} numberOfLines={2}>
             {card.card_name.toUpperCase()}
@@ -276,12 +273,6 @@ const styles = StyleSheet.create({
   statusLabel: {
     fontSize: 11,
     fontWeight: '700',
-  },
-  versionTag: {
-    fontSize: 10,
-    fontWeight: '800',
-    color: COLORS.purple3,
-    letterSpacing: 0.5,
   },
   cardSetName: {
     fontSize: 9,

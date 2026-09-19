@@ -19,7 +19,7 @@ import { useBias } from '../../lib/BiasContext';
 import { BIAS_ENABLED, COLORS, getMemberByKey, MEMBERS, PREMIUM_ENABLED, PRIVACY_URL, RARITIES, RARITY_LABEL_KEY } from '../../lib/constants';
 import { useI18n } from '../../lib/I18nContext';
 import { usePremium } from '../../lib/PremiumContext';
-import { supabase } from '../../lib/supabase';
+import { fetchAllByIds, fetchAllPages, supabase } from '../../lib/supabase';
 import { BiasKey } from '../../lib/types';
 
 function BiasChip({ biasKey }: { biasKey: BiasKey }) {
@@ -49,7 +49,7 @@ function MemberRow({ name, owned, total, color }: { emoji: string; name: string;
 function StatCard({ value, label, color, icon }: { value: number | string; label: string; color: string; icon: string }) {
   return (
     <GlassCard style={styles.statCard}>
-      <Text style={styles.statCardIcon}>{icon}</Text>
+      <Text style={[styles.statCardIcon, { color }]}>{icon}</Text>
       <Text style={[styles.statCardValue, { color }]}>{value}</Text>
       <Text style={styles.statCardLabel}>{label}</Text>
     </GlassCard>
@@ -121,19 +121,21 @@ export default function ProfileScreen() {
     // Cards the user opted out of don't count toward their own totals —
     // same convention as the album screen's collectibleCount.
     if (userId) {
-      const { data: notCollectingRows } = await supabase
-        .from('user_cards')
-        .select('card_id')
-        .eq('user_id', userId)
-        .eq('status', 'not_collecting');
+      const { data: notCollectingRows } = await fetchAllPages<{ card_id: number }>(
+        () => supabase
+          .from('user_cards')
+          .select('card_id')
+          .eq('user_id', userId)
+          .eq('status', 'not_collecting'),
+      );
 
-      if (notCollectingRows && notCollectingRows.length > 0) {
-        const { data: notCollectingCards } = await supabase
-          .from('cards')
-          .select('member, is_group')
-          .in('id', notCollectingRows.map((r: any) => r.card_id));
+      if (notCollectingRows.length > 0) {
+        const { data: notCollectingCards } = await fetchAllByIds<any>(
+          notCollectingRows.map((r: any) => r.card_id),
+          chunk => supabase.from('cards').select('member, is_group').in('id', chunk),
+        );
 
-        (notCollectingCards || []).forEach((c: any) => {
+        notCollectingCards.forEach((c: any) => {
           if (c.is_group) group -= 1;
           else byMember[c.member] = (byMember[c.member] || 0) - 1;
         });

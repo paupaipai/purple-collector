@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useState } from 'react';
 import { Image } from 'expo-image';
-import { supabase, getPhotocardUrl } from '../lib/supabase';
+import { fetchAllPages, supabase, getPhotocardUrl } from '../lib/supabase';
 import { AlbumEraWithAlbums, AlbumVersion, AlbumWithStats } from '../lib/types';
 import { t } from '../lib/i18n';
 
@@ -49,12 +49,13 @@ export function useEraAlbums(collectionTypeId: number | null, userId: string | n
     }
 
     // Step 2: álbumes filtrados por era_id directamente en Supabase
+    // Paginado: mismo truncado que en useAlbums.
     const userCardsQuery = userId
-      ? supabase
+      ? fetchAllPages<any>(() => supabase
           .from('user_cards')
           .select('status, cards!inner(album_id)')
           .eq('user_id', userId)
-          .in('status', ['have', 'not_collecting'])
+          .in('status', ['have', 'not_collecting']))
       : Promise.resolve({ data: null as any, error: null });
 
     const [

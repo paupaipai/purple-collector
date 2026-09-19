@@ -3,6 +3,9 @@ const en = {
   loginTagline: 'Your Photocard Tracker',
   loginDescription: 'Track, organize and grow your photocard collection in one place',
   loginButton: 'Sign in with Google',
+  // Apple's own wording for the Sign in with Apple button. Don't paraphrase:
+  // custom buttons have to use one of Apple's approved titles.
+  loginButtonApple: 'Sign in with Apple',
   loginDivider: 'your collection, tracked',
   loginFeature1: 'Sync across devices',
   loginFeature2: 'Track owned & wishlist',
@@ -40,6 +43,9 @@ const en = {
   filtersLabel: 'Filters',
   cardWordSingular: 'card',
   cardWordPlural: 'cards',
+  duplicates: 'Duplicates',
+  copiesOne: '1 copy',
+  copiesMany: '{n} copies',
 
   // Album detail
   photocardsOf: '{owned} of {total} Photocards',
@@ -171,6 +177,7 @@ const es: Translations = {
   loginTagline: 'Tu Tracker de Photocards',
   loginDescription: 'Registra, organiza y haz crecer tu colección de photocards en un solo lugar',
   loginButton: 'Iniciar sesión con Google',
+  loginButtonApple: 'Iniciar sesión con Apple',
   loginDivider: 'tu colección, registrada',
   loginFeature1: 'Sincroniza entre dispositivos',
   loginFeature2: 'Registra lo que tienes y tu wishlist',
@@ -208,6 +215,9 @@ const es: Translations = {
   filtersLabel: 'Filtros',
   cardWordSingular: 'carta',
   cardWordPlural: 'cartas',
+  duplicates: 'Duplicados',
+  copiesOne: '1 copia',
+  copiesMany: '{n} copias',
 
   // Album detail
   photocardsOf: '{owned} de {total} Photocards',

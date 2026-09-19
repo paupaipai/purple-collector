@@ -1,5 +1,4 @@
 import { Ionicons } from '@expo/vector-icons';
-import * as AppleAuthentication from 'expo-apple-authentication';
 import { Image } from 'expo-image';
 import React from 'react';
 import { ActivityIndicator, Platform, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
@@ -38,21 +37,32 @@ export default function LoginScreen({ onGoogleSignIn, onAppleSignIn, loading }: 
           <Text style={styles.taglineText}>{t('loginDescription')}</Text>
         </View>
 
-        {/* Apple Sign In Button — required by Apple guideline 4.8 alongside Google,
-            must use the official component/style, same width/height/radius as Google's. */}
+        {/* Apple Sign In Button — required by Apple guideline 4.8 alongside Google.
+            Custom button instead of AppleAuthentication.AppleAuthenticationButton:
+            the native one is localized by the *device* language and ignores the
+            in-app ES/EN toggle, so it read "Iniciar sesion con Apple" inside an
+            otherwise English app. Apple allows a custom button as long as it keeps
+            their logo, one of their approved titles (see loginButtonApple) and a
+            black-on-white scheme — here at the same size/radius as Google's. */}
         {Platform.OS === 'ios' && (
-          <AppleAuthentication.AppleAuthenticationButton
-            buttonType={AppleAuthentication.AppleAuthenticationButtonType.SIGN_IN}
-            buttonStyle={AppleAuthentication.AppleAuthenticationButtonStyle.WHITE}
-            cornerRadius={14}
-            style={[styles.appleBtn, loading === 'google' && styles.btnDimmed]}
+          <TouchableOpacity
+            style={[styles.authBtn, styles.appleBtn, loading === 'google' && styles.btnDimmed]}
             onPress={() => { if (!loading) onAppleSignIn(); }}
-          />
+            activeOpacity={0.8}
+            disabled={!!loading}
+          >
+            <Ionicons name="logo-apple" size={22} color="#000" style={styles.appleLogo} />
+            {loading === 'apple' ? (
+              <ActivityIndicator size="small" color="#000" />
+            ) : (
+              <Text style={styles.appleBtnText}>{t('loginButtonApple')}</Text>
+            )}
+          </TouchableOpacity>
         )}
 
         {/* Google Sign In Button */}
         <TouchableOpacity
-          style={[styles.googleBtn, loading === 'apple' && styles.btnDimmed]}
+          style={[styles.authBtn, loading === 'apple' && styles.btnDimmed]}
           onPress={onGoogleSignIn}
           activeOpacity={0.8}
           disabled={!!loading}
@@ -130,15 +140,9 @@ const styles = StyleSheet.create({
     textAlign: 'center',
     lineHeight: 20,
   },
-  appleBtn: {
-    width: '100%',
-    height: 50,
-    marginBottom: 12,
-  },
-  btnDimmed: {
-    opacity: 0.5,
-  },
-  googleBtn: {
+  // Shared by both providers so they stay identical in size and radius, which
+  // is what Apple's guideline asks for when their button sits next to others.
+  authBtn: {
     flexDirection: 'row',
     alignItems: 'center',
     backgroundColor: '#fff',
@@ -153,6 +157,22 @@ const styles = StyleSheet.create({
     shadowRadius: 8,
     shadowOffset: { width: 0, height: 4 },
     elevation: 4,
+  },
+  appleBtn: {
+    marginBottom: 12,
+  },
+  // The glyph box leaves more air under the mark than over it, so it reads low
+  // against the text without this nudge.
+  appleLogo: {
+    marginTop: -3,
+  },
+  appleBtnText: {
+    fontSize: 16,
+    fontWeight: '600',
+    color: '#000',
+  },
+  btnDimmed: {
+    opacity: 0.5,
   },
   googleIconWrap: {
     width: 24,

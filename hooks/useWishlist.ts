@@ -1,5 +1,5 @@
 import { useState, useEffect, useCallback } from 'react';
-import { supabase } from '../lib/supabase';
+import { fetchAllByIds, fetchAllPages, supabase } from '../lib/supabase';
 import { CardWithStatus, CardStatus } from '../lib/types';
 import { t } from '../lib/i18n';
 
@@ -17,11 +17,15 @@ export function useWishlist(userId: string | null) {
     if (!silent) setLoading(true);
     setError(null);
 
-    const { data: ucData, error: ucError } = await supabase
-      .from('user_cards')
-      .select('card_id, status')
-      .eq('user_id', userId)
-      .in('status', ['want', 'otw']);
+    // Paginado: ver nota en useCollection. Las wishlists son las que mas
+    // crecen (3300+ filas en la base), asi que aca el truncado era peor.
+    const { data: ucData, error: ucError } = await fetchAllPages<{ card_id: number; status: CardStatus }>(
+      () => supabase
+        .from('user_cards')
+        .select('card_id, status')
+        .eq('user_id', userId)
+        .in('status', ['want', 'otw']),
+    );
 
     if (ucError) {
       console.error('[useWishlist] user_cards error:', JSON.stringify(ucError));
@@ -30,19 +34,19 @@ export function useWishlist(userId: string | null) {
       return;
     }
 
-    if (!ucData || ucData.length === 0) {
+    if (ucData.length === 0) {
       setCards([]);
       setLoading(false);
       return;
     }
 
     const cardIds = ucData.map((uc: any) => uc.card_id);
-    const { data: cardsData, error: cardsError } = await supabase
-      .from('cards_full')
-      .select('*')
-      .in('id', cardIds);
+    const { data: cardsData, error: cardsError } = await fetchAllByIds<any>(
+      cardIds,
+      chunk => supabase.from('cards_full').select('*').in('id', chunk),
+    );
 
-    if (cardsError || !cardsData) {
+    if (cardsError) {
       console.error('[useWishlist] cards_full error:', JSON.stringify(cardsError));
       setError(t('errorWishlist'));
       setLoading(false);

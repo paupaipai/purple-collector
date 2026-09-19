@@ -23,7 +23,6 @@ import { useCollection } from '../../hooks/useCollection';
 import { COLORS, MEMBERS, RARITIES, RARITY_LABEL_KEY } from '../../lib/constants';
 import { useI18n } from '../../lib/I18nContext';
 import { usePremium } from '../../lib/PremiumContext';
-import { CardWithStatus } from '../../lib/types';
 
 function StatBadge({ value, label, color }: { value: number; label: string; color: string }) {
   return (
@@ -86,38 +85,6 @@ export default function CollectionScreen() {
     return result;
   }, [cards, albumFilter, memberFilter, searchQuery]);
 
-  const grouped = useMemo(() => {
-    type CategoryGroup = { color: string; cards: CardWithStatus[] };
-    type VersionGroup = { id: number | null; name: string | null; short: string | null; categories: Record<string, CategoryGroup> };
-    type AlbumGroup = { color: string; cover: string | null; versions: VersionGroup[] };
-
-    const groups: Record<string, AlbumGroup> = {};
-    const versionMaps = new Map<string, Map<string | number, number>>();
-
-    filtered.forEach(c => {
-      if (!groups[c.album_name]) {
-        groups[c.album_name] = { color: c.album_color, cover: c.album_cover, versions: [] };
-        versionMaps.set(c.album_name, new Map());
-      }
-      const albumGroup = groups[c.album_name];
-      const vMap = versionMaps.get(c.album_name)!;
-      const vKey = c.version_id ?? 'none';
-
-      if (!vMap.has(vKey)) {
-        vMap.set(vKey, albumGroup.versions.length);
-        albumGroup.versions.push({ id: c.version_id, name: c.version_name, short: c.version_short, categories: {} });
-      }
-      const vGroup = albumGroup.versions[vMap.get(vKey)!];
-
-      if (!vGroup.categories[c.category_name]) {
-        vGroup.categories[c.category_name] = { color: c.category_color, cards: [] };
-      }
-      vGroup.categories[c.category_name].cards.push(c);
-    });
-
-    return groups;
-  }, [filtered]);
-
   const rarityCount = useMemo(() => {
     const counts: Record<string, number> = { Common: 0, Rare: 0, 'Ultra Rare': 0, Limited: 0 };
     cards.forEach(c => { counts[c.rarity] = (counts[c.rarity] || 0) + 1; });
@@ -175,7 +142,9 @@ export default function CollectionScreen() {
               <Text style={styles.headerSub}>{t('photocardsOwned', { n: cards.length })}</Text>
             </View>
             <View style={styles.totalBadge}>
-              <Text style={styles.totalNum}>{cards.length}</Text>
+              <Text style={styles.totalNum} numberOfLines={1} adjustsFontSizeToFit minimumFontScale={0.6}>
+                {cards.length}
+              </Text>
               <Text style={styles.totalLabel}>{t('labelTotal')}</Text>
             </View>
           </View>
@@ -331,48 +300,17 @@ export default function CollectionScreen() {
                 <Text style={styles.emptyText}>{t('noCardsFilter')}</Text>
               </View>
             ) : (
-              Object.entries(grouped).map(([albumName, album]) => {
-                const albumTotal = album.versions.reduce(
-                  (sum, v) => sum + Object.values(v.categories).reduce((s, c) => s + c.cards.length, 0), 0
-                );
-                return (
-                  <View key={albumName} style={styles.albumSection}>
-                    <View style={styles.albumGroupHeader}>
-                      <View style={[styles.albumColorDot, { backgroundColor: album.color }]} />
-                      <Text style={styles.albumGroupName} numberOfLines={1}>{albumName}</Text>
-                      <Text style={styles.albumGroupCount}>{albumTotal}</Text>
-                    </View>
-
-                    {album.versions.map((version, vi) => (
-                      <View key={vi} style={styles.versionBlock}>
-                        {version.name && (
-                          <View style={styles.versionHeader}>
-                            <Text style={styles.versionLabel}>{version.name}</Text>
-                          </View>
-                        )}
-                        {Object.entries(version.categories).map(([catName, cat]) => (
-                          <View key={catName} style={styles.categoryBlock}>
-                            <View style={styles.categoryHeader}>
-                              <View style={[styles.categoryDot, { backgroundColor: cat.color }]} />
-                              <Text style={styles.categoryName}>{catName}</Text>
-                              <Text style={styles.categoryCount}>{cat.cards.length}</Text>
-                            </View>
-                            <View style={styles.pcGrid}>
-                              {cat.cards.map(card => (
-                                <Photocard
-                                  key={card.id}
-                                  card={card}
-                                  onPress={() => router.push(`/album/${card.album_id}`)}
-                                />
-                              ))}
-                            </View>
-                          </View>
-                        ))}
-                      </View>
-                    ))}
-                  </View>
-                );
-              })
+              <View style={styles.flatSection}>
+                <View style={styles.pcGrid}>
+                  {filtered.map(card => (
+                    <Photocard
+                      key={card.id}
+                      card={card}
+                      onPress={() => router.push(`/album/${card.album_id}`)}
+                    />
+                  ))}
+                </View>
+              </View>
             )}
           </>
         )}
@@ -407,7 +345,7 @@ const styles = StyleSheet.create({
   headerTitle: { fontSize: 26, fontWeight: '900', color: '#fff', letterSpacing: -0.5 },
   headerSub: { fontSize: 13, color: COLORS.textSecondary, marginTop: 3 },
   totalBadge: {
-    width: 60, height: 60, borderRadius: 16,
+    minWidth: 60, height: 60, borderRadius: 16, paddingHorizontal: 10,
     backgroundColor: COLORS.purple1 + '66',
     borderWidth: 1.5, borderColor: COLORS.purple2 + '44',
     alignItems: 'center', justifyContent: 'center',
@@ -494,36 +432,6 @@ const styles = StyleSheet.create({
   browseBtnGrad: { paddingHorizontal: 24, paddingVertical: 12 },
   browseBtnText: { color: '#fff', fontSize: 14, fontWeight: '800' },
 
-  albumSection: { marginTop: 20, paddingHorizontal: 16 },
-  albumGroupHeader: { flexDirection: 'row', alignItems: 'center', gap: 8, marginBottom: 8 },
-  albumColorDot: { width: 8, height: 8, borderRadius: 4 },
-  albumGroupName: { flex: 1, color: '#fff', fontSize: 14, fontWeight: '800' },
-  albumGroupCount: {
-    color: COLORS.textMuted, fontSize: 11, fontWeight: '700',
-    backgroundColor: 'rgba(255,255,255,0.06)',
-    paddingHorizontal: 8, paddingVertical: 2, borderRadius: 6,
-  },
-
-  versionBlock: { marginTop: 4 },
-  versionHeader: {
-    alignSelf: 'flex-start',
-    marginBottom: 8, marginTop: 4,
-    paddingHorizontal: 10, paddingVertical: 4,
-    borderRadius: 8,
-    backgroundColor: 'rgba(168,85,247,0.18)',
-    borderWidth: 1, borderColor: 'rgba(168,85,247,0.35)',
-  },
-  versionLabel: { color: COLORS.purple3, fontSize: 11, fontWeight: '800', letterSpacing: 0.5 },
-
-  categoryBlock: { marginBottom: 14 },
-  categoryHeader: { flexDirection: 'row', alignItems: 'center', gap: 6, marginBottom: 8 },
-  categoryDot: { width: 6, height: 6, borderRadius: 3 },
-  categoryName: { flex: 1, color: COLORS.textSecondary, fontSize: 11, fontWeight: '700' },
-  categoryCount: {
-    color: COLORS.textMuted, fontSize: 10, fontWeight: '700',
-    backgroundColor: 'rgba(255,255,255,0.05)',
-    paddingHorizontal: 6, paddingVertical: 1, borderRadius: 4,
-  },
-
+  flatSection: { marginTop: 10, paddingHorizontal: 16 },
   pcGrid: { flexDirection: 'row', flexWrap: 'wrap', gap: 10, justifyContent: 'flex-start' },
 });

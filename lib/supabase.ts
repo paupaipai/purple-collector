@@ -32,25 +32,66 @@ export function getPhotocardUrl(imagePath: string): string {
   return `${data.publicUrl}?v=${IMAGE_CACHE_VERSION}`;
 }
 
-// PostgREST caps unbounded selects at 1000 rows by default, so any table
-// that can grow past that (e.g. 'cards') needs explicit pagination or a
-// select silently truncates instead of erroring.
+// PostgREST caps unbounded selects at 1000 rows by default, so any query that
+// can grow past that needs explicit pagination or the select silently
+// truncates instead of erroring. This bites both the catalog ('cards', 4500+
+// rows) and a single user's own 'user_cards' — a collection of 1127 owned
+// cards was being reported as exactly 1000 everywhere.
 const PAGE_SIZE = 1000;
 
-export async function fetchAllRows<T = any>(table: string, columns: string): Promise<T[]> {
+// PostgREST puts filters in the query string, so a long `in.(...)` list blows
+// past the URL length limit (a 3376-card wishlist is ~17KB of ids). Batch it.
+const IN_CHUNK_SIZE = 500;
+
+export type PagedResult<T> = { data: T[]; error: any };
+
+/**
+ * Drains a select page by page instead of letting PostgREST cap it at 1000.
+ *
+ * `build` must return a *fresh* query builder on every call — builders are
+ * single-use. `orderColumn` is not optional in spirit: without an ORDER BY,
+ * Postgres doesn't guarantee consistent row order across separate .range()
+ * calls, so pages can silently overlap or skip rows (this is what made album
+ * and type card counts flicker between fetches).
+ */
+export async function fetchAllPages<T = any>(
+  build: () => any,
+  orderColumn = 'id',
+): Promise<PagedResult<T>> {
   const rows: T[] = [];
   let from = 0;
   while (true) {
-    // .order() is required for stable pagination — without it Postgres/PostgREST
-    // doesn't guarantee row order is consistent across separate .range() calls,
-    // so pages can silently overlap or skip rows, making the total flicker
-    // between fetches (observed as album/type card counts changing on their own).
-    const { data, error } = await supabase.from(table).select(columns).order('id').range(from, from + PAGE_SIZE - 1);
-    if (error) throw error;
+    const { data, error } = await build().order(orderColumn).range(from, from + PAGE_SIZE - 1);
+    if (error) return { data: rows, error };
     if (!data || data.length === 0) break;
     rows.push(...(data as T[]));
     if (data.length < PAGE_SIZE) break;
     from += PAGE_SIZE;
   }
-  return rows;
+  return { data: rows, error: null };
+}
+
+/**
+ * Same idea for `.in(col, ids)` lookups: splits `ids` into URL-safe batches and
+ * paginates each one. `build` receives one batch and returns the query for it.
+ */
+export async function fetchAllByIds<T = any>(
+  ids: (number | string)[],
+  build: (chunk: (number | string)[]) => any,
+  orderColumn = 'id',
+): Promise<PagedResult<T>> {
+  const rows: T[] = [];
+  for (let i = 0; i < ids.length; i += IN_CHUNK_SIZE) {
+    const chunk = ids.slice(i, i + IN_CHUNK_SIZE);
+    const { data, error } = await fetchAllPages<T>(() => build(chunk), orderColumn);
+    rows.push(...data);
+    if (error) return { data: rows, error };
+  }
+  return { data: rows, error: null };
+}
+
+export async function fetchAllRows<T = any>(table: string, columns: string): Promise<T[]> {
+  const { data, error } = await fetchAllPages<T>(() => supabase.from(table).select(columns));
+  if (error) throw error;
+  return data;
 }

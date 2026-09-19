@@ -20,25 +20,14 @@ import FilterBottomSheet, { FilterSection } from '../../components/FilterBottomS
 import GalaxyBackground from '../../components/GalaxyBackground';
 import NeonBar from '../../components/NeonBar';
 import Photocard from '../../components/Photocard';
+import CardStatusModal from '../../components/CardStatusModal';
 import StatusHelpModal from '../../components/StatusHelpModal';
 import { useAuth } from '../../hooks/useAuth';
 import { useAlbumCards } from '../../hooks/useCards';
-import { COLORS, MEMBER_MAP, MEMBERS, STATUS_CONFIG, STATUS_LABEL_KEY } from '../../lib/constants';
+import { COLORS, MEMBERS, STATUS_LABEL_KEY } from '../../lib/constants';
 import { useI18n } from '../../lib/I18nContext';
 import { getPhotocardUrl } from '../../lib/supabase';
 import { CardStatus, CardWithStatus } from '../../lib/types';
-
-const GROUP_IMAGE = require('../../assets/images/bts/bts.png');
-
-const MEMBER_IMAGES: Record<string, any> = {
-  'RM':       require('../../assets/images/bts/rm.png'),
-  'Jin':      require('../../assets/images/bts/jin.png'),
-  'Suga':     require('../../assets/images/bts/suga.png'),
-  'J-Hope':   require('../../assets/images/bts/jhope.png'),
-  'Jimin':    require('../../assets/images/bts/jimin.png'),
-  'V':        require('../../assets/images/bts/v.png'),
-  'Jungkook': require('../../assets/images/bts/jungkook.png'),
-};
 
 export default function AlbumDetailScreen() {
   const { id } = useLocalSearchParams<{ id: string }>();
@@ -375,122 +364,18 @@ export default function AlbumDetailScreen() {
       />
 
       {/* Status picker modal */}
-      <Modal
-        visible={!!selectedCard}
-        transparent
-        animationType="slide"
-        onRequestClose={() => setSelectedCard(null)}
-      >
-        <TouchableOpacity style={styles.backdrop} activeOpacity={1} onPress={() => setSelectedCard(null)}>
-          <TouchableOpacity activeOpacity={1} style={styles.sheet}>
-            {selectedCard && (
-              <>
-                <View style={styles.sheetHandle} />
-                <View style={styles.sheetHeader}>
-                  <View style={[
-                    styles.sheetMemberDot,
-                    { borderColor: MEMBER_MAP[selectedCard.member]?.colors[1] || COLORS.purple2 },
-                  ]}>
-                    {selectedCard.is_group ? (
-                      <Image source={GROUP_IMAGE} style={styles.sheetMemberImg} contentFit="contain" />
-                    ) : MEMBER_IMAGES[selectedCard.member] ? (
-                      <Image source={MEMBER_IMAGES[selectedCard.member]} style={styles.sheetMemberImg} contentFit="cover" />
-                    ) : (
-                      <Text style={styles.sheetMemberInitial}>{selectedCard.member?.charAt(0) || '?'}</Text>
-                    )}
-                  </View>
-                  <View style={{ flex: 1 }}>
-                    <Text style={styles.sheetMember}>{selectedCard.member}</Text>
-                    <Text style={styles.sheetCardName} numberOfLines={1}>{selectedCard.card_name}</Text>
-                    <Text style={styles.sheetAlbum}>{selectedCard.album_short} · {selectedCard.category_short}</Text>
-                  </View>
-                </View>
-                <View style={styles.sheetDivider} />
-                {/* Falta — estado inicial (borra la fila) */}
-                {(() => {
-                  const isActive = selectedCard.status === null;
-                  return (
-                    <TouchableOpacity
-                      style={[styles.statusRow, isActive && { backgroundColor: 'rgba(139,112,170,0.12)' }]}
-                      onPress={() => { clearCardStatus(selectedCard.id); setSelectedCard(null); }}
-                      activeOpacity={0.7}
-                    >
-                      <View style={[styles.statusIcon, { backgroundColor: 'rgba(139,112,170,0.15)', borderColor: 'rgba(139,112,170,0.3)' }]}>
-                        <Ionicons name="ellipse-outline" size={17} color={COLORS.textMuted} />
-                      </View>
-                      <Text style={[styles.statusLabel, { color: isActive ? COLORS.textSecondary : '#fff' }]}>{t('clearStatus')}</Text>
-                      {isActive && <Text style={[styles.statusCheck, { color: COLORS.textMuted }]}>✓</Text>}
-                    </TouchableOpacity>
-                  );
-                })()}
-                {(Object.entries(STATUS_CONFIG) as [CardStatus, typeof STATUS_CONFIG[CardStatus]][]).map(([key, cfg]) => {
-                  const isActive = selectedCard.status === key;
-                  return (
-                    <TouchableOpacity
-                      key={key}
-                      style={[styles.statusRow, isActive && { backgroundColor: cfg.color + '18' }]}
-                      onPress={() => handleStatusSelect(key)}
-                      activeOpacity={0.7}
-                    >
-                      <View style={[styles.statusIcon, { backgroundColor: cfg.color + '22', borderColor: cfg.color + '55' }]}>
-                        {key === 'otw'
-                          ? <Ionicons name="cart-outline" size={20} color={cfg.color} />
-                          : <Text style={[styles.statusIconText, { color: cfg.color }]}>{cfg.icon}</Text>}
-                      </View>
-                      <Text style={[styles.statusLabel, { color: isActive ? cfg.color : '#fff' }]}>{t(STATUS_LABEL_KEY[key] as any)}</Text>
-                      {isActive && <Text style={[styles.statusCheck, { color: cfg.color }]}>✓</Text>}
-                    </TouchableOpacity>
-                  );
-                })}
-
-                {/* Duplicate count stepper — only when status is 'have' */}
-                {selectedCard.status === 'have' && (
-                  <>
-                    <View style={styles.sheetDivider} />
-                    <View style={styles.dupRow}>
-                      <View style={styles.dupLabelWrap}>
-                        <Text style={styles.dupLabel}>Duplicados</Text>
-                        <Text style={styles.dupSub}>
-                          {selectedCard.duplicate_count === 0
-                            ? '1 copia'
-                            : `${selectedCard.duplicate_count + 1} copias`}
-                        </Text>
-                      </View>
-                      <View style={styles.dupStepper}>
-                        <TouchableOpacity
-                          style={[styles.dupBtn, selectedCard.duplicate_count === 0 && styles.dupBtnDisabled]}
-                          onPress={() => {
-                            const next = selectedCard.duplicate_count - 1;
-                            setDuplicateCount(selectedCard.id, next);
-                            setSelectedCard(prev => prev ? { ...prev, duplicate_count: Math.max(0, next) } : null);
-                          }}
-                          disabled={selectedCard.duplicate_count === 0}
-                          activeOpacity={0.7}
-                        >
-                          <Text style={styles.dupBtnText}>−</Text>
-                        </TouchableOpacity>
-                        <Text style={styles.dupCount}>{selectedCard.duplicate_count}</Text>
-                        <TouchableOpacity
-                          style={styles.dupBtn}
-                          onPress={() => {
-                            const next = selectedCard.duplicate_count + 1;
-                            setDuplicateCount(selectedCard.id, next);
-                            setSelectedCard(prev => prev ? { ...prev, duplicate_count: next } : null);
-                          }}
-                          activeOpacity={0.7}
-                        >
-                          <Text style={styles.dupBtnText}>+</Text>
-                        </TouchableOpacity>
-                      </View>
-                    </View>
-                  </>
-                )}
-              </>
-            )}
-          </TouchableOpacity>
-        </TouchableOpacity>
-      </Modal>
-
+      <CardStatusModal
+        card={selectedCard}
+        onClose={() => setSelectedCard(null)}
+        onSetStatus={handleStatusSelect}
+        onClearStatus={() => { clearCardStatus(selectedCard!.id); setSelectedCard(null); }}
+        onSetDuplicates={(count) => {
+          if (!selectedCard) return;
+          const clamped = Math.max(0, count);
+          setDuplicateCount(selectedCard.id, clamped);
+          setSelectedCard(prev => prev ? { ...prev, duplicate_count: clamped } : null);
+        }}
+      />
 
       <StatusHelpModal visible={showHelp} onClose={() => setShowHelp(false)} />
 
@@ -618,51 +503,6 @@ const styles = StyleSheet.create({
 
 
   // Status picker
-  backdrop: { flex: 1, backgroundColor: 'rgba(0,0,0,0.6)', justifyContent: 'flex-end' },
-  sheet: {
-    backgroundColor: '#160A30',
-    borderTopLeftRadius: 24, borderTopRightRadius: 24,
-    paddingBottom: 40,
-    borderWidth: 1, borderColor: 'rgba(168,85,247,0.2)', borderBottomWidth: 0,
-  },
-  sheetHandle: {
-    width: 40, height: 4, borderRadius: 2,
-    backgroundColor: 'rgba(255,255,255,0.15)',
-    alignSelf: 'center', marginTop: 12, marginBottom: 16,
-  },
-  sheetHeader: { flexDirection: 'row', alignItems: 'center', gap: 12, paddingHorizontal: 20, marginBottom: 16 },
-  sheetMemberDot: { width: 74, height: 74, borderRadius: 37, overflow: 'hidden', alignItems: 'center', justifyContent: 'center', backgroundColor: 'rgba(139,112,170,0.2)', borderWidth: 2.5 },
-  sheetMemberImg: { width: 62, height: 62 },
-  sheetMemberEmoji: { fontSize: 26 },
-  sheetMemberInitial: { fontSize: 22, fontWeight: '900', color: '#fff' },
-  sheetMember: { color: '#fff', fontSize: 15, fontWeight: '800' },
-  sheetCardName: { color: COLORS.textSecondary, fontSize: 12, marginTop: 1 },
-  sheetAlbum: { color: COLORS.textMuted, fontSize: 11, marginTop: 2 },
-  sheetDivider: { height: 1, backgroundColor: 'rgba(255,255,255,0.06)', marginHorizontal: 20, marginBottom: 8 },
-  statusRow: { flexDirection: 'row', alignItems: 'center', gap: 14, paddingHorizontal: 20, paddingVertical: 13 },
-  statusIcon: { width: 38, height: 38, borderRadius: 12, alignItems: 'center', justifyContent: 'center', borderWidth: 1 },
-  statusIconText: { fontSize: 16, fontWeight: '700' },
-  statusLabel: { flex: 1, fontSize: 15, fontWeight: '700' },
-  statusCheck: { fontSize: 16, fontWeight: '900' },
-
-  dupRow: {
-    flexDirection: 'row', alignItems: 'center',
-    justifyContent: 'space-between',
-    paddingHorizontal: 20, paddingVertical: 14,
-  },
-  dupLabelWrap: { gap: 2 },
-  dupLabel: { color: '#fff', fontSize: 14, fontWeight: '700' },
-  dupSub: { color: COLORS.textMuted, fontSize: 11 },
-  dupStepper: { flexDirection: 'row', alignItems: 'center', gap: 16 },
-  dupBtn: {
-    width: 34, height: 34, borderRadius: 10,
-    backgroundColor: COLORS.purple1 + '55',
-    borderWidth: 1, borderColor: COLORS.purple2 + '44',
-    alignItems: 'center', justifyContent: 'center',
-  },
-  dupBtnDisabled: { opacity: 0.3 },
-  dupBtnText: { color: COLORS.purple3, fontSize: 18, fontWeight: '800' },
-  dupCount: { color: '#fff', fontSize: 20, fontWeight: '900', minWidth: 24, textAlign: 'center' },
 
 
   // Celebration modal

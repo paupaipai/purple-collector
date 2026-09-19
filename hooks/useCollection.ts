@@ -1,5 +1,5 @@
 import { useState, useEffect, useCallback } from 'react';
-import { supabase } from '../lib/supabase';
+import { fetchAllByIds, fetchAllPages, supabase } from '../lib/supabase';
 import { CardWithStatus } from '../lib/types';
 import { t } from '../lib/i18n';
 
@@ -17,11 +17,15 @@ export function useCollection(userId: string | null) {
     if (!silent) setLoading(true);
     setError(null);
 
-    const { data: ucData, error: ucError } = await supabase
-      .from('user_cards')
-      .select('card_id, status')
-      .eq('user_id', userId)
-      .eq('status', 'have');
+    // Paginado: un usuario con mas de 1000 cards en 'have' veia su coleccion
+    // cortada en exactamente 1000 (el cap por defecto de PostgREST).
+    const { data: ucData, error: ucError } = await fetchAllPages<{ card_id: number; status: 'have' }>(
+      () => supabase
+        .from('user_cards')
+        .select('card_id, status')
+        .eq('user_id', userId)
+        .eq('status', 'have'),
+    );
 
     if (ucError) {
       setError(t('errorCollection'));
@@ -29,19 +33,21 @@ export function useCollection(userId: string | null) {
       return;
     }
 
-    if (!ucData || ucData.length === 0) {
+    if (ucData.length === 0) {
       setCards([]);
       setLoading(false);
       return;
     }
 
     const cardIds = ucData.map((uc: any) => uc.card_id);
-    const { data: cardsData, error: cardsError } = await supabase
-      .from('cards_full')
-      .select('*')
-      .in('id', cardIds);
+    // Por lotes: `in.(...)` viaja en la query string y con miles de ids la URL
+    // supera el limite del servidor.
+    const { data: cardsData, error: cardsError } = await fetchAllByIds<any>(
+      cardIds,
+      chunk => supabase.from('cards_full').select('*').in('id', chunk),
+    );
 
-    if (cardsError || !cardsData) {
+    if (cardsError) {
       setError(t('errorCollection'));
       setLoading(false);
       return;
