@@ -14,7 +14,7 @@
       "backgroundColor": "#0B0024"
     },
     "ios": {
-      "supportsTablet": true,
+      "supportsTablet": false,
       "bundleIdentifier": "com.paupaipai.purplecollector",
       "usesAppleSignIn": true,
       "infoPlist": {
