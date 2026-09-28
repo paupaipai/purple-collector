@@ -109,9 +109,12 @@ export function useAlbumCards(albumId: number | null, userId: string | null) {
     setCards(combined);
     setLoading(false);
 
+    // `cards_full` expone la ruta como image_path, no image_url: el filtro
+    // por c.image_url dejaba el array siempre vacio y el prefetch no corria
+    // nunca, justo en la pantalla mas usada.
     const imageUrls = cardsData
-      .filter((c: any) => c.image_url)
-      .map((c: any) => getPhotocardUrl(c.image_url));
+      .filter((c: any) => c.image_path)
+      .map((c: any) => getPhotocardUrl(c.image_path));
     if (imageUrls.length > 0) Image.prefetch(imageUrls);
   }, [albumId, userId]);
 
