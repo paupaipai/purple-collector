@@ -7,8 +7,8 @@ Documento hermano: [`PURPLE_V2_CURRENT_STATE.md`](./PURPLE_V2_CURRENT_STATE.md) 
 Roadmap de origen: `~/Downloads/Purple_Collector_v2_Roadmap.xlsx` (66 tareas).
 
 > **Aplicado en producción el 2026-09-28** (con aprobación explícita):
-> `20260927120000_create_card_images.sql` y
-> `20260928120000_create_community_buckets.sql`.
+> `20260928145804_create_card_images.sql` y
+> `20260928150106_create_community_buckets.sql`.
 >
 > **Sigue sin tocarse:** `cards.image_path` (4503 intactas), `user_cards`,
 > los ids, `cards_full`, la UI, el bucket `photocards` y sus policies. No se
@@ -208,7 +208,7 @@ idempotente y reconciliable. Se diseña en FASE D/G.
 
 > **APROBADO el 2026-09-28** ("usa los 3 buckets"). Los dos buckets community
 > fueron creados junto a sus policies en
-> `20260928120000_create_community_buckets.sql`. `photocards` no se tocó.
+> `20260928150106_create_community_buckets.sql`. `photocards` no se tocó.
 
 ### 4.2 Configuración de bucket propuesta
 
@@ -338,7 +338,7 @@ Cada uno es una migration y un commit propios, revisables por separado.
 
 | ID | Hallazgo | Severidad | Bloquea V2 | Migration propuesta |
 |---|---|---|---|---|
-| ~~**SR-1**~~ | ~~`cards_full` es `SECURITY DEFINER` (advisor: ERROR)~~ | Alta | — | **HECHO 2026-09-28**: `20260928130000_cards_full_security_invoker.sql` |
+| ~~**SR-1**~~ | ~~`cards_full` es `SECURITY DEFINER` (advisor: ERROR)~~ | Alta | — | **HECHO 2026-09-28**: `20260928182438_cards_full_security_invoker.sql` |
 | **SR-2** | `user_profiles` `Public read profiles` (`USING true`, rol `public`) expone las 34 filas a `anon`, **incluido `is_admin`** | Alta | **Sí** — antes de attribution | `..._restrict_user_profiles_read.sql` |
 | **SR-3** | Bucket `photocards` sin `file_size_limit` ni `allowed_mime_types` | Media | No | `..._photocards_bucket_limits.sql` |
 | **SR-4** | Sin policy DELETE en `storage.objects` para `photocards`: no hay takedown de legacy sin `service_role` | Media | No | `..._photocards_admin_delete_policy.sql` |
@@ -531,27 +531,39 @@ buckets community · 0 paths desalineados.
 |---|---|---|---|
 | 1 | Documento de decisiones | `docs/PURPLE_COLLECTOR_V2_MIGRATION.md` | este archivo |
 | 2 | Auditoría actualizada | `docs/PURPLE_V2_CURRENT_STATE.md` | §5.1 y §7 actualizadas (§2.2) |
-| 3 | Migration estructural | `supabase/migrations/20260927120000_create_card_images.sql` | **sin ejecutar** |
-| 4 | Script de piloto | `supabase/scripts/pilot_arirang_legacy_images.sql` | **sin ejecutar** |
+| 3 | Migration estructural | `supabase/migrations/20260928145804_create_card_images.sql` | **aplicada** |
+| 3b | Buckets de UGC | `supabase/migrations/20260928150106_create_community_buckets.sql` | **aplicada** |
+| 3c | SR-1 | `supabase/migrations/20260928182438_cards_full_security_invoker.sql` | **aplicada** |
+| 4 | Script de piloto | `supabase/scripts/pilot_arirang_legacy_images.sql` | **ejecutado**, 6 filas |
 | 5 | Plan de seguridad | §6 | 7 ítems, migrations separadas |
 | 6 | Cards del piloto | §5 | 6 cards identificadas y verificadas |
 | 7 | Informe de huérfanos | §8 | 109 → 33 reales, 4 orígenes |
 
-### Lo que NO se hizo
+### Lo que sigue sin tocarse
 
-- ✗ ninguna migration ejecutada
-- ✗ ningún bucket creado
-- ✗ producción sin modificar
-- ✗ UI sin tocar
-- ✗ `user_cards` sin tocar
-- ✗ `cards.image_path` sin tocar
-- ✗ sin backfill masivo
-- ✗ sin borrar objetos de Storage
+- `cards.image_path` — 4503 intactas
+- `user_cards` — sin una sola escritura
+- los ids — ningún cambio de tipo ni de valor
+- la UI — ningún archivo de `app/`, `components/`, `hooks/` o `lib/`
+- el bucket `photocards` y sus 3 policies
+- ninguna imagen movida ni borrada
+- ningún objeto huérfano eliminado
+- **sin backfill de las 4503**
 
-### Pendiente de tu aprobación
+### Nota sobre los timestamps de las migrations
 
-1. El SQL de `20260927120000_create_card_images.sql`.
-2. La selección de 6 cards del piloto (§5).
-3. **Tres buckets en vez de dos** (§4.1) — o la alternativa de bucket privado
-   con URLs firmadas.
-4. El orden de SR-1 y SR-2 respecto a FASE B.2.
+`apply_migration` registra en el remoto el timestamp real de ejecución, no el
+del archivo local. Los tres archivos se renombraron para calzar con lo que
+quedó registrado (`20260928145804`, `20260928150106`, `20260928182438`) — el
+mismo problema que resolvió el commit `5fb736a`. Sin eso, `supabase db push`
+leería historial divergente e intentaría reaplicarlas.
+
+### Pendiente
+
+1. **Backfill de las 4503 legacy.** La arquitectura ya está validada por el
+   piloto; falta tu decisión de ejecutarlo.
+2. **SR-2** (`user_profiles` expone `is_admin` a `anon`) — requiere antes
+   auditar qué lee `user_profiles` sin sesión, o rompe producción.
+3. **SR-3 a SR-7** y los bugs BUG-1 a BUG-5, en commits separados.
+4. **FASE E**: extender `cards_full` con la imagen resuelta e implementar la
+   regla de display. Ya desbloqueada por SR-1.

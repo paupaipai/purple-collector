@@ -461,8 +461,8 @@ debe ir en **ambos** o TypeScript rompe. La v2 añade del orden de 40 keys
 
 ### 5.1 `card_images` — la pieza central
 
-> **Versión aprobada e implementada** en
-> `supabase/migrations/20260927120000_create_card_images.sql` (**sin ejecutar**).
+> **Versión aprobada y APLICADA el 2026-09-28** en
+> `supabase/migrations/20260928145804_create_card_images.sql`.
 > El archivo es la fuente de verdad; abajo queda el resumen y los dos cambios
 > respecto al borrador original de FASE A.
 
@@ -592,9 +592,9 @@ quita a App Review como forzante del riesgo R1 — pero **R1 sigue vigente**.
 
 ---
 
-## 7. FASE B.1 — entregado, sin ejecutar
+## 7. FASE B.1 — aplicada el 2026-09-28
 
-`supabase/migrations/20260927120000_create_card_images.sql`, puramente aditiva,
+`supabase/migrations/20260928145804_create_card_images.sql`, puramente aditiva,
 sin cambios en la app:
 
 1. enums `image_source_type` / `image_status`
@@ -623,15 +623,22 @@ Lo que **no** hace, a propósito:
 
 Reversible con `drop table card_images;` + `drop type image_status, image_source_type;`.
 
-**Verificación esperada tras aplicarla** (solo lecturas):
+**Verificación tras aplicarla** (sólo lecturas): 0 filas en `card_images` y
+4503 en `cards.image_path`. Ambas confirmadas antes de correr el piloto.
 
-```sql
-select count(*) from card_images;                         -- 0 (sin backfill)
-select count(*) from cards where image_path is not null;  -- 4503 (intacta)
-```
+**Estado real al 2026-09-28**, ya ejecutado:
+**B.2** piloto ARIRANG — **hecho**, 6 filas ·
+**C.1** buckets y policies de Storage — **hecho**, 3 buckets ·
+**SR-1** `cards_full` a `security_invoker` — **hecho**.
 
-**Después**, y solo con aprobación explícita en cada paso:
-**B.2** piloto ARIRANG (6 cards) · **B.3** validar y decidir el backfill de las
-4503 · **SR-1** `cards_full` a `security_invoker` · **C** buckets y policies de
+**Pendiente**: **B.3** decidir el backfill de las 4503 · **D** upload ·
+**E** camino de lectura y regla de display · **F** UI legacy ·
+**G** moderación y reportes · **SR-2** a **SR-7** y BUG-1 a BUG-5.
+
+<!-- El bloque de abajo es la secuencia original de FASE A; se conserva como
+     referencia del plan tal como se propuso. -->
+**Plan original**: **B.2** piloto ARIRANG (6 cards) · **B.3** validar y decidir
+el backfill de las 4503 · **SR-1** `cards_full` a `security_invoker` ·
+**C** buckets y policies de
 Storage · **D** upload · **E** camino de lectura y regla de display ·
 **F** UI legacy · **G** moderación y reportes.
