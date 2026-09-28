@@ -1,7 +1,7 @@
 # Purple Collector V2 — Migración al catálogo comunitario
 
 Fecha: 2026-09-27 · Rama: `feat/community-images-v2` (creada desde `main` @ `9688be0`)
-Estado: **FASE B.1 aplicada. FASE C.1 (buckets) aplicada. Piloto ARIRANG ejecutado y validado.**
+Estado: **FASE B.1 + C.1 aplicadas · piloto ARIRANG ejecutado y validado · SR-1 hecho.**
 
 Documento hermano: [`PURPLE_V2_CURRENT_STATE.md`](./PURPLE_V2_CURRENT_STATE.md) — auditoría del estado real.
 Roadmap de origen: `~/Downloads/Purple_Collector_v2_Roadmap.xlsx` (66 tareas).
@@ -338,7 +338,7 @@ Cada uno es una migration y un commit propios, revisables por separado.
 
 | ID | Hallazgo | Severidad | Bloquea V2 | Migration propuesta |
 |---|---|---|---|---|
-| **SR-1** | `cards_full` es `SECURITY DEFINER` (advisor: ERROR) | Alta | **Sí** — antes de FASE E | `..._cards_full_security_invoker.sql` |
+| ~~**SR-1**~~ | ~~`cards_full` es `SECURITY DEFINER` (advisor: ERROR)~~ | Alta | — | **HECHO 2026-09-28**: `20260928130000_cards_full_security_invoker.sql` |
 | **SR-2** | `user_profiles` `Public read profiles` (`USING true`, rol `public`) expone las 34 filas a `anon`, **incluido `is_admin`** | Alta | **Sí** — antes de attribution | `..._restrict_user_profiles_read.sql` |
 | **SR-3** | Bucket `photocards` sin `file_size_limit` ni `allowed_mime_types` | Media | No | `..._photocards_bucket_limits.sql` |
 | **SR-4** | Sin policy DELETE en `storage.objects` para `photocards`: no hay takedown de legacy sin `service_role` | Media | No | `..._photocards_admin_delete_policy.sql` |
@@ -354,9 +354,26 @@ de moderación: una vista `SECURITY DEFINER` evalúa con permisos del creador y
 filtraría `pending` y `rejected`. Es prerequisito de la nueva vista, no un
 "nice to have".
 
-Cambio: `create or replace view public.cards_full with (security_invoker = true) as ...`
-con exactamente la misma definición. Verificación: los conteos que hoy ven
-`anon` y `authenticated` no deben cambiar.
+**Aplicado el 2026-09-28.** Se usó `alter view public.cards_full set
+(security_invoker = true)` en vez de `create or replace view`: cambia solo la
+opción, sin reescribir la definición, así que no hay riesgo de alterar columnas,
+orden ni el filtro `is_visible`.
+
+Verificación antes y después, idéntica en los tres roles:
+
+| rol | filas | suma de ids |
+|---|---|---|
+| `postgres` | 4503 | 14 099 191 |
+| `anon` | 4503 | 14 099 191 |
+| `authenticated` | 4503 | 14 099 191 |
+
+Las tres vistas del esquema (`cards_full`, `album_card_counts`,
+`member_card_counts`) quedan ahora con `security_invoker = true`, y el advisor
+de seguridad pasa a **cero ERRORs**. Los WARN que quedan son todos preexistentes
+(SR-5, funciones `SECURITY DEFINER` invocables, políticas con acceso anónimo
+—intencionales— y protección de contraseñas filtradas).
+
+Reversible con `alter view public.cards_full set (security_invoker = false);`
 
 ### SR-2 — detalle y prerequisito
 

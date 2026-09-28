@@ -185,7 +185,7 @@ Hay constraint único sobre `(user_id, card_id)` — la app depende de él vía
 
 | Vista | Tipo | Notas |
 |---|---|---|
-| `cards_full` | **SECURITY DEFINER** | Camino de lectura único de la app |
+| `cards_full` | `security_invoker = true` | Camino de lectura único de la app. Era `SECURITY DEFINER`; corregido el 2026-09-28 (**SR-1**) |
 | `album_card_counts` | `security_invoker = true` | Migration `20260908024314` |
 | `member_card_counts` | `security_invoker = true` | Migration `20260908024314` |
 
@@ -412,10 +412,11 @@ debe ir en **ambos** o TypeScript rompe. La v2 añade del orden de 40 keys
    no expone** (expone `image_path`). El `Image.prefetch` del álbum **nunca
    corre**: `filter` deja el array vacío. Código muerto + pérdida silenciosa de
    rendimiento en la pantalla más usada.
-2. **`cards_full` es SECURITY DEFINER** — el advisor lo marca como ERROR. Hoy es
-   inocuo (`cards` es de lectura pública), pero en cuanto la vista incluya
-   imágenes con estado de moderación, un SECURITY DEFINER **filtra pending y
-   rejected** saltándose la RLS del que consulta.
+2. ~~**`cards_full` es SECURITY DEFINER**~~ — **CORREGIDO el 2026-09-28 (SR-1).**
+   Era inocuo entonces (`cards` es de lectura pública), pero en cuanto la vista
+   incluya imágenes con estado de moderación, un SECURITY DEFINER **filtraría
+   pending y rejected** saltándose la RLS del que consulta. El advisor de
+   seguridad queda en cero ERRORs.
 3. **`cards.is_visible` tiene default `false`.** Cualquier card insertada por un
    futuro flujo de aprobación queda invisible salvo que se ponga explícitamente.
 4. **`card_status` tiene `pending` como DEFAULT** pero la app nunca lo escribe y

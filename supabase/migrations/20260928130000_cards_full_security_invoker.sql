@@ -1,0 +1,28 @@
+-- SR-1 — `cards_full` pasa a security_invoker.
+--
+-- Hallazgo de la auditoria de FASE A; el advisor de Supabase lo marca como
+-- ERROR (lint 0010_security_definer_view).
+--
+-- Una vista sin `security_invoker` se evalua con los permisos y la RLS de su
+-- creador (postgres), no de quien consulta. Hoy eso es inocuo: las cuatro
+-- tablas que la componen -- cards, albums, album_versions, card_categories --
+-- tienen una politica `Public read` para el rol `public` con USING true, asi
+-- que definer e invoker devuelven exactamente lo mismo.
+--
+-- Deja de ser inocuo en FASE E. Cuando la vista incorpore la imagen resuelta
+-- desde `card_images`, una vista SECURITY DEFINER se saltaria la RLS de
+-- card_images y expondria las filas `pending` y `rejected` a cualquiera. Por
+-- eso esto es prerequisito de FASE E, no una mejora opcional.
+--
+-- Se usa ALTER VIEW SET en vez de CREATE OR REPLACE VIEW a proposito: cambia
+-- solo la opcion, sin volver a escribir la definicion, de modo que no hay
+-- riesgo de alterar columnas, orden ni el filtro is_visible.
+--
+-- Verificado antes de aplicar: `postgres` y `anon` veian ambos 4503 filas con
+-- suma de ids 14099191. Despues debe seguir siendo identico para postgres,
+-- anon y authenticated.
+--
+-- Reversible con:
+--   alter view public.cards_full set (security_invoker = false);
+
+alter view public.cards_full set (security_invoker = true);
