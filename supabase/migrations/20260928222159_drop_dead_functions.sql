@@ -1,0 +1,84 @@
+-- SR-6 — Borra dos funciones muertas: set_card_status y get_collection_stats.
+--
+-- Ambas existian en el proyecto remoto, no estaban en ninguna migration del
+-- repo, y nada las usa. Fueron creadas a mano en el dashboard en alguna
+-- iteracion temprana y nunca se conectaron.
+--
+-- Evidencia recogida antes de borrarlas:
+--
+--   * Historial completo de git (`git log --all -S`): estos nombres NUNCA
+--     aparecieron en el repo. El unico commit que los menciona es el que
+--     documento este mismo plan de remediacion.
+--   * La app solo hace un `.rpc()`, y es a register_push_token
+--     (hooks/usePushNotifications.ts:64).
+--   * Las edge functions no las llaman.
+--   * Cero dependencias en la base: ningun trigger, policy, vista, default de
+--     columna ni otra funcion las referencia.
+--
+-- Ademas estan superadas por lo que la app ya hace:
+--
+--   set_card_status      -> hooks/useCards.ts y useWishlist.ts hacen el mismo
+--                           upsert con onConflict 'user_id,card_id'
+--   get_collection_stats -> los hooks calculan esos conteos en cliente, y las
+--                           vistas album_card_counts / member_card_counts
+--                           cubren los agregados del catalogo
+--
+-- Ninguna era SECURITY DEFINER, asi que la RLS del llamante aplicaba y no
+-- habia fuga: pasar el uuid de otra persona devolvia ceros o fallaba el WITH
+-- CHECK de user_cards. O sea que esto no es cerrar un agujero, es quitar peso
+-- muerto -- y de paso resuelve dos de los tres avisos de search_path mutable
+-- que quedaban (el tercero, is_admin, es SR-5).
+--
+-- Para restaurarlas, si alguna vez hiciera falta, estan completas aca:
+--
+--   CREATE OR REPLACE FUNCTION public.set_card_status(
+--     p_user_id uuid, p_card_id integer, p_status card_status)
+--   RETURNS void LANGUAGE plpgsql AS $function$
+--   begin
+--     insert into user_cards (user_id, card_id, status, acquired_date)
+--     values (p_user_id, p_card_id, p_status,
+--             case when p_status = 'have' then now() else null end)
+--     on conflict (user_id, card_id)
+--     do update set
+--       status = p_status,
+--       acquired_date = case
+--         when p_status = 'have' then coalesce(user_cards.acquired_date, now())
+--         else null
+--       end,
+--       updated_at = now();
+--   end;
+--   $function$;
+--
+--   CREATE OR REPLACE FUNCTION public.get_collection_stats(p_user_id uuid)
+--   RETURNS json LANGUAGE sql STABLE AS $function$
+--     select json_build_object(
+--       'total_have',  (select count(*) from user_cards where user_id = p_user_id and status = 'have'),
+--       'total_want',  (select count(*) from user_cards where user_id = p_user_id and status = 'want'),
+--       'total_otw',   (select count(*) from user_cards where user_id = p_user_id and status = 'otw'),
+--       'total_cards', (select count(*) from cards),
+--       'by_member', (
+--         select coalesce(json_object_agg(member, cnt), '{}'::json) from (
+--           select c.member, count(*) as cnt
+--           from user_cards uc join cards c on c.id = uc.card_id
+--           where uc.user_id = p_user_id and uc.status = 'have'
+--           group by c.member
+--         ) sub
+--       ),
+--       'by_category', (
+--         select coalesce(json_object_agg(cat_name, cnt), '{}'::json) from (
+--           select cc.name as cat_name, count(*) as cnt
+--           from user_cards uc
+--           join cards c on c.id = uc.card_id
+--           join card_categories cc on cc.id = c.category_id
+--           where uc.user_id = p_user_id and uc.status = 'have'
+--           group by cc.name
+--         ) sub
+--       )
+--     );
+--   $function$;
+--
+-- Se usa la firma completa en el drop para no borrar por accidente otra
+-- funcion con el mismo nombre y distintos argumentos.
+
+drop function if exists public.set_card_status(uuid, integer, card_status);
+drop function if exists public.get_collection_stats(uuid);
