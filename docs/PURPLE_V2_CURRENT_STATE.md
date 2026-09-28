@@ -199,15 +199,17 @@ notes, album_id, album_name, album_short, album_color, album_cover, version_id,
 version_name, version_short, category_id, category_name, category_short,
 category_color`; filtra `WHERE c.is_visible = true`.
 
-Desde **FASE E** expone además, al final: `primary_image_path`,
-`primary_image_bucket`, `primary_image_source` y
-`primary_image_contributed_by` — la imagen ya resuelta según la regla de display
-(`community` > `admin` > `legacy`), vía `LEFT JOIN LATERAL ... LIMIT 1` sobre
-`card_images`. `image_path` se conserva intacta para la Android v1.
+Desde **FASE E** expone además `primary_image_path`, `primary_image_bucket`,
+`primary_image_source` y `primary_image_contributed_by` — la imagen ya resuelta
+según la regla de display (`community` > `admin` > `legacy`), vía
+`LEFT JOIN LATERAL ... LIMIT 1` sobre `card_images`. `image_path` se conserva
+intacta para la Android v1.
 
-**No** expone `country`, `draw_type`, `card_set_id`, `sort_order` ni
-`category_sort_order` — por eso `useCards.ts` lanza dos queries extra a `cards`
-y `card_categories` para recomponerlos en cliente (**BUG-5**).
+Desde **BUG-5** expone también `country`, `draw_type` y `category_sort_order`,
+así que `useCards.ts` ya no los recompone en cliente: la pantalla de álbum pasó
+de 4 consultas de catálogo a 2. **32 columnas en total.**
+
+Sigue sin exponer `card_set_id` ni `cards.sort_order`, que la app no usa.
 
 ### 1.7 Storage
 
@@ -440,9 +442,15 @@ debe ir en **ambos** o TypeScript rompe. La v2 añade del orden de 40 keys
    seguridad queda en cero ERRORs.
 3. **`cards.is_visible` tiene default `false`.** Cualquier card insertada por un
    futuro flujo de aprobación queda invisible salvo que se ponga explícitamente.
-4. **`card_status` tiene `pending` como DEFAULT** pero la app nunca lo escribe y
-   `lib/types.ts` no lo conoce. Un insert en `user_cards` sin `status` explícito
-   queda en un estado que ninguna pantalla renderiza. Hoy hay 0 filas así.
+   **Deliberadamente NO cambiado** (BUG-3): podría ser intencional —insertar como
+   borrador y publicar después— y con 4503/4503 visibles no hay evidencia de que
+   ese flujo esté en uso. Ponerlo en `true` podría publicar cards a medio cargar.
+   Lo que sí es obligatorio: el flujo de aprobación de FASE G debe fijar
+   `is_visible` explícitamente.
+4. ~~**`card_status` tiene `pending` como DEFAULT**~~ — **CORREGIDO el
+   2026-09-28 (BUG-4).** Era un estado fantasma, 0 filas sobre 7381. Ahora un
+   insert sin `status` queda en NULL, que es como la app representa "sin
+   marcar". `pending` sigue existiendo en el enum, sin uso.
 5. **33 objetos huérfanos reales** en el bucket (de 109 no referenciados por
    `cards`, 76 son portadas de álbum). Informe completo por origen en §8 del
    documento de decisiones. Además, **64 de los 140 `albums.cover_image_url`

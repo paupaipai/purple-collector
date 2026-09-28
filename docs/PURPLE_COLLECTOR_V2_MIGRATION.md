@@ -1,7 +1,7 @@
 # Purple Collector V2 — Migración al catálogo comunitario
 
 Fecha: 2026-09-27 · Rama: `feat/community-images-v2` (creada desde `main` @ `9688be0`)
-Estado: **FASE B.1 + B.3 + C.1 + E + F aplicadas · backfill hecho · SR-1 a SR-8 y BUG-1 hechos.**
+Estado: **FASE B.1 + B.3 + C.1 + E + F aplicadas · backfill hecho · SR-1 a SR-9, BUG-1, BUG-4 y BUG-5 hechos.**
 
 Documento hermano: [`PURPLE_V2_CURRENT_STATE.md`](./PURPLE_V2_CURRENT_STATE.md) — auditoría del estado real.
 Roadmap de origen: `~/Downloads/Purple_Collector_v2_Roadmap.xlsx` (66 tareas).
@@ -479,7 +479,8 @@ Cada uno es una migration y un commit propios, revisables por separado.
 | ~~**SR-5**~~ | ~~`search_path` mutable en 3 funciones~~ | Baja | — | **HECHO 2026-09-28**: `20260928222240_is_admin_search_path.sql` |
 | ~~**SR-6**~~ | ~~`set_card_status` y `get_collection_stats` muertas~~ | Baja | — | **HECHO 2026-09-28**: `20260928222159_drop_dead_functions.sql` |
 | ~~**SR-7**~~ | ~~Policies duplicadas en `user_profiles`~~ | Baja | — | **HECHO 2026-09-28**: `20260928222422_cleanup_duplicate_policies.sql` |
-| **SR-8** | **Escalada de privilegios: cualquier usuario autenticado podía marcarse `is_admin`** | **Crítica** | — | **HECHO 2026-09-28**: `20260928222557_prevent_self_admin_escalation.sql` |
+| ~~**SR-8**~~ | ~~**Escalada de privilegios: cualquier usuario autenticado podía marcarse `is_admin`**~~ | **Crítica** | — | **HECHO 2026-09-28**: `20260928222557_prevent_self_admin_escalation.sql` |
+| ~~**SR-9**~~ | ~~EXECUTE a `PUBLIC` en 3 funciones `SECURITY DEFINER`~~ | Baja | — | **HECHO 2026-09-28**: `20260928223616` + `20260928223747` |
 
 ### SR-1 — detalle
 
@@ -509,6 +510,47 @@ de seguridad pasa a **cero ERRORs**. Los WARN que quedan son todos preexistentes
 anónimo —intencionales— y protección de contraseñas filtradas).
 
 Reversible con `alter view public.cards_full set (security_invoker = false);`
+
+### SR-9 — EXECUTE innecesario, y una lección (2026-09-28)
+
+Tres funciones `SECURITY DEFINER` eran invocables vía `/rest/v1/rpc/` con la
+clave publicable. **Hicieron falta dos migrations: la primera fue un no-op.**
+
+El primer intento revocaba de `anon` y `authenticated` nominalmente. El advisor
+siguió reportando las tres. El ACL real mostró por qué:
+
+```
+handle_new_user      =X/postgres  postgres=X/postgres  service_role=X/...
+is_admin             =X/postgres  postgres=X/postgres  authenticated=X/...
+register_push_token  =X/postgres  postgres=X/postgres  authenticated=X/...
+```
+
+Esa primera entrada, `=X/postgres` con el grantee **vacío** antes del `=`, es el
+grant a **`PUBLIC`** que Postgres pone por defecto en toda función nueva. `anon`
+y `authenticated` heredaban EXECUTE por ahí, así que revocárselo nominalmente no
+les quitaba nada.
+
+**Lección:** en funciones, revocar de `anon` no sirve si el privilegio viene de
+`PUBLIC`. Hay que revocar de `PUBLIC` y otorgar explícitamente a quien lo
+necesite. Dejé las dos migrations en el historial en vez de reescribirlo, para
+que quede constancia.
+
+Por qué es seguro en cada una:
+
+| Función | Queda con | Razón |
+|---|---|---|
+| `handle_new_user` | `postgres`, `service_role` | Es el trigger `on_auth_user_created`; un trigger se dispara por el mecanismo de la tabla, no por el EXECUTE del rol. Y devuelve `trigger`, tipo que PostgREST no expone — el aviso era teórico. |
+| `is_admin` | + `authenticated` | Las 17 policies que la llaman son todas `to authenticated`, y una policy que invoca una función **exige** EXECUTE al rol que consulta. |
+| `register_push_token` | + `authenticated` | Único que la llama, y solo con sesión. |
+
+No hizo falta re-otorgar nada: los grants explícitos ya existían.
+
+**Resultado en el advisor:** el lint "anon puede ejecutar" pasa de 3 findings a
+**cero**. El de "authenticated puede ejecutar" baja de 3 a **2**, y esos dos son
+**intencionales**: `authenticated` necesita `is_admin` para las policies y
+`register_push_token` para la app. No se van a "arreglar".
+
+---
 
 ### SR-8 — escalada de privilegios (hallazgo nuevo, 2026-09-28)
 
@@ -725,8 +767,8 @@ No se corrigen dentro de la migration de `card_images`.
 | **BUG-1** | Filtra por `c.image_url`, que `cards_full` no expone (expone `image_path`). `Image.prefetch` del álbum **nunca corre**: el `filter` deja el array vacío. Código muerto + pérdida silenciosa de rendimiento en la pantalla más usada. | `hooks/useCards.ts:113-114` | `fix: prefetch de imágenes en la vista de álbum` |
 | **BUG-2** | **64 de los 140 `albums.cover_image_url` apuntan a objetos que no existen** en el bucket → portadas rotas. Hallazgo nuevo de esta iteración. | datos | `fix: portadas de álbum inexistentes` (requiere decidir: subir o vaciar) |
 | **BUG-3** | `cards.is_visible` default `false`: una card insertada por un futuro flujo de aprobación queda invisible salvo que se ponga explícitamente. | schema | `chore: revisar default de cards.is_visible` |
-| **BUG-4** | `card_status` tiene `pending` como DEFAULT, la app nunca lo escribe y `lib/types.ts` no lo conoce. Un insert sin `status` explícito queda en un estado que ninguna pantalla renderiza. Hoy: 0 filas así. | schema + `lib/types.ts` | `chore: alinear enum card_status con CardStatus` |
-| **BUG-5** | `cards_full` no expone `country` ni `draw_type`, así que `useCards.ts` lanza 2 queries extra por álbum para recomponerlos. Optimización, no bug de corrección. | `hooks/useCards.ts` | opcional, fusionable con FASE E |
+| ~~**BUG-4**~~ | ~~`card_status` tiene `pending` como DEFAULT~~ — **HECHO 2026-09-28**: `20260928223959_drop_user_cards_status_default.sql`. Estado fantasma: 0 filas sobre 7381. Ahora un insert sin `status` queda en NULL, que es como la app representa "sin marcar". `pending` sigue en el enum (quitarlo exigiría recrear el tipo). | schema | hecho |
+| ~~**BUG-5**~~ | ~~`cards_full` no expone `country` ni `draw_type`~~ — **HECHO 2026-09-28**: `20260928224041_cards_full_country_draw_sort.sql`. La vista gana `country`, `draw_type` y `category_sort_order` (32 columnas), y `useCards.ts` pasa de 4 consultas de catálogo a 2. | `hooks/useCards.ts` | hecho |
 
 ---
 
@@ -890,12 +932,16 @@ leería historial divergente e intentaría reaplicarlas.
 2. **Handle público para la attribution** — decisión de producto: ¿columna
    `username` única elegida por el usuario, o `display_name` con fallback? Hoy
    `display_name` es nullable y no único. Bloquea la tarea 32 del roadmap.
-3. **BUG-2 a BUG-5**, en commits separados. BUG-2 es el de más impacto
-   visible: 64 de los 140 `albums.cover_image_url` apuntan a objetos que no
-   existen, o sea 64 portadas rotas.
-4. **Avisos del advisor que quedan**, todos preexistentes y ninguno ERROR:
-   funciones `SECURITY DEFINER` invocables por `anon` vía `/rest/v1/rpc/`
-   (`handle_new_user`, `is_admin`, `register_push_token` — ninguna necesita
-   `anon`), y la protección de contraseñas filtradas desactivada.
+3. **BUG-2** — 64 de los 140 `albums.cover_image_url` apuntan a objetos que no
+   existen: 64 portadas rotas. Es el de más impacto visible, pero necesita
+   decidir si se suben las imágenes que faltan o se vacía la columna.
+4. **BUG-3** — `cards.is_visible` tiene default `false`. **No lo cambié a
+   propósito**: podría ser deliberado (insertar como borrador y publicar
+   después), y con 4503/4503 visibles no hay evidencia de un flujo de borrador
+   en uso. Cambiarlo a `true` podría publicar cards a medio cargar. Lo que sí
+   importa: el flujo de aprobación de FASE G **debe** poner `is_visible`
+   explícitamente. Necesita que confirmes la intención.
+5. **Protección de contraseñas filtradas** desactivada — es un ajuste del
+   dashboard de Auth, no SQL. Se activa en Authentication → Policies.
 4. **Los 7 reversos del Winter Package 2021** (§8, grupo C): ahora que
    `card_images` admite varias imágenes por card, son recuperables.

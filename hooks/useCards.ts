@@ -25,12 +25,12 @@ export function useAlbumCards(albumId: number | null, userId: string | null) {
       const timeout = new Promise<never>((_, reject) =>
         setTimeout(() => reject(new Error('album fetch timed out')), 8000)
       );
+      // `cards_full` ya trae country, draw_type y category_sort_order, asi que
+      // no hace falta pedirlos aparte ni recomponerlos en cliente.
       results = await Promise.race([
         Promise.all([
           supabase.from('albums').select('*').eq('id', albumId).single(),
           supabase.from('cards_full').select('*').eq('album_id', albumId),
-          supabase.from('cards').select('id, country, draw_type').eq('album_id', albumId),
-          supabase.from('card_categories').select('id, sort_order'),
         ]),
         timeout,
       ]);
@@ -44,8 +44,6 @@ export function useAlbumCards(albumId: number | null, userId: string | null) {
     const [
       { data: albumData },
       { data: cardsData, error: fetchError },
-      { data: cardExtraData },
-      { data: categoryData },
     ] = results;
 
     if (albumData) setAlbum(albumData);
@@ -75,21 +73,11 @@ export function useAlbumCards(albumId: number | null, userId: string | null) {
       }
     }
 
-    const countryMap: Record<number, string | null> = {};
-    const drawTypeMap: Record<number, string | null> = {};
-    (cardExtraData || []).forEach((c: any) => {
-      countryMap[c.id] = c.country;
-      drawTypeMap[c.id] = c.draw_type;
-    });
-
-    const categoryOrderMap: Record<number, number> = {};
-    (categoryData || []).forEach((c: any) => { categoryOrderMap[c.id] = c.sort_order; });
-
     const combined: CardWithStatus[] = cardsData.map((card: any) => ({
       ...card,
-      country: countryMap[card.id] ?? null,
-      draw_type: drawTypeMap[card.id] ?? null,
-      category_sort_order: categoryOrderMap[card.category_id] ?? 999,
+      // card_categories.sort_order es nullable en el schema (hoy no hay ninguno
+      // nulo); el 999 conserva el comportamiento de orden que habia antes.
+      category_sort_order: card.category_sort_order ?? 999,
       status: statusMap[card.id] || null,
       duplicate_count: dupMap[card.id] ?? 0,
     }));
