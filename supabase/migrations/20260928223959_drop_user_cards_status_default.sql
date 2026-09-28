@@ -1,0 +1,40 @@
+-- BUG-4 — Quita el default 'pending' de user_cards.status.
+--
+-- El enum card_status tiene cinco valores: have, want, otw, not_collecting y
+-- pending. La columna user_cards.status tenia `default 'pending'`, pero:
+--
+--   * la app NUNCA escribe 'pending';
+--   * lib/types.ts declara `CardStatus = 'have'|'want'|'otw'|'not_collecting'`,
+--     sin 'pending', asi que el tipo de TypeScript miente respecto al schema;
+--   * ninguna pantalla lo renderiza: Photocard chequea los cuatro conocidos y
+--     cae al `else` (circulo vacio) con cualquier otro valor;
+--   * hay 0 filas con 'pending' sobre 7381.
+--
+-- O sea que era un estado fantasma: alcanzable por el schema, invisible para el
+-- modelo de la app. Un insert sin `status` explicito caia en el.
+--
+-- El modelo real de la app es que la AUSENCIA de estado se representa con
+-- status nulo -- es lo que app/album/[id].tsx filtra como `statusFilter ===
+-- 'none'` y lo que el roadmap llama "Missing". La columna ya es nullable, asi
+-- que quitar el default alinea el schema con ese modelo: un insert sin status
+-- ahora queda en NULL, que la app si entiende.
+--
+-- Camino que se reviso antes de tocarlo: hooks/useCards.ts setDuplicateCount
+-- hace upsert SIN status. No es un problema -- CardStatusModal.tsx:117 solo
+-- ofrece los controles de duplicados cuando status === 'have', asi que la fila
+-- ya existe y ese upsert resuelve por UPDATE, sin tocar el default. Y si algun
+-- dia llegara a insertar, NULL se renderiza igual que 'pending' (sin marcar)
+-- pero sin mentirle al tipo.
+--
+-- NO se quita 'pending' del enum. Eliminar un valor de un enum en Postgres
+-- exige recrear el tipo y reescribir la columna en una tabla de 7381 filas, y
+-- el beneficio es cosmetico. Queda como valor legado sin uso, documentado aqui.
+--
+-- Tampoco hace falta tocar lib/types.ts: sin el default, 'pending' deja de ser
+-- alcanzable y CardStatus pasa a ser correcto en vez de incompleto.
+--
+-- Reversible con:
+--   alter table public.user_cards
+--     alter column status set default 'pending'::card_status;
+
+alter table public.user_cards alter column status drop default;
