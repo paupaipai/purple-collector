@@ -3,7 +3,10 @@ import { Image } from 'expo-image';
 import React from 'react';
 import { View, Text, StyleSheet, TouchableOpacity } from 'react-native';
 import { LinearGradient } from 'expo-linear-gradient';
-import { COLORS, MEMBER_MAP, RARITIES, STATUS_CONFIG } from '../lib/constants';
+import {
+  COLORS, MEMBER_MAP, RARITIES, STATUS_CONFIG,
+  LEGACY_TREATMENT_ENABLED, LEGACY_BLUR_RADIUS, LEGACY_VEIL_COLOR,
+} from '../lib/constants';
 import { CardWithStatus } from '../lib/types';
 import { getCardImageUrl } from '../lib/supabase';
 import { useI18n } from '../lib/I18nContext';
@@ -27,6 +30,11 @@ export default function Photocard({ card, onPress, onLongPress }: PhotocardProps
   const isOwned = card.status === 'have';
   const imageUrl = getCardImageUrl(card);
   const hasImage = !!imageUrl && !card.is_blurred;
+
+  // Solo se marca lo que realmente viene del catalogo legacy. Una imagen
+  // aportada por la comunidad y aprobada no lleva ninguna marca.
+  const showLegacy =
+    LEGACY_TREATMENT_ENABLED && hasImage && card.primary_image_source === 'legacy';
 
   const { t } = useI18n();
 
@@ -62,8 +70,10 @@ export default function Photocard({ card, onPress, onLongPress }: PhotocardProps
                 contentFit="contain"
                 cachePolicy="disk"
                 transition={150}
+                blurRadius={showLegacy ? LEGACY_BLUR_RADIUS : 0}
               />
               {!isOwned && <View style={styles.purpleOverlay} />}
+              {showLegacy && <View style={styles.legacyVeil} />}
             </>
           ) : (
             <View style={[
@@ -101,6 +111,13 @@ export default function Photocard({ card, onPress, onLongPress }: PhotocardProps
             colors={['transparent', 'rgba(0,0,0,0.55)']}
             style={styles.bottomGrad}
           />
+
+          {/* Legacy watermark — bottom-left, opposite the status icon */}
+          {showLegacy && (
+            <View style={styles.legacyBadge}>
+              <Text style={styles.legacyBadgeText}>{t('imageSourceLegacy')}</Text>
+            </View>
+          )}
 
           {/* Status icon — bottom-right corner of image */}
           <View style={styles.statusCorner}>
@@ -165,6 +182,25 @@ const styles = StyleSheet.create({
   purpleOverlay: {
     ...StyleSheet.absoluteFillObject,
     backgroundColor: NOT_OWNED_OVERLAY_COLOR,
+  },
+  legacyVeil: {
+    ...StyleSheet.absoluteFillObject,
+    backgroundColor: LEGACY_VEIL_COLOR,
+  },
+  legacyBadge: {
+    position: 'absolute',
+    bottom: 6,
+    left: 6,
+    backgroundColor: 'rgba(0,0,0,0.55)',
+    borderRadius: 4,
+    paddingHorizontal: 4,
+    paddingVertical: 1,
+  },
+  legacyBadgeText: {
+    fontSize: 8,
+    fontWeight: '800',
+    color: 'rgba(255,255,255,0.8)',
+    letterSpacing: 0.4,
   },
   placeholder: {
     width: '100%',

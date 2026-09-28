@@ -1,7 +1,7 @@
 # Purple Collector V2 — Migración al catálogo comunitario
 
 Fecha: 2026-09-27 · Rama: `feat/community-images-v2` (creada desde `main` @ `9688be0`)
-Estado: **FASE B.1 + B.3 + C.1 + E aplicadas · backfill de las 4503 hecho · SR-1 y BUG-1 hechos.**
+Estado: **FASE B.1 + B.3 + C.1 + E + F aplicadas · backfill hecho · SR-1 y BUG-1 hechos.**
 
 Documento hermano: [`PURPLE_V2_CURRENT_STATE.md`](./PURPLE_V2_CURRENT_STATE.md) — auditoría del estado real.
 Roadmap de origen: `~/Downloads/Purple_Collector_v2_Roadmap.xlsx` (66 tareas).
@@ -233,10 +233,49 @@ y la URL resuelta devuelve el PNG real (HTTP 200, 11 125 bytes).
 
 ### Lo que NO incluye FASE E
 
-El tratamiento **visual** de las legacy (blur / overlay / watermark "Imagen
-Legacy") es **FASE F**. `primary_image_source` ya llega a la app para poder
-implementarlo, pero `Photocard.tsx` todavía no lo usa: hoy una legacy y una
-community aprobada se ven igual.
+El tratamiento visual de las legacy es **FASE F** (§3.1).
+
+---
+
+### 3.1 FASE F — tratamiento visual de las legacy (2026-09-28)
+
+La decisión D1 dice que V2 **podrá** aplicar blur / overlay / watermark "Imagen
+Legacy". Eso pide una **capacidad**, no un cambio incondicional — y por una razón
+concreta: **hoy el 100% del catálogo es legacy**. Marcar las 4503 no distinguiría
+nada de nada y degradaría la app para todos los usuarios actuales, sin ningún
+beneficio hasta que existan imágenes comunitarias con las que contrastar.
+
+Implementado siguiendo el idioma que ya usa el repo para esto
+(`PREMIUM_ENABLED`, `BIAS_ENABLED`): el código entra completo y apagado.
+
+```ts
+// lib/constants.ts
+export const LEGACY_TREATMENT_ENABLED = false;
+export const LEGACY_BLUR_RADIUS = 3;
+export const LEGACY_VEIL_COLOR = 'rgba(11,0,36,0.35)';
+```
+
+Con la bandera en `true`:
+
+| Dónde | Tratamiento |
+|---|---|
+| `Photocard.tsx` (grilla) | `blurRadius={3}` sobre la imagen + velo lila + etiqueta "Legacy" abajo a la izquierda, enfrentada al icono de estado |
+| `CardStatusModal.tsx` (detalle) | etiqueta de procedencia sobre el pie de la miniatura: "Legacy" o "Comunidad" |
+
+La condición es `card.primary_image_source === 'legacy'`, así que **una imagen
+aportada y aprobada nunca lleva marca de legacy** — que es justamente el
+incentivo que se busca.
+
+i18n: `imageSourceLegacy` y `imageSourceCommunity`, en ES y EN.
+
+**Cuándo encenderla:** cuando haya una masa real de imágenes comunitarias, o si
+hace falta diferenciar el contenido de terceros por otro motivo. Es una línea.
+
+**Lo que FASE F no incluye:** la attribution nominal ("Aportada por @usuario",
+tarea 32 del roadmap) está **bloqueada**: `user_profiles` no tiene columna
+`username` y `display_name` es nullable y no único. La vista ya expone
+`primary_image_contributed_by`, así que falta solo el handle — va con SR-2, que
+toca esa tabla de todos modos.
 
 ---
 
@@ -655,9 +694,7 @@ leería historial divergente e intentaría reaplicarlas.
 
 ### Pendiente
 
-1. **FASE F**: tratamiento visual de las legacy (blur / overlay / watermark).
-   `primary_image_source` ya llega a la app; falta usarlo en `Photocard.tsx`.
-2. **FASE D**: upload real. Requiere `expo-image-picker` (no está instalado) y
+1. **FASE D**: upload real. Requiere `expo-image-picker` (no está instalado) y
    el flujo de aprobación que mueve el objeto de `...-review` al bucket público.
 3. **SR-2** (`user_profiles` expone `is_admin` a `anon`) — requiere antes
    auditar qué lee `user_profiles` sin sesión, o rompe producción.

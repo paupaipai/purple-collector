@@ -46,6 +46,8 @@ const en = {
   duplicates: 'Duplicates',
   copiesOne: '1 copy',
   copiesMany: '{n} copies',
+  imageSourceLegacy: 'Legacy',
+  imageSourceCommunity: 'Community',
 
   // Album detail
   photocardsOf: '{owned} of {total} Photocards',
@@ -218,6 +220,8 @@ const es: Translations = {
   duplicates: 'Duplicados',
   copiesOne: '1 copia',
   copiesMany: '{n} copias',
+  imageSourceLegacy: 'Legacy',
+  imageSourceCommunity: 'Comunidad',
 
   // Album detail
   photocardsOf: '{owned} de {total} Photocards',

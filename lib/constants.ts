@@ -11,6 +11,24 @@ export const PREMIUM_ENABLED = false;
 // Los bias ya guardados en Supabase/AsyncStorage se conservan intactos.
 export const BIAS_ENABLED = false;
 
+// Misma idea que PREMIUM_ENABLED: el tratamiento visual de las imagenes legacy
+// existe pero viene apagado (decision D1 de Purple V2, "V2 podra aplicar
+// blur/overlay/watermark").
+//
+// false = una legacy se ve igual que cualquier otra imagen. Es lo correcto
+//         mientras el catalogo sea 100% legacy: marcar las 4503 no distingue
+//         nada y degrada la app para todos los usuarios actuales.
+// true  = blur + velo + etiqueta sobre la imagen en la grilla, y etiqueta de
+//         procedencia en el detalle.
+//
+// Encenderlo cuando exista una masa real de imagenes comunitarias con las que
+// contrastar, o si hace falta diferenciar el contenido de terceros.
+export const LEGACY_TREATMENT_ENABLED = false;
+
+// Solo aplican con LEGACY_TREATMENT_ENABLED = true.
+export const LEGACY_BLUR_RADIUS = 3;
+export const LEGACY_VEIL_COLOR = 'rgba(11,0,36,0.35)';
+
 // Hosted from the paupaipai/purple-collector-legal repo (GitHub Pages), not this repo.
 export const PRIVACY_URL = 'https://paupaipai.github.io/purple-collector-legal/';
 

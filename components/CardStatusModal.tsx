@@ -1,7 +1,9 @@
 import { Ionicons } from '@expo/vector-icons';
 import { Image } from 'expo-image';
 import { Modal, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
-import { COLORS, STATUS_CONFIG, STATUS_LABEL_KEY } from '../lib/constants';
+import {
+  COLORS, STATUS_CONFIG, STATUS_LABEL_KEY, LEGACY_TREATMENT_ENABLED,
+} from '../lib/constants';
 import { useI18n } from '../lib/I18nContext';
 import { getCardImageUrl } from '../lib/supabase';
 import { CardStatus, CardWithStatus } from '../lib/types';
@@ -26,6 +28,10 @@ export default function CardStatusModal({
   const dupCount = card?.duplicate_count ?? 0;
   const thumbUrl = card ? getCardImageUrl(card) : null;
 
+  // Procedencia de la imagen. Gated por la misma bandera que la grilla: con el
+  // catalogo 100% legacy, mostrar "Legacy" en cada card no distingue nada.
+  const imageSource = LEGACY_TREATMENT_ENABLED ? card?.primary_image_source : null;
+
   return (
     <Modal visible={visible} transparent animationType="fade" onRequestClose={onClose}>
       <TouchableOpacity style={styles.backdrop} activeOpacity={1} onPress={onClose}>
@@ -45,6 +51,15 @@ export default function CardStatusModal({
                     <Text style={styles.memberInitial}>{card.member?.charAt(0) || '?'}</Text>
                   </View>
                 )}
+                {imageSource ? (
+                  <View style={styles.sourceTag}>
+                    <Text style={styles.sourceTagText} numberOfLines={1}>
+                      {imageSource === 'community'
+                        ? t('imageSourceCommunity')
+                        : t('imageSourceLegacy')}
+                    </Text>
+                  </View>
+                ) : null}
               </View>
 
               <Text style={styles.title} numberOfLines={1}>{card.card_name}</Text>
@@ -190,6 +205,14 @@ const styles = StyleSheet.create({
     borderWidth: 2, borderColor: 'rgba(255,255,255,0.1)',
   },
   thumb: { width: '100%', height: '100%' },
+  sourceTag: {
+    position: 'absolute', bottom: 0, left: 0, right: 0,
+    backgroundColor: 'rgba(0,0,0,0.6)', paddingVertical: 3,
+  },
+  sourceTagText: {
+    fontSize: 9, fontWeight: '800', letterSpacing: 0.4,
+    color: 'rgba(255,255,255,0.85)', textAlign: 'center',
+  },
   placeholder: { alignItems: 'center', justifyContent: 'center' },
   memberInitial: { fontSize: 28, fontWeight: '900', color: '#fff' },
   title: { color: '#fff', fontSize: 15, fontWeight: '800', textAlign: 'center' },

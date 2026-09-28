@@ -45,7 +45,7 @@ Del xlsx, el bloque que manda es **Fase 1. Core / BD**:
 | Backend | `@supabase/supabase-js` `^2.101.1` |
 | Errores | `@sentry/react-native` `^8.19.0` |
 | Pagos | `react-native-purchases` `^10.4.1` (RevenueCat) |
-| Flags | `PREMIUM_ENABLED = false` y `BIAS_ENABLED = false` en `lib/constants.ts` |
+| Flags | `PREMIUM_ENABLED = false`, `BIAS_ENABLED = false` y `LEGACY_TREATMENT_ENABLED = false` en `lib/constants.ts` |
 | Nativo | `/ios` y `/android` están en `.gitignore` (generados). El último commit quitó soporte de iPad. |
 | **Sin dependencias de imagen** | No hay `expo-image-picker`, `expo-image-manipulator` ni `expo-file-system`. El upload de FASE D requiere dependencias nuevas. |
 
@@ -328,7 +328,7 @@ aporta los helpers de paginación `fetchAllPages` / `fetchAllByIds` /
 
 | Archivo | Uso de imagen |
 |---|---|
-| `components/Photocard.tsx` | `hasImage = !!getCardImageUrl(card) && !card.is_blurred`; si no, placeholder con la inicial del miembro. **Todavía no distingue legacy de community** — eso es FASE F |
+| `components/Photocard.tsx` | `hasImage = !!getCardImageUrl(card) && !card.is_blurred`; si no, placeholder con la inicial del miembro. **FASE F**: blur + velo + etiqueta "Legacy" cuando `primary_image_source === 'legacy'`, tras `LEGACY_TREATMENT_ENABLED` (hoy `false`) |
 | `components/CardStatusModal.tsx:35` | thumb desde `card.image_path` |
 | `app/(tabs)/wishlist.tsx:43` | thumb desde `card.image_path` |
 | `app/album/[id].tsx` | 527 líneas — el corazón del catálogo |
