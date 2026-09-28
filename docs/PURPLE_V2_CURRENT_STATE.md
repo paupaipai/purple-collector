@@ -215,12 +215,12 @@ Tres buckets (los dos community creados el 2026-09-28, ambos vacíos):
 
 | id | public | file_size_limit | allowed_mime_types | objetos |
 |---|---|---|---|---|
-| `photocards` | true | null (sin límite) | null (sin restricción) | 4612 |
+| `photocards` | true | 5 MiB | png, jpeg, webp | 4612 |
 | `photocard-community` | true | 5 MiB | jpeg, png, webp | 0 |
 | `photocard-community-review` | **false** | 5 MiB | jpeg, png, webp | 0 |
 
-Los límites y la whitelist que faltan en `photocards` siguen pendientes: es
-**SR-3**, migration aparte.
+Los tres buckets tienen ya límite de 5 MiB y whitelist de MIME: `photocards` la
+recibió el 2026-09-28 (**SR-3**).
 
 Policies sobre `storage.objects`:
 
@@ -446,8 +446,9 @@ debe ir en **ambos** o TypeScript rompe. La v2 añade del orden de 40 keys
    `cards`, 76 son portadas de álbum). Informe completo por origen en §8 del
    documento de decisiones. Además, **64 de los 140 `albums.cover_image_url`
    apuntan a objetos que no existen** → portadas rotas.
-6. **Sin policy DELETE en `storage.objects`** → no se puede retirar una imagen
-   reportada sin `service_role`.
+6. ~~**Sin policy DELETE en `storage.objects`**~~ — **CORREGIDO el 2026-09-28
+   (SR-4).** `photocards` ya tiene las cuatro operaciones cubiertas: SELECT
+   pública, e INSERT / UPDATE / DELETE de admin.
 7. **`delete-account` no limpia Storage** → con UGC, borrar una cuenta dejará
    objetos huérfanos y romperá la attribution.
 8. ~~**`Public read profiles` (`public`, `USING true`)** expone las 34 filas de

@@ -1,7 +1,7 @@
 # Purple Collector V2 — Migración al catálogo comunitario
 
 Fecha: 2026-09-27 · Rama: `feat/community-images-v2` (creada desde `main` @ `9688be0`)
-Estado: **FASE B.1 + B.3 + C.1 + E + F aplicadas · backfill hecho · SR-1, SR-2 y BUG-1 hechos.**
+Estado: **FASE B.1 + B.3 + C.1 + E + F aplicadas · backfill hecho · SR-1 a SR-4 y BUG-1 hechos.**
 
 Documento hermano: [`PURPLE_V2_CURRENT_STATE.md`](./PURPLE_V2_CURRENT_STATE.md) — auditoría del estado real.
 Roadmap de origen: `~/Downloads/Purple_Collector_v2_Roadmap.xlsx` (66 tareas).
@@ -474,8 +474,8 @@ Cada uno es una migration y un commit propios, revisables por separado.
 |---|---|---|---|---|
 | ~~**SR-1**~~ | ~~`cards_full` es `SECURITY DEFINER` (advisor: ERROR)~~ | Alta | — | **HECHO 2026-09-28**: `20260928182438_cards_full_security_invoker.sql` |
 | ~~**SR-2**~~ | ~~`user_profiles` expone las 34 filas a `anon`, incluido `is_admin`~~ | Alta | — | **HECHO 2026-09-28**: `20260928195206_restrict_user_profiles_read.sql` |
-| **SR-3** | Bucket `photocards` sin `file_size_limit` ni `allowed_mime_types` | Media | No | `..._photocards_bucket_limits.sql` |
-| **SR-4** | Sin policy DELETE en `storage.objects` para `photocards`: no hay takedown de legacy sin `service_role` | Media | No | `..._photocards_admin_delete_policy.sql` |
+| ~~**SR-3**~~ | ~~Bucket `photocards` sin `file_size_limit` ni `allowed_mime_types`~~ | Media | — | **HECHO 2026-09-28**: `20260928200200_photocards_bucket_limits.sql` |
+| ~~**SR-4**~~ | ~~Sin policy DELETE en `storage.objects` para `photocards`~~ | Media | — | **HECHO 2026-09-28**: `20260928200304_photocards_admin_delete_policy.sql` |
 | **SR-5** | `search_path` mutable en `is_admin`, `set_card_status`, `get_collection_stats` (advisor: WARN ×3) | Baja | No | `..._function_search_path.sql` |
 | **SR-6** | `set_card_status` y `get_collection_stats` existen, no están en ninguna migration y la app **no las llama** | Baja | No | investigar → `drop` o documentar |
 | **SR-7** | Policies duplicadas/solapadas en `user_profiles` (2 INSERT equivalentes, 3 SELECT) | Baja | No | `..._cleanup_user_profiles_policies.sql` |
@@ -508,6 +508,64 @@ de seguridad pasa a **cero ERRORs**. Los WARN que quedan son todos preexistentes
 —intencionales— y protección de contraseñas filtradas).
 
 Reversible con `alter view public.cards_full set (security_invoker = false);`
+
+### SR-3 y SR-4 — hechos (2026-09-28)
+
+**SR-3.** Medido antes de poner límites, sobre los 4612 objetos de `photocards`:
+
+| MIME | objetos | el mayor |
+|---|---|---|
+| `image/png` | 4611 | 54 kB |
+| `image/jpeg` | 1 | 40 kB |
+
+Total 60 MB, promedio 13 kB, **0 objetos sobre 1 MiB**. De ahí los valores:
+`file_size_limit = 5 MiB` (≈100× el objeto más grande que existe, así que no
+hay riesgo de rechazar una resubida del catálogo actual) y
+`allowed_mime_types = {image/png, image/jpeg, image/webp}` — los dos tipos
+presentes más webp, igualando los buckets community.
+
+Se aplica solo a subidas **futuras**; nada del catálogo actual se invalida.
+
+Rareza encontrada: el único objeto `image/jpeg` tiene extensión `.png` (todas
+las extensiones del bucket son `.png`). Por eso la whitelist incluye jpeg — con
+png sola, resubir ese objeto fallaría.
+
+Si algún día hace falta subir HEIC directo desde un iPhone, hay que agregar
+`image/heic`; hoy no hay ninguno.
+
+**SR-4.** `photocards` tenía SELECT (pública), INSERT y UPDATE (de admin) pero
+**ninguna** policy de DELETE: retirar una imagen por un reporte de copyright o
+un takedown exigía `service_role`. Eso choca con la tarea 37 del roadmap, que
+pide que retirar contenido sea una operación normal del mantenedor. Los buckets
+community ya nacieron con su DELETE de admin; esto deja `photocards` a la par.
+
+Usa `public.is_admin()` y no la forma inline de las policies hermanas del mismo
+bucket. Es una inconsistencia deliberada: `is_admin()` es `SECURITY DEFINER`, así
+que no depende de que la RLS de `user_profiles` deje leer la fila. Unificar las
+hermanas sería parte de SR-7.
+
+**Hallazgo al pasar:** las policies de admin de `photocards` leen
+`user_profiles` dentro de su expresión, así que SR-2 pudo haberlas roto.
+Verificado que **no**: el `EXISTS` inline sigue dando `true` para el admin,
+porque solo necesita su propia fila, que la policy de "propia fila" permite.
+
+Estado final de los tres buckets:
+
+| bucket | público | límite | MIME | objetos |
+|---|---|---|---|---|
+| `photocards` | sí | 5 MiB | png, jpeg, webp | 4612 |
+| `photocard-community` | sí | 5 MiB | jpeg, png, webp | 0 |
+| `photocard-community-review` | **no** | 5 MiB | jpeg, png, webp | 0 |
+
+`photocards` queda con las cuatro operaciones cubiertas: SELECT pública, e
+INSERT / UPDATE / DELETE de admin.
+
+**Predicado de la nueva policy, probado por rol:** `true` para el admin,
+`false` para un usuario normal. No ejecuté un DELETE real: borrar metadata de
+Storage en producción, aunque sea dentro de una transacción revertida, no vale
+el riesgo cuando el predicado se puede evaluar directamente.
+
+---
 
 ### SR-2 — hecho (2026-09-28)
 
@@ -722,6 +780,6 @@ leería historial divergente e intentaría reaplicarlas.
 2. **Handle público para la attribution** — decisión de producto: ¿columna
    `username` única elegida por el usuario, o `display_name` con fallback? Hoy
    `display_name` es nullable y no único. Bloquea la tarea 32 del roadmap.
-3. **SR-3 a SR-7** y los bugs BUG-2 a BUG-5, en commits separados.
+3. **SR-5 a SR-7** y los bugs BUG-2 a BUG-5, en commits separados.
 4. **Los 7 reversos del Winter Package 2021** (§8, grupo C): ahora que
    `card_images` admite varias imágenes por card, son recuperables.
