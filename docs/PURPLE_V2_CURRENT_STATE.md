@@ -107,7 +107,11 @@ created_at       timestamptz        default now()
 público `photocards`.** No hay tabla intermedia, no hay versiones, no hay
 autoría, no hay estado.
 
-El único punto de resolución es `lib/supabase.ts:30`:
+Desde **FASE E** el punto de resolución de las imágenes de cards es
+`getCardImageUrl()` en `lib/supabase.ts`, que toma el bucket de la vista.
+`getPhotocardUrl()` queda solo para las **portadas de álbum**
+(`albums.cover_image_url`, 3 llamadas: `app/type/[id].tsx`,
+`app/album/[id].tsx`, `hooks/useEraAlbums.ts`):
 
 ```ts
 export function getPhotocardUrl(imagePath: string): string {
@@ -185,7 +189,7 @@ Hay constraint único sobre `(user_id, card_id)` — la app depende de él vía
 
 | Vista | Tipo | Notas |
 |---|---|---|
-| `cards_full` | `security_invoker = true` | Camino de lectura único de la app. Era `SECURITY DEFINER`; corregido el 2026-09-28 (**SR-1**) |
+| `cards_full` | `security_invoker = true` | Camino de lectura único de la app. Era `SECURITY DEFINER`; corregido el 2026-09-28 (**SR-1**). Extendida en **FASE E** con la imagen resuelta: 29 columnas |
 | `album_card_counts` | `security_invoker = true` | Migration `20260908024314` |
 | `member_card_counts` | `security_invoker = true` | Migration `20260908024314` |
 
@@ -195,9 +199,15 @@ notes, album_id, album_name, album_short, album_color, album_cover, version_id,
 version_name, version_short, category_id, category_name, category_short,
 category_color`; filtra `WHERE c.is_visible = true`.
 
+Desde **FASE E** expone además, al final: `primary_image_path`,
+`primary_image_bucket`, `primary_image_source` y
+`primary_image_contributed_by` — la imagen ya resuelta según la regla de display
+(`community` > `admin` > `legacy`), vía `LEFT JOIN LATERAL ... LIMIT 1` sobre
+`card_images`. `image_path` se conserva intacta para la Android v1.
+
 **No** expone `country`, `draw_type`, `card_set_id`, `sort_order` ni
 `category_sort_order` — por eso `useCards.ts` lanza dos queries extra a `cards`
-y `card_categories` para recomponerlos en cliente.
+y `card_categories` para recomponerlos en cliente (**BUG-5**).
 
 ### 1.7 Storage
 
@@ -279,7 +289,17 @@ es `register_push_token` en `hooks/usePushNotifications.ts:64`).
 
 ```ts
 export type CardStatus = 'have' | 'want' | 'otw' | 'not_collecting';  // sin 'pending'
-export interface CardFull { ...; image_path: string | null; ... }     // 1 imagen, 1 campo
+export type ImageSourceType = 'legacy' | 'community' | 'admin';      // FASE E
+export type ImageStatus = 'pending' | 'approved' | 'rejected';       // FASE E
+export interface CardImage { ... }                                   // FASE E
+export interface CardFull {
+  ...;
+  image_path: string | null;              // ruta legacy cruda, para la v1
+  primary_image_path: string | null;      // FASE E: imagen resuelta
+  primary_image_bucket: string | null;
+  primary_image_source: ImageSourceType | null;
+  primary_image_contributed_by: string | null;
+}
 export interface CardWithStatus extends CardFull { status: CardStatus | null; duplicate_count: number }
 ```
 
@@ -308,7 +328,7 @@ aporta los helpers de paginación `fetchAllPages` / `fetchAllByIds` /
 
 | Archivo | Uso de imagen |
 |---|---|
-| `components/Photocard.tsx` | `hasImage = card.image_path && !card.is_blurred`; si no, placeholder con la inicial del miembro |
+| `components/Photocard.tsx` | `hasImage = !!getCardImageUrl(card) && !card.is_blurred`; si no, placeholder con la inicial del miembro. **Todavía no distingue legacy de community** — eso es FASE F |
 | `components/CardStatusModal.tsx:35` | thumb desde `card.image_path` |
 | `app/(tabs)/wishlist.tsx:43` | thumb desde `card.image_path` |
 | `app/album/[id].tsx` | 527 líneas — el corazón del catálogo |
@@ -408,10 +428,10 @@ debe ir en **ambos** o TypeScript rompe. La v2 añade del orden de 40 keys
 
 ### 4.1 Bugs reales encontrados de paso (no son parte de la migración)
 
-1. **`hooks/useCards.ts:113-114` filtra por `c.image_url`, campo que `cards_full`
-   no expone** (expone `image_path`). El `Image.prefetch` del álbum **nunca
-   corre**: `filter` deja el array vacío. Código muerto + pérdida silenciosa de
-   rendimiento en la pantalla más usada.
+1. ~~**`hooks/useCards.ts` filtra por `c.image_url`, campo que `cards_full` no
+   expone**~~ — **CORREGIDO el 2026-09-28 (BUG-1, commit propio).** El
+   `Image.prefetch` del álbum nunca corría: el `filter` dejaba el array vacío.
+   Ahora precarga la imagen ya resuelta por la vista.
 2. ~~**`cards_full` es SECURITY DEFINER**~~ — **CORREGIDO el 2026-09-28 (SR-1).**
    Era inocuo entonces (`cards` es de lectura pública), pero en cuanto la vista
    incluya imágenes con estado de moderación, un SECURITY DEFINER **filtraría

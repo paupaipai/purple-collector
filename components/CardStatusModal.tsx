@@ -3,7 +3,7 @@ import { Image } from 'expo-image';
 import { Modal, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
 import { COLORS, STATUS_CONFIG, STATUS_LABEL_KEY } from '../lib/constants';
 import { useI18n } from '../lib/I18nContext';
-import { getPhotocardUrl } from '../lib/supabase';
+import { getCardImageUrl } from '../lib/supabase';
 import { CardStatus, CardWithStatus } from '../lib/types';
 
 interface CardStatusModalProps {
@@ -24,6 +24,7 @@ export default function CardStatusModal({
   const status = card?.status as CardStatus | null | undefined;
 
   const dupCount = card?.duplicate_count ?? 0;
+  const thumbUrl = card ? getCardImageUrl(card) : null;
 
   return (
     <Modal visible={visible} transparent animationType="fade" onRequestClose={onClose}>
@@ -32,9 +33,9 @@ export default function CardStatusModal({
           {card && (
             <>
               <View style={styles.thumbWrap}>
-                {card.image_path ? (
+                {thumbUrl ? (
                   <Image
-                    source={{ uri: getPhotocardUrl(card.image_path!) }}
+                    source={{ uri: thumbUrl }}
                     style={styles.thumb}
                     contentFit="cover"
                     transition={150}

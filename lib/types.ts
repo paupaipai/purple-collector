@@ -2,6 +2,31 @@ export type BiasKey = 'rm' | 'jin' | 'suga' | 'jhope' | 'jimin' | 'v' | 'jungkoo
 export type Rarity = 'Common' | 'Rare' | 'Ultra Rare' | 'Limited';
 export type CardStatus = 'have' | 'want' | 'otw' | 'not_collecting';
 
+/** Procedencia de una imagen. Ortogonal a su estado de moderacion. */
+export type ImageSourceType = 'legacy' | 'community' | 'admin';
+/** Estado de moderacion de una imagen. Ortogonal a su procedencia. */
+export type ImageStatus = 'pending' | 'approved' | 'rejected';
+
+export interface CardImage {
+  id: number;
+  card_id: number;
+  bucket_id: string;
+  storage_path: string;
+  source_type: ImageSourceType;
+  status: ImageStatus;
+  is_primary: boolean;
+  contributed_by: string | null;
+  reviewed_by: string | null;
+  reviewed_at: string | null;
+  rejection_reason: string | null;
+  terms_accepted_at: string | null;
+  terms_version: string | null;
+  width: number | null;
+  height: number | null;
+  byte_size: number | null;
+  created_at: string;
+}
+
 export interface CollectionType {
   id: number;
   name: string;
@@ -89,6 +114,17 @@ export interface CardFull {
   category_short: string;
   category_color: string;
   category_sort_order: number;
+
+  /**
+   * Imagen resuelta por `cards_full` segun la regla de display
+   * (community > admin > legacy). `image_path` de arriba queda como la ruta
+   * legacy cruda: se conserva por compatibilidad con la Android v1 publicada,
+   * pero la app debe leer estos campos via getCardImageUrl().
+   */
+  primary_image_path: string | null;
+  primary_image_bucket: string | null;
+  primary_image_source: ImageSourceType | null;
+  primary_image_contributed_by: string | null;
 }
 
 export interface CardWithStatus extends CardFull {

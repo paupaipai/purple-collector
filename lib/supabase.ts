@@ -32,6 +32,31 @@ export function getPhotocardUrl(imagePath: string): string {
   return `${data.publicUrl}?v=${IMAGE_CACHE_VERSION}`;
 }
 
+/**
+ * URL publica de la imagen de una card, con el bucket que corresponda.
+ *
+ * `cards_full` ya aplico la regla de display (community > admin > legacy), asi
+ * que aca no hay que elegir imagen: solo resolver el bucket, que ahora puede
+ * ser 'photocards' (legacy) o 'photocard-community' (aportada y aprobada).
+ *
+ * Las imagenes pending y rejected viven en un bucket privado y la vista no las
+ * expone, de modo que getPublicUrl siempre apunta a un bucket publico.
+ *
+ * El fallback a `image_path` cubre dos casos: una respuesta cacheada anterior a
+ * FASE E, y cualquier consulta que todavia no seleccione las columnas nuevas.
+ */
+export function getCardImageUrl(card: {
+  primary_image_path?: string | null;
+  primary_image_bucket?: string | null;
+  image_path?: string | null;
+}): string | null {
+  const path = card.primary_image_path ?? card.image_path ?? null;
+  if (!path) return null;
+  const bucket = card.primary_image_bucket ?? 'photocards';
+  const { data } = supabase.storage.from(bucket).getPublicUrl(path);
+  return `${data.publicUrl}?v=${IMAGE_CACHE_VERSION}`;
+}
+
 // PostgREST caps unbounded selects at 1000 rows by default, so any query that
 // can grow past that needs explicit pagination or the select silently
 // truncates instead of erroring. This bites both the catalog ('cards', 4500+

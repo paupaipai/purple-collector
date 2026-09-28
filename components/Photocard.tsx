@@ -5,7 +5,7 @@ import { View, Text, StyleSheet, TouchableOpacity } from 'react-native';
 import { LinearGradient } from 'expo-linear-gradient';
 import { COLORS, MEMBER_MAP, RARITIES, STATUS_CONFIG } from '../lib/constants';
 import { CardWithStatus } from '../lib/types';
-import { getPhotocardUrl } from '../lib/supabase';
+import { getCardImageUrl } from '../lib/supabase';
 import { useI18n } from '../lib/I18nContext';
 
 // Atenuacion de las cartas NO marcadas como "Tengo". Son los dos unicos valores
@@ -25,7 +25,8 @@ export default function Photocard({ card, onPress, onLongPress }: PhotocardProps
   const member = MEMBER_MAP[card.member];
   const rarity = RARITIES[card.rarity];
   const isOwned = card.status === 'have';
-  const hasImage = card.image_path && !card.is_blurred;
+  const imageUrl = getCardImageUrl(card);
+  const hasImage = !!imageUrl && !card.is_blurred;
 
   const { t } = useI18n();
 
@@ -56,7 +57,7 @@ export default function Photocard({ card, onPress, onLongPress }: PhotocardProps
             <>
               <View style={styles.imageBg} />
               <Image
-                source={{ uri: getPhotocardUrl(card.image_path!) }}
+                source={{ uri: imageUrl! }}
                 style={[styles.image, !isOwned && styles.imageNotOwned]}
                 contentFit="contain"
                 cachePolicy="disk"

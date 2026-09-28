@@ -10,7 +10,7 @@ import { useState, useMemo, useRef, useEffect, useCallback } from 'react';
 import { useWishlist } from '../../hooks/useWishlist';
 import { useAuth } from '../../hooks/useAuth';
 import { COLORS, MEMBERS, STATUS_CONFIG, STATUS_LABEL_KEY } from '../../lib/constants';
-import { getPhotocardUrl } from '../../lib/supabase';
+import { getCardImageUrl } from '../../lib/supabase';
 import { CardWithStatus, CardStatus } from '../../lib/types';
 import FilterBottomSheet, { FilterSection } from '../../components/FilterBottomSheet';
 import GlassCard from '../../components/GlassCard';
@@ -33,6 +33,7 @@ function WishGridCard({
 }) {
   const status = card.status as CardStatus;
   const borderColor = STATUS_CONFIG[status]?.color + '55' || card.album_color + '55';
+  const imageUrl = getCardImageUrl(card);
   return (
     <View style={styles.gridItem}>
       <TouchableOpacity
@@ -40,9 +41,9 @@ function WishGridCard({
         activeOpacity={0.85}
         style={[styles.gridCard, { borderColor }]}
       >
-        {card.image_path ? (
+        {imageUrl ? (
           <Image
-            source={{ uri: getPhotocardUrl(card.image_path!) }}
+            source={{ uri: imageUrl }}
             style={styles.gridImage}
             contentFit="cover"
             transition={150}

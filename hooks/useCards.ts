@@ -1,6 +1,6 @@
 import { useState, useEffect, useCallback } from 'react';
 import { Image } from 'expo-image';
-import { supabase, getPhotocardUrl } from '../lib/supabase';
+import { supabase, getCardImageUrl } from '../lib/supabase';
 import { Album, CardWithStatus, CardStatus } from '../lib/types';
 import { t } from '../lib/i18n';
 import { COUNTRY_ORDER, DRAW_TYPE_ORDER } from '../lib/constants';
@@ -109,12 +109,11 @@ export function useAlbumCards(albumId: number | null, userId: string | null) {
     setCards(combined);
     setLoading(false);
 
-    // `cards_full` expone la ruta como image_path, no image_url: el filtro
-    // por c.image_url dejaba el array siempre vacio y el prefetch no corria
-    // nunca, justo en la pantalla mas usada.
+    // Precarga la imagen ya resuelta por la vista, no la ruta legacy cruda:
+    // si una card tiene una aportacion aprobada, es esa la que se va a mostrar.
     const imageUrls = cardsData
-      .filter((c: any) => c.image_path)
-      .map((c: any) => getPhotocardUrl(c.image_path));
+      .map((c: any) => getCardImageUrl(c))
+      .filter((u: string | null): u is string => !!u);
     if (imageUrls.length > 0) Image.prefetch(imageUrls);
   }, [albumId, userId]);
 

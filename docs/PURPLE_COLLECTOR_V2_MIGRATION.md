@@ -1,7 +1,7 @@
 # Purple Collector V2 — Migración al catálogo comunitario
 
 Fecha: 2026-09-27 · Rama: `feat/community-images-v2` (creada desde `main` @ `9688be0`)
-Estado: **FASE B.1 + B.3 + C.1 aplicadas · piloto validado · backfill de las 4503 hecho · SR-1 hecho.**
+Estado: **FASE B.1 + B.3 + C.1 + E aplicadas · backfill de las 4503 hecho · SR-1 y BUG-1 hechos.**
 
 Documento hermano: [`PURPLE_V2_CURRENT_STATE.md`](./PURPLE_V2_CURRENT_STATE.md) — auditoría del estado real.
 Roadmap de origen: `~/Downloads/Purple_Collector_v2_Roadmap.xlsx` (66 tareas).
@@ -144,43 +144,103 @@ un takedown nunca puede dejar una card sin imagen por un fallo a mitad de camino
 
 ---
 
-## 3. Regla de display futura — documentada, NO implementada
+## 3. Regla de display — IMPLEMENTADA (FASE E, 2026-09-28)
 
 Orden de resolución de la imagen de una card:
 
 1. `community` + `approved` + `is_primary`
-2. `legacy` + `approved` (fallback)
-3. placeholder
+2. `admin` + `approved` + `is_primary`
+3. `legacy` + `approved` + `is_primary` (fallback)
+4. placeholder
 
 **Una imagen `pending` o `rejected` nunca se convierte en imagen pública.**
 
-Esto no depende de ningún filtro del frontend. Está impuesto en tres capas:
+No depende de ningún filtro del frontend. Está impuesto en **cuatro** capas:
 
 | Capa | Mecanismo |
 |---|---|
 | Constraint | `check (not is_primary or status = 'approved')` |
 | RLS | `card_images public read approved` → `using (status = 'approved')` |
+| Vista | el lateral de `cards_full` filtra `status = 'approved' and is_primary` |
 | Storage | pending vive en un bucket **privado** distinto (§4) |
 
-Implementación pendiente (FASE E): la vista que reemplace/extienda `cards_full`
-debe devolver **una fila por card** (no una por imagen) — ver riesgo R11 en la
-auditoría — resolviendo con algo del tipo:
+El filtro de la vista es redundante con la RLS **a propósito**: un contributor
+autenticado sí puede ver sus propias filas `pending` (policy
+`card_images contributor reads own`), y sin ese filtro una pending suya podría
+ganarle a la legacy **en su propia sesión**.
+
+### Implementación
+
+`20260928185827_cards_full_resolved_image.sql`. `cards_full` gana 4 columnas al
+final —`primary_image_path`, `primary_image_bucket`, `primary_image_source`,
+`primary_image_contributed_by`— resueltas con un `LEFT JOIN LATERAL ... LIMIT 1`:
 
 ```sql
--- BORRADOR, no aplicar todavía
-select distinct on (ci.card_id)
-       ci.card_id, ci.bucket_id, ci.storage_path, ci.source_type, ci.contributed_by
-from card_images ci
-where ci.status = 'approved' and ci.is_primary
-order by ci.card_id,
-         case ci.source_type when 'community' then 0
-                             when 'admin'     then 1
-                             else 2 end;
+left join lateral (
+  select ci.storage_path, ci.bucket_id, ci.source_type, ci.contributed_by
+  from public.card_images ci
+  where ci.card_id = c.id and ci.status = 'approved' and ci.is_primary
+  order by case ci.source_type
+             when 'community' then 0
+             when 'admin'     then 1
+             else 2
+           end
+  limit 1
+) img on true
 ```
+
+El lateral con `limit 1` es lo que resuelve el **riesgo R11**: garantiza una fila
+por card. Un join normal multiplicaría las filas en cuanto una card tuviera más
+de una imagen, y los hooks paginan de a 1000 asumiendo una fila por card.
+
+`image_path` **se conserva** y las 25 columnas anteriores quedan en el mismo
+orden y tipo, así que la Android v1 publicada no nota el cambio.
+`security_invoker = true` se declara explícitamente para no perder SR-1 en el
+`create or replace`.
+
+### Verificación
+
+| Comprobación | Resultado |
+|---|---|
+| filas / cards distintas | 4503 / 4503 — **sin fan-out** |
+| suma de ids (igual a antes del cambio) | 14 099 191 |
+| columnas en la vista | 29 (25 + 4) |
+| `primary_image_path` ≠ `image_path` | 0 |
+| resueltas a `legacy` | 4503 |
+| `security_invoker` preservado | sí |
+
+Regla de display probada en caliente sobre la card 1437, con rollback forzado:
+
+| Escenario | `primary_image_source` |
+|---|---|
+| solo legacy | `legacy` |
+| + una community **pending** | `legacy` — la pending no aparece |
+| + una community **approved primary** | `community`, con su bucket y su attribution |
+| tras retirar la community | `legacy` — **reaparece sola** |
+
+Esa última línea es lo que justifica el índice por `(card_id, source_type)`
+en vez de por card: no hace falta ninguna escritura compensatoria al retirar una
+imagen comunitaria.
+
+Rendimiento del camino caliente (álbum de 287 cards): ~3,6 ms, con el lateral
+usando el índice parcial `card_images_one_primary_per_source`. Toca más páginas
+que antes (898 buffers vs 37) por el lookup por card, pero todas son aciertos de
+caché. La medición previa al cambio (31 ms) fue en frío, así que las dos cifras
+no son comparables directamente.
+
+Extremo a extremo vía PostgREST con la clave pública: 287 filas para el álbum 3
+y la URL resuelta devuelve el PNG real (HTTP 200, 11 125 bytes).
+
+### Lo que NO incluye FASE E
+
+El tratamiento **visual** de las legacy (blur / overlay / watermark "Imagen
+Legacy") es **FASE F**. `primary_image_source` ya llega a la app para poder
+implementarlo, pero `Photocard.tsx` todavía no lo usa: hoy una legacy y una
+community aprobada se ven igual.
 
 ---
 
-## 4. Storage — policies exactas propuestas (bucket NO creado)
+## 4. Storage — policies de los buckets (creados 2026-09-28)
 
 ### 4.1 Por qué dos buckets y no uno
 
@@ -595,9 +655,8 @@ leería historial divergente e intentaría reaplicarlas.
 
 ### Pendiente
 
-1. **FASE E**: extender `cards_full` con la imagen resuelta e implementar la
-   regla de display (§3). Ya desbloqueada por SR-1, y ahora con las 4503 filas
-   en `card_images` para alimentarla.
+1. **FASE F**: tratamiento visual de las legacy (blur / overlay / watermark).
+   `primary_image_source` ya llega a la app; falta usarlo en `Photocard.tsx`.
 2. **FASE D**: upload real. Requiere `expo-image-picker` (no está instalado) y
    el flujo de aprobación que mueve el objeto de `...-review` al bucket público.
 3. **SR-2** (`user_profiles` expone `is_admin` a `anon`) — requiere antes
