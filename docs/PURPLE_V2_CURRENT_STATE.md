@@ -68,7 +68,7 @@ Credenciales: `lib/supabase.ts` hardcodea `SUPABASE_URL` y la publishable key
 | `public.user_profiles` | 34 | on |
 | `public.push_tokens` | 31 | on |
 | `public.notifications_log` | 60 | on |
-| `public.card_images` | **6** | on | ← creada 2026-09-28; 6 filas del piloto ARIRANG |
+| `public.card_images` | **4503** | on | ← creada 2026-09-28; backfill legacy completo |
 
 **No existe** ninguna tabla de imágenes, submissions, reportes, grupos/artistas
 ni roles de moderación. **No existe** tabla `groups` ni columna `group_id` en
@@ -514,9 +514,12 @@ idempotentes el piloto y el backfill posterior
 `not is_primary or status = 'approved'` (una pending nunca es pública) ·
 y el bucket atado al `source_type`.
 
-**Backfill: NO en esta fase.** Aprobado hacer primero un piloto de 6 cards de
-ARIRANG (`supabase/scripts/pilot_arirang_legacy_images.sql`, fuera de
-`migrations/`). El backfill de las 4503 queda para después de validarlo.
+**Backfill en dos pasos, ambos ejecutados el 2026-09-28.** Primero un piloto de
+6 cards de ARIRANG (`supabase/scripts/pilot_arirang_legacy_images.sql`, fuera de
+`migrations/`) para validar invariantes y RLS contra datos reales; después el
+backfill completo en `20260928183346_backfill_legacy_card_images.sql`: 4497
+filas insertadas, 4503 en total, una por card, con `storage_path` idéntico a
+`cards.image_path`. Detalle en el documento de decisiones §5.2.
 
 ### 5.2 `image_reports`
 

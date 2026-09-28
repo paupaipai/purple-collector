@@ -1,7 +1,7 @@
 # Purple Collector V2 — Migración al catálogo comunitario
 
 Fecha: 2026-09-27 · Rama: `feat/community-images-v2` (creada desde `main` @ `9688be0`)
-Estado: **FASE B.1 + C.1 aplicadas · piloto ARIRANG ejecutado y validado · SR-1 hecho.**
+Estado: **FASE B.1 + B.3 + C.1 aplicadas · piloto validado · backfill de las 4503 hecho · SR-1 hecho.**
 
 Documento hermano: [`PURPLE_V2_CURRENT_STATE.md`](./PURPLE_V2_CURRENT_STATE.md) — auditoría del estado real.
 Roadmap de origen: `~/Downloads/Purple_Collector_v2_Roadmap.xlsx` (66 tareas).
@@ -98,15 +98,19 @@ desaparece** — solo deja de tener a App Review como forzante.
 
 ## 2. Cambio respecto a la propuesta de FASE A
 
-### 2.1 Sin backfill todavía
+### 2.1 Backfill en dos pasos: piloto primero
 
 FASE A proponía crear la tabla **y** backfillear las 4503 legacy en la misma
 migration. **Aprobado: no.** Primero el piloto de 6 cards de ARIRANG (§5).
 
-La migration queda diseñada para soportar el backfill idempotente posterior: la
-constraint `unique (bucket_id, storage_path)` permite
-`on conflict (bucket_id, storage_path) do nothing`, así que el backfill completo
-se puede correr, reintentar y volver a correr sin duplicar nada.
+La constraint `unique (bucket_id, storage_path)` permite
+`on conflict (bucket_id, storage_path) do nothing`, así que el backfill se puede
+correr, reintentar y volver a correr sin duplicar nada.
+
+**Ambos pasos ejecutados el 2026-09-28**: piloto de 6 cards (§5.1) y luego el
+backfill completo en `20260928183346_backfill_legacy_card_images.sql` (§5.2).
+Haberlos separado sirvió: el piloto validó los invariantes y la RLS contra datos
+reales antes de tocar el catálogo entero.
 
 ### 2.2 Una primaria por `source_type`, no una por card
 
@@ -328,6 +332,37 @@ Script: `supabase/scripts/pilot_arirang_legacy_images.sql` — **fuera de
 `migrations/`** para que `supabase db push` no lo ejecute nunca. Aborta si
 alguna card no existe, no pertenece a ARIRANG, no tiene `image_path` o su objeto
 no está en el bucket.
+
+---
+
+### 5.2 Resultado del backfill completo (ejecutado 2026-09-28)
+
+`20260928183346_backfill_legacy_card_images.sql`. Un único bloque `DO`: atómico,
+con 3 guardas previas y 6 verificaciones.
+
+Guardas: ninguna `image_path` sin objeto real en el bucket · ninguna
+`image_path` compartida por más de una card · las filas legacy previas
+coherentes con su card.
+
+| Métrica | Valor |
+|---|---|
+| filas antes (piloto) | 6 |
+| insertadas | **4497** |
+| total en `card_images` | **4503** |
+| `legacy` + `approved` + `is_primary` | 4503 |
+| con `contributed_by` | 0 |
+| `pending` o `rejected` | 0 |
+| cards con imagen y **sin** fila | 0 |
+| `storage_path` ≠ `cards.image_path` | 0 |
+| cards con más de una primaria legacy | 0 |
+
+Controles: `cards.image_path` 4503 (intactas) · `user_cards` sin tocar · 4612
+objetos en `photocards` · 0 en los buckets community.
+
+Idempotencia comprobada: segunda corrida → 0 insertadas, 4503 en total.
+`anon` ve 4503 filas sobre 4503 cards distintas, una por card.
+
+Reversible con `delete from card_images where source_type = 'legacy';`
 
 ---
 
@@ -560,10 +595,13 @@ leería historial divergente e intentaría reaplicarlas.
 
 ### Pendiente
 
-1. **Backfill de las 4503 legacy.** La arquitectura ya está validada por el
-   piloto; falta tu decisión de ejecutarlo.
-2. **SR-2** (`user_profiles` expone `is_admin` a `anon`) — requiere antes
+1. **FASE E**: extender `cards_full` con la imagen resuelta e implementar la
+   regla de display (§3). Ya desbloqueada por SR-1, y ahora con las 4503 filas
+   en `card_images` para alimentarla.
+2. **FASE D**: upload real. Requiere `expo-image-picker` (no está instalado) y
+   el flujo de aprobación que mueve el objeto de `...-review` al bucket público.
+3. **SR-2** (`user_profiles` expone `is_admin` a `anon`) — requiere antes
    auditar qué lee `user_profiles` sin sesión, o rompe producción.
-3. **SR-3 a SR-7** y los bugs BUG-1 a BUG-5, en commits separados.
-4. **FASE E**: extender `cards_full` con la imagen resuelta e implementar la
-   regla de display. Ya desbloqueada por SR-1.
+4. **SR-3 a SR-7** y los bugs BUG-1 a BUG-5, en commits separados.
+5. **Los 7 reversos del Winter Package 2021** (§8, grupo C): ahora que
+   `card_images` admite varias imágenes por card, son recuperables.
