@@ -1,7 +1,7 @@
 # Purple Collector V2 — Migración al catálogo comunitario
 
 Fecha: 2026-09-27 · Rama: `feat/community-images-v2` (creada desde `main` @ `9688be0`)
-Estado: **FASE B.1 + B.3 + C.1 + E + F aplicadas · backfill hecho · SR-1 a SR-4 y BUG-1 hechos.**
+Estado: **FASE B.1 + B.3 + C.1 + E + F aplicadas · backfill hecho · SR-1 a SR-8 y BUG-1 hechos.**
 
 Documento hermano: [`PURPLE_V2_CURRENT_STATE.md`](./PURPLE_V2_CURRENT_STATE.md) — auditoría del estado real.
 Roadmap de origen: `~/Downloads/Purple_Collector_v2_Roadmap.xlsx` (66 tareas).
@@ -476,9 +476,10 @@ Cada uno es una migration y un commit propios, revisables por separado.
 | ~~**SR-2**~~ | ~~`user_profiles` expone las 34 filas a `anon`, incluido `is_admin`~~ | Alta | — | **HECHO 2026-09-28**: `20260928195206_restrict_user_profiles_read.sql` |
 | ~~**SR-3**~~ | ~~Bucket `photocards` sin `file_size_limit` ni `allowed_mime_types`~~ | Media | — | **HECHO 2026-09-28**: `20260928200200_photocards_bucket_limits.sql` |
 | ~~**SR-4**~~ | ~~Sin policy DELETE en `storage.objects` para `photocards`~~ | Media | — | **HECHO 2026-09-28**: `20260928200304_photocards_admin_delete_policy.sql` |
-| **SR-5** | `search_path` mutable en `is_admin`, `set_card_status`, `get_collection_stats` (advisor: WARN ×3) | Baja | No | `..._function_search_path.sql` |
-| **SR-6** | `set_card_status` y `get_collection_stats` existen, no están en ninguna migration y la app **no las llama** | Baja | No | investigar → `drop` o documentar |
-| **SR-7** | Policies duplicadas/solapadas en `user_profiles` (2 INSERT equivalentes, 3 SELECT) | Baja | No | `..._cleanup_user_profiles_policies.sql` |
+| ~~**SR-5**~~ | ~~`search_path` mutable en 3 funciones~~ | Baja | — | **HECHO 2026-09-28**: `20260928222240_is_admin_search_path.sql` |
+| ~~**SR-6**~~ | ~~`set_card_status` y `get_collection_stats` muertas~~ | Baja | — | **HECHO 2026-09-28**: `20260928222159_drop_dead_functions.sql` |
+| ~~**SR-7**~~ | ~~Policies duplicadas en `user_profiles`~~ | Baja | — | **HECHO 2026-09-28**: `20260928222422_cleanup_duplicate_policies.sql` |
+| **SR-8** | **Escalada de privilegios: cualquier usuario autenticado podía marcarse `is_admin`** | **Crítica** | — | **HECHO 2026-09-28**: `20260928222557_prevent_self_admin_escalation.sql` |
 
 ### SR-1 — detalle
 
@@ -504,10 +505,119 @@ Verificación antes y después, idéntica en los tres roles:
 Las tres vistas del esquema (`cards_full`, `album_card_counts`,
 `member_card_counts`) quedan ahora con `security_invoker = true`, y el advisor
 de seguridad pasa a **cero ERRORs**. Los WARN que quedan son todos preexistentes
-(SR-5, funciones `SECURITY DEFINER` invocables, políticas con acceso anónimo
-—intencionales— y protección de contraseñas filtradas).
+(funciones `SECURITY DEFINER` invocables por `anon`, políticas con acceso
+anónimo —intencionales— y protección de contraseñas filtradas).
 
 Reversible con `alter view public.cards_full set (security_invoker = false);`
+
+### SR-8 — escalada de privilegios (hallazgo nuevo, 2026-09-28)
+
+**Encontrado al verificar SR-7.** Severidad crítica y ya estaba vivo: **no lo
+introdujo SR-7**, las policies originales tenían el mismo predicado.
+
+La RLS de Postgres filtra **filas**, no **columnas**. La policy de UPDATE de
+`user_profiles` autorizaba a cada usuario a modificar su propia fila... entera.
+Incluida `is_admin`. Con solo la clave publicable que viaja en el bundle:
+
+```
+PATCH /rest/v1/user_profiles?id=eq.<mi_uuid>
+{ "is_admin": true }
+```
+
+Probado en la base con un usuario normal real, antes de arreglarlo:
+
+| Paso | Resultado |
+|---|---|
+| `is_admin` antes | `f` |
+| `update is_admin = true` sobre su fila | **1 fila** |
+| `public.is_admin()` después | **`t`** |
+| `update` sobre `public.cards` | **1 fila** |
+
+O sea: cualquiera con una cuenta pasaba a poder escribir las 4503 cards, los
+álbumes, eras y categorías, moderar `card_images` y —desde SR-4— borrar objetos
+del bucket `photocards`.
+
+**Arreglo:** privilegios a nivel de **columna**, que es la herramienta correcta
+cuando el problema es "esta fila sí, esta columna no". Se revoca el UPDATE amplio
+y se devuelve solo sobre las columnas que el usuario tiene por qué cambiar.
+`is_admin` y `created_at` quedan fuera. A `anon` se le revoca sin devolvérselo.
+
+`id` **sí** se incluye, porque el upsert de `lib/BiasContext.tsx` lo trae y
+PostgREST lo puede incluir en el `DO UPDATE`. Es inofensivo: el WITH CHECK
+(`auth.uid() = id`) rechaza apuntar la fila a otra persona.
+
+Cambiar `is_admin` queda como operación de `service_role` — el dashboard, que es
+como se otorgó el único admin que existe.
+
+**Verificado:**
+
+| Prueba | Resultado |
+|---|---|
+| escalada `is_admin = true` | **bloqueada** (`insufficient_privilege`) |
+| `update display_name` (camino de `useAuth.ts`) | 1 fila, ok |
+| upsert `{id, biases, onboarding_completed}` (camino de `BiasContext.tsx`) | 1 fila, ok |
+| `update created_at` | bloqueada |
+
+---
+
+### SR-5, SR-6 y SR-7 — hechos (2026-09-28)
+
+**Se invirtió el orden a propósito:** SR-6 antes de SR-5. SR-5 arreglaba el
+`search_path` de tres funciones y dos de ellas eran justo las que SR-6 borra, así
+que hacerlo al revés era trabajo tirado.
+
+**SR-6.** `set_card_status` y `get_collection_stats` estaban en el proyecto
+remoto, no en ninguna migration, y nada las usaba. Evidencia antes de borrarlas:
+
+- `git log --all -S`: esos nombres **nunca** aparecieron en el repo. El único
+  commit que los menciona es el que documentó este plan.
+- La app hace un solo `.rpc()`, a `register_push_token`.
+- Cero dependencias en la base: ningún trigger, policy, vista, default ni otra
+  función.
+- Superadas por lo que la app ya hace: `set_card_status` repetía el upsert de
+  los hooks, y `get_collection_stats` los conteos que se calculan en cliente más
+  las vistas de conteo.
+
+Ninguna era `SECURITY DEFINER`, así que la RLS del llamante aplicaba y no había
+fuga. Las definiciones completas quedan en los comentarios de la migration para
+que restaurarlas sea copiar y pegar.
+
+**SR-5.** Queda solo `is_admin`, que era la más sensible: `SECURITY DEFINER` y
+usada por **17 policies**. Sin `search_path` fijo resolvía los nombres sin
+cualificar con el search_path del llamante; si alguien lograra poner un esquema
+propio delante con una tabla `user_profiles` falsa, la función leería esa. Hoy no
+era explotable (requiere CREATE en un esquema del search_path, que
+`anon`/`authenticated` no tienen), pero es un supuesto apoyado en un permiso
+ajeno.
+
+`set search_path = ''` obliga a cualificar todo, de ahí que el cuerpo pase a
+`public.user_profiles`. `CREATE OR REPLACE` conserva el oid, así que las 17
+policies siguen apuntando a la función sin recrearlas.
+
+**SR-7.** `user_profiles` tenía **seis** policies para tres operaciones, en pares
+equivalentes y con tres convenciones de nombre. Se reemplazan por tres, y se
+pasan de `public` a `authenticated` (para `anon`, `auth.uid()` es null, así que
+nunca le daban acceso — el cambio es estrictamente más restrictivo). Y las
+policies de admin de `photocards` se unifican a `is_admin()`, quitando el
+acoplamiento silencioso con la RLS de `user_profiles` que SR-2 estuvo a un paso
+de romper.
+
+**Verificación conjunta**, toda con rollback forzado:
+
+| Prueba | Resultado |
+|---|---|
+| admin: `is_admin()` | `true` |
+| admin: escribe `cards`, `card_images`, `albums` | 1 fila cada uno |
+| usuario: `is_admin()` | `false` |
+| usuario: escribe `cards` / `card_images` | **0 filas** |
+| usuario: lee `cards_full` del álbum 3 | 287 |
+| usuario: ve `card_images` aprobadas | 4503 |
+| usuario: lee y actualiza su perfil | 1 fila |
+| usuario: ve el perfil del admin | **0** |
+| usuario: marca admin a otro | **0 filas** |
+| `anon`: ve perfiles | **0** |
+
+---
 
 ### SR-3 y SR-4 — hechos (2026-09-28)
 
@@ -780,6 +890,12 @@ leería historial divergente e intentaría reaplicarlas.
 2. **Handle público para la attribution** — decisión de producto: ¿columna
    `username` única elegida por el usuario, o `display_name` con fallback? Hoy
    `display_name` es nullable y no único. Bloquea la tarea 32 del roadmap.
-3. **SR-5 a SR-7** y los bugs BUG-2 a BUG-5, en commits separados.
+3. **BUG-2 a BUG-5**, en commits separados. BUG-2 es el de más impacto
+   visible: 64 de los 140 `albums.cover_image_url` apuntan a objetos que no
+   existen, o sea 64 portadas rotas.
+4. **Avisos del advisor que quedan**, todos preexistentes y ninguno ERROR:
+   funciones `SECURITY DEFINER` invocables por `anon` vía `/rest/v1/rpc/`
+   (`handle_new_user`, `is_admin`, `register_push_token` — ninguna necesita
+   `anon`), y la protección de contraseñas filtradas desactivada.
 4. **Los 7 reversos del Winter Package 2021** (§8, grupo C): ahora que
    `card_images` admite varias imágenes por card, son recuperables.

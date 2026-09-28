@@ -240,7 +240,7 @@ desde la app ni como admin autenticado: requiere `service_role`.
 | `cards`, `albums`, `album_versions`, `card_categories` | `Public read *` → `public`, `USING true` | solo `admin_all_*` (ALL, authenticated, `is_admin()`) |
 | `album_eras`, `collection_types`, `card_sets` | `... read for authenticated` → `authenticated`, `USING true` | solo `admin_all_*` |
 | `user_cards` | `Own cards select` → `public`, `auth.uid() = user_id` | insert/update/delete propios |
-| `user_profiles` | solo "propia fila" (`auth.uid() = id`), 2 policies redundantes. La permisiva `Public read profiles` se eliminó el 2026-09-28 (**SR-2**) | insert/update propios (duplicadas) |
+| `user_profiles` | solo "propia fila" (`auth.uid() = id`), 3 policies a `authenticated` tras **SR-7**. La permisiva `Public read profiles` se eliminó en **SR-2** | insert/update propios; el UPDATE está limitado **por columna** tras **SR-8** — `is_admin` y `created_at` no son modificables |
 | `push_tokens` | own | own (+ RPC `register_push_token` SECURITY DEFINER) |
 | `notifications_log` | solo admin | ninguna para cliente (service_role) |
 
@@ -278,10 +278,11 @@ La migration `20260810120100` lo dice explícitamente ("la tabla misma precede a
 la carpeta de migrations") y `20260908024314` anota "ya aplicada en el proyecto
 remoto; este archivo deja el repo a la par".
 
-Funciones que existen en la base y **no** están en ninguna migration:
-`set_card_status`, `get_collection_stats`, `handle_new_user`, `is_admin`.
-De las tres primeras, la app no llama a ninguna (el único `.rpc()` del código
-es `register_push_token` en `hooks/usePushNotifications.ts:64`).
+Funciones que existían en la base y **no** estaban en ninguna migration:
+`set_card_status`, `get_collection_stats`, `handle_new_user`, `is_admin`. Las
+dos primeras se **borraron** el 2026-09-28 (**SR-6**): estaban muertas.
+`is_admin` quedó con `search_path` fijo (**SR-5**). El único `.rpc()` del código
+sigue siendo `register_push_token` en `hooks/usePushNotifications.ts:64`.
 
 ### 1.10 Tipos TypeScript
 
@@ -458,7 +459,14 @@ debe ir en **ambos** o TypeScript rompe. La v2 añade del orden de 40 keys
 9. **`user_profiles` no tiene `username`/handle.** La attribution
    "Aportada por @usuario" no tiene de dónde salir: `display_name` es nullable
    y no único.
-10. Policies duplicadas en `user_profiles` (2 INSERT equivalentes, 3 SELECT).
+10. ~~Policies duplicadas en `user_profiles`~~ — **CORREGIDO el 2026-09-28
+    (SR-7).** Seis policies para tres operaciones pasaron a tres, todas a
+    `authenticated`.
+11. **Escalada de privilegios (hallazgo posterior, CORREGIDO — SR-8).** La RLS
+    filtra filas, no columnas: cualquier usuario autenticado podía hacer
+    `PATCH /rest/v1/user_profiles?id=eq.<su_uuid>` con `{"is_admin": true}` y
+    quedar admin, y de ahí escribir todo el catálogo. Probado explotable antes
+    de cerrarlo. Arreglado con privilegios a nivel de columna.
 
 ### 4.2 Riesgos de la migración, por gravedad
 
