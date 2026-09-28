@@ -1,0 +1,43 @@
+-- SR-9 — Quita el EXECUTE innecesario sobre las funciones SECURITY DEFINER.
+--
+-- Ultimo grupo de avisos del advisor: tres funciones SECURITY DEFINER con
+-- EXECUTE otorgado a anon y a authenticated por el default de Supabase, o sea
+-- invocables via /rest/v1/rpc/ con la clave publicable.
+--
+-- Ninguna necesita anon:
+--
+--   handle_new_user()      devuelve `trigger`. PostgREST no expone funciones
+--                          que devuelven trigger, asi que el aviso era en la
+--                          practica teorico: nunca fue llamable por REST. Y un
+--                          trigger se dispara por el mecanismo de la tabla, no
+--                          por el EXECUTE del rol que hace el INSERT, asi que
+--                          quitarlo a anon Y a authenticated no afecta a
+--                          on_auth_user_created sobre auth.users.
+--
+--   is_admin()             la usan 17 policies, TODAS `to authenticated`
+--                          (verificado). Para anon esas policies no se evaluan
+--                          siquiera, asi que no necesita el permiso. Se le
+--                          conserva a authenticated: una policy que llama a una
+--                          funcion SI exige EXECUTE al rol que consulta, y
+--                          quitarselo a authenticated romperia todo el gate de
+--                          admin del proyecto.
+--
+--   register_push_token()  la llama hooks/usePushNotifications.ts, y solo con
+--                          sesion: el hook recibe el userId y no hace nada si
+--                          es null. anon no tiene por que registrar un token.
+--
+-- Esto no cierra un agujero concreto: las tres validan internamente contra
+-- auth.uid(), que para anon es null, asi que una llamada anonima no lograba
+-- nada util. Es reducir superficie: lo que no hace falta, no se expone.
+--
+-- service_role conserva EXECUTE en las tres, que es lo que usan el dashboard y
+-- las edge functions.
+--
+-- Reversible con:
+--   grant execute on function public.handle_new_user() to anon, authenticated;
+--   grant execute on function public.is_admin() to anon;
+--   grant execute on function public.register_push_token(text, text) to anon;
+
+revoke execute on function public.handle_new_user() from anon, authenticated;
+revoke execute on function public.is_admin() from anon;
+revoke execute on function public.register_push_token(text, text) from anon;

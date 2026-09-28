@@ -1,0 +1,51 @@
+-- SR-9b — Revoca de verdad el EXECUTE: hay que quitarselo a PUBLIC.
+--
+-- CORRIGE la migration anterior (..._revoke_anon_function_execute.sql), que
+-- fue un NO-OP. Ese archivo hacia:
+--
+--   revoke execute on function public.handle_new_user() from anon, authenticated;
+--   revoke execute on function public.is_admin() from anon;
+--   revoke execute on function public.register_push_token(text, text) from anon;
+--
+-- y el advisor siguio reportando las tres funciones como invocables. El motivo
+-- lo mostro el ACL real:
+--
+--   handle_new_user      =X/postgres  postgres=X/postgres  service_role=X/postgres
+--   is_admin             =X/postgres  postgres=X/postgres  authenticated=X/...
+--   register_push_token  =X/postgres  postgres=X/postgres  authenticated=X/...
+--
+-- Esa primera entrada, `=X/postgres` -- grantee vacio antes del `=` -- es el
+-- grant a PUBLIC, que Postgres pone por defecto en toda funcion nueva. anon y
+-- authenticated heredaban EXECUTE por ahi, asi que revocarselo nominalmente no
+-- les quitaba nada.
+--
+-- Leccion: en funciones, revocar de `anon` no sirve si el privilegio viene de
+-- PUBLIC. Hay que revocar de PUBLIC y despues otorgar explicitamente a quien
+-- lo necesite.
+--
+-- Por que es seguro revocar de PUBLIC en cada una:
+--
+--   handle_new_user      queda con postgres y service_role. Es trigger de
+--                        on_auth_user_created sobre auth.users, y un trigger se
+--                        dispara por el mecanismo de la tabla, no por el
+--                        EXECUTE del rol que hace el INSERT. Ademas devuelve
+--                        `trigger`, tipo que PostgREST no expone.
+--   is_admin             ya tiene grant EXPLICITO a authenticated, que es quien
+--                        lo necesita: las 17 policies que la llaman son todas
+--                        `to authenticated`, y una policy que invoca una
+--                        funcion exige EXECUTE al rol que consulta.
+--   register_push_token  ya tiene grant EXPLICITO a authenticated, el unico que
+--                        la llama (hooks/usePushNotifications.ts, solo con
+--                        sesion).
+--
+-- O sea que no hace falta re-otorgar nada: los grants explicitos que ya existen
+-- cubren exactamente a quien corresponde.
+--
+-- Reversible con:
+--   grant execute on function public.handle_new_user() to public;
+--   grant execute on function public.is_admin() to public;
+--   grant execute on function public.register_push_token(text, text) to public;
+
+revoke execute on function public.handle_new_user() from public;
+revoke execute on function public.is_admin() from public;
+revoke execute on function public.register_push_token(text, text) from public;
