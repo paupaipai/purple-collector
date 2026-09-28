@@ -1,0 +1,42 @@
+-- SR-2 — Cierra la lectura publica de `user_profiles`.
+--
+-- La policy "Public read profiles" era SELECT para el rol `public` (que incluye
+-- `anon`) con USING true. Como la clave publicable viaja en el cliente -- esta
+-- en el repo y en el bundle web -- cualquiera con ella podia leer las 34 filas
+-- completas: display_name, avatar_url, bias, biases, collecting_since y,
+-- sobre todo, **is_admin**. Saber quien es admin es el primer paso para
+-- cualquier intento dirigido.
+--
+-- Medido antes de aplicar: `anon` veia 34 filas y 1 admin.
+--
+-- Auditoria previa (el prerequisito que se documento en FASE A): los tres
+-- accesos de la app a user_profiles son a la PROPIA fila y siempre con sesion.
+--
+--   app/_layout.tsx:107   select onboarding_completed, .eq('id', session.user.id),
+--                         dentro del bloque que retorna temprano si !session
+--   lib/BiasContext.tsx:54 select biases, .eq('id', userId); el efecto retorna
+--                         temprano si !userId
+--   hooks/useAuth.ts:179  update display_name de la propia fila tras el login
+--
+-- Ninguno lee el perfil de otra persona y ninguno corre como `anon`, asi que
+-- quitar la policy permisiva no rompe nada. Las dos policies de "propia fila"
+-- que ya existen siguen cubriendo esos casos:
+--
+--   "Users read own profile"     SELECT  public         auth.uid() = id
+--   "users can read own profile" SELECT  authenticated  id = auth.uid()
+--
+-- (Que haya dos equivalentes es redundancia preexistente: eso es SR-7, aparte.)
+--
+-- Las edge functions no se ven afectadas: usan service_role y saltan RLS.
+--
+-- NOTA para la attribution de V2 ("Aportada por @usuario", tarea 32): cuando se
+-- implemente, NO se debe reabrir esta policy. Va por una vista restringida que
+-- exponga solo (id, display_name, avatar_url) con security_invoker, y hace
+-- falta decidir antes cual es el handle publico -- hoy no existe columna
+-- `username` y `display_name` es nullable y no unico.
+--
+-- Reversible con:
+--   create policy "Public read profiles" on public.user_profiles
+--     for select to public using (true);
+
+drop policy if exists "Public read profiles" on public.user_profiles;

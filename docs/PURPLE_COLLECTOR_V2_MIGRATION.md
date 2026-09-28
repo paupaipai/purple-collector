@@ -1,7 +1,7 @@
 # Purple Collector V2 — Migración al catálogo comunitario
 
 Fecha: 2026-09-27 · Rama: `feat/community-images-v2` (creada desde `main` @ `9688be0`)
-Estado: **FASE B.1 + B.3 + C.1 + E + F aplicadas · backfill hecho · SR-1 y BUG-1 hechos.**
+Estado: **FASE B.1 + B.3 + C.1 + E + F aplicadas · backfill hecho · SR-1, SR-2 y BUG-1 hechos.**
 
 Documento hermano: [`PURPLE_V2_CURRENT_STATE.md`](./PURPLE_V2_CURRENT_STATE.md) — auditoría del estado real.
 Roadmap de origen: `~/Downloads/Purple_Collector_v2_Roadmap.xlsx` (66 tareas).
@@ -274,8 +274,8 @@ hace falta diferenciar el contenido de terceros por otro motivo. Es una línea.
 **Lo que FASE F no incluye:** la attribution nominal ("Aportada por @usuario",
 tarea 32 del roadmap) está **bloqueada**: `user_profiles` no tiene columna
 `username` y `display_name` es nullable y no único. La vista ya expone
-`primary_image_contributed_by`, así que falta solo el handle — va con SR-2, que
-toca esa tabla de todos modos.
+`primary_image_contributed_by`, así que falta solo decidir cuál es el handle
+público.
 
 ---
 
@@ -473,7 +473,7 @@ Cada uno es una migration y un commit propios, revisables por separado.
 | ID | Hallazgo | Severidad | Bloquea V2 | Migration propuesta |
 |---|---|---|---|---|
 | ~~**SR-1**~~ | ~~`cards_full` es `SECURITY DEFINER` (advisor: ERROR)~~ | Alta | — | **HECHO 2026-09-28**: `20260928182438_cards_full_security_invoker.sql` |
-| **SR-2** | `user_profiles` `Public read profiles` (`USING true`, rol `public`) expone las 34 filas a `anon`, **incluido `is_admin`** | Alta | **Sí** — antes de attribution | `..._restrict_user_profiles_read.sql` |
+| ~~**SR-2**~~ | ~~`user_profiles` expone las 34 filas a `anon`, incluido `is_admin`~~ | Alta | — | **HECHO 2026-09-28**: `20260928195206_restrict_user_profiles_read.sql` |
 | **SR-3** | Bucket `photocards` sin `file_size_limit` ni `allowed_mime_types` | Media | No | `..._photocards_bucket_limits.sql` |
 | **SR-4** | Sin policy DELETE en `storage.objects` para `photocards`: no hay takedown de legacy sin `service_role` | Media | No | `..._photocards_admin_delete_policy.sql` |
 | **SR-5** | `search_path` mutable en `is_admin`, `set_card_status`, `get_collection_stats` (advisor: WARN ×3) | Baja | No | `..._function_search_path.sql` |
@@ -509,20 +509,42 @@ de seguridad pasa a **cero ERRORs**. Los WARN que quedan son todos preexistentes
 
 Reversible con `alter view public.cards_full set (security_invoker = false);`
 
-### SR-2 — detalle y prerequisito
+### SR-2 — hecho (2026-09-28)
 
-RLS de Postgres no filtra columnas, así que no se puede "quitar `is_admin`" de
-una policy. Dos caminos:
+Aplicado después de hacer la auditoría que era prerequisito.
 
-- **(a) recomendado:** `revoke select on public.user_profiles from anon`, y crear
-  una vista `public_profiles` con solo `(id, display_name, avatar_url)` y
-  `security_invoker = true` para la attribution.
-- (b) column-level grants sobre la tabla — más frágil de mantener.
+**Auditoría — los tres accesos de la app son a la propia fila y con sesión:**
 
-**Prerequisito antes de tocar nada:** auditar qué lee `user_profiles` sin sesión.
-Candidatos a revisar: `lib/BiasContext.tsx`, `app/(tabs)/profile.tsx`,
-`app/_layout.tsx` (`checkOnboarded`). Si alguno lee como `anon`, romperlo sería
-una regresión en producción. **No aplicar SR-2 sin esa auditoría.**
+| Sitio | Query | Gate |
+|---|---|---|
+| `app/_layout.tsx:107` | `select onboarding_completed .eq('id', session.user.id)` | dentro del bloque que retorna si `!session` |
+| `lib/BiasContext.tsx:54` | `select biases .eq('id', userId)` | el efecto retorna si `!userId` |
+| `hooks/useAuth.ts:179` | `update display_name` de la propia fila | tras el login |
+
+Ninguno lee el perfil de otra persona; ninguno corre como `anon`. Las edge
+functions usan `service_role` y saltan RLS. Así que bastó con **quitar la policy
+permisiva** — sin tocar grants ni crear vistas, al contrario de lo que había
+propuesto: las dos policies de "propia fila" que ya existían cubren los tres
+casos.
+
+```sql
+drop policy if exists "Public read profiles" on public.user_profiles;
+```
+
+**Verificación, los dos lados:**
+
+| Quién | Antes | Después |
+|---|---|---|
+| `anon` (SQL) | 34 filas, 1 admin visible | **0 filas, 0 admins** |
+| `anon` (REST con la clave publicable) | las 34 filas | **`[]`** |
+| `authenticated` con un `sub` real | — | **1 fila, la suya**, y lee `onboarding_completed` y `biases` |
+| control: `cards_full` como `anon` | 200 | **200** — el catálogo sigue público |
+
+Quedan 6 policies en `user_profiles`: 2 INSERT, 2 SELECT y 2 UPDATE, redundantes
+por pares. Esa limpieza es **SR-7**, aparte.
+
+**Para la attribution de V2:** no se debe reabrir esta policy. Va por una vista
+restringida con solo `(id, display_name, avatar_url)` y `security_invoker`.
 
 ---
 
@@ -694,10 +716,12 @@ leería historial divergente e intentaría reaplicarlas.
 
 ### Pendiente
 
-1. **FASE D**: upload real. Requiere `expo-image-picker` (no está instalado) y
-   el flujo de aprobación que mueve el objeto de `...-review` al bucket público.
-3. **SR-2** (`user_profiles` expone `is_admin` a `anon`) — requiere antes
-   auditar qué lee `user_profiles` sin sesión, o rompe producción.
-4. **SR-3 a SR-7** y los bugs BUG-1 a BUG-5, en commits separados.
-5. **Los 7 reversos del Winter Package 2021** (§8, grupo C): ahora que
+1. **FASE D**: upload real. Requiere `expo-image-picker` (no está instalado, y
+   es nativo: implica rebuild de dev/EAS) y el flujo de aprobación que mueve el
+   objeto de `...-review` al bucket público.
+2. **Handle público para la attribution** — decisión de producto: ¿columna
+   `username` única elegida por el usuario, o `display_name` con fallback? Hoy
+   `display_name` es nullable y no único. Bloquea la tarea 32 del roadmap.
+3. **SR-3 a SR-7** y los bugs BUG-2 a BUG-5, en commits separados.
+4. **Los 7 reversos del Winter Package 2021** (§8, grupo C): ahora que
    `card_images` admite varias imágenes por card, son recuperables.

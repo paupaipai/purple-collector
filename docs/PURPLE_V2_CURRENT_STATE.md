@@ -240,7 +240,7 @@ desde la app ni como admin autenticado: requiere `service_role`.
 | `cards`, `albums`, `album_versions`, `card_categories` | `Public read *` → `public`, `USING true` | solo `admin_all_*` (ALL, authenticated, `is_admin()`) |
 | `album_eras`, `collection_types`, `card_sets` | `... read for authenticated` → `authenticated`, `USING true` | solo `admin_all_*` |
 | `user_cards` | `Own cards select` → `public`, `auth.uid() = user_id` | insert/update/delete propios |
-| `user_profiles` | **`Public read profiles` → `public`, `USING true`** + 2 policies redundantes de "own" | insert/update propios (duplicadas) |
+| `user_profiles` | solo "propia fila" (`auth.uid() = id`), 2 policies redundantes. La permisiva `Public read profiles` se eliminó el 2026-09-28 (**SR-2**) | insert/update propios (duplicadas) |
 | `push_tokens` | own | own (+ RPC `register_push_token` SECURITY DEFINER) |
 | `notifications_log` | solo admin | ninguna para cliente (service_role) |
 
@@ -450,9 +450,10 @@ debe ir en **ambos** o TypeScript rompe. La v2 añade del orden de 40 keys
    reportada sin `service_role`.
 7. **`delete-account` no limpia Storage** → con UGC, borrar una cuenta dejará
    objetos huérfanos y romperá la attribution.
-8. **`Public read profiles` (`public`, `USING true`)** expone las 34 filas de
-   `user_profiles` a `anon`, incluido **`is_admin`**. Relevante ahora que la
-   attribution va a leer perfiles.
+8. ~~**`Public read profiles` (`public`, `USING true`)** expone las 34 filas de
+   `user_profiles` a `anon`, incluido `is_admin`~~ — **CORREGIDO el 2026-09-28
+   (SR-2).** `anon` pasa de ver 34 filas y 1 admin a ver 0, verificado también
+   por REST con la clave publicable.
 9. **`user_profiles` no tiene `username`/handle.** La attribution
    "Aportada por @usuario" no tiene de dónde salir: `display_name` es nullable
    y no único.
