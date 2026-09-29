@@ -76,6 +76,26 @@ export default function ModerationScreen() {
     Alert.alert(t('reports'), t('reportResolved'));
   };
 
+  // Retirar es destructivo e irreversible: borra el objeto de Storage y, si es
+  // legacy, vacia cards.image_path. Por eso pide confirmacion explicita.
+  const askTakedown = (report: OpenReport) => {
+    Alert.alert(t('takedownTitle'), t('takedownDesc'), [
+      { text: t('cancel'), style: 'cancel' },
+      {
+        text: t('takedownConfirm'),
+        style: 'destructive',
+        onPress: async () => {
+          const result = await reports.takedown(report.id, report.cardImageId, report.reason);
+          if (!result.ok) {
+            Alert.alert(t('reports'), `${t('moderationError')}\n\n${result.error}`);
+            return;
+          }
+          Alert.alert(t('reports'), t('takedownDone'));
+        },
+      },
+    ]);
+  };
+
   const askReason = (submission: PendingSubmission) => {
     Alert.alert(t('rejectTitle'), t('rejectDesc'), [
       ...REJECT_REASONS.map(r => ({
@@ -204,6 +224,18 @@ export default function ModerationScreen() {
                       )}
                     </TouchableOpacity>
                   </View>
+
+                  {/* Retirar va aparte y en rojo: es la unica accion que toca la
+                      imagen, y es irreversible. */}
+                  <TouchableOpacity
+                    onPress={() => askTakedown(report)}
+                    disabled={busy}
+                    activeOpacity={0.7}
+                    style={[styles.btn, styles.takedownBtn, busy && styles.btnDisabled]}
+                  >
+                    <Ionicons name="trash-outline" size={15} color={COLORS.pink} />
+                    <Text style={[styles.btnText, { color: COLORS.pink }]}>{t('reportRemove')}</Text>
+                  </TouchableOpacity>
                 </GlassCard>
               );
             })}
@@ -341,6 +373,9 @@ const styles = StyleSheet.create({
   approveBtn: { borderColor: COLORS.green + '55', backgroundColor: COLORS.green + '14' },
   rejectBtn: { borderColor: COLORS.pink + '55', backgroundColor: COLORS.pink + '14' },
   dismissBtn: { borderColor: 'rgba(255,255,255,0.14)', backgroundColor: 'rgba(255,255,255,0.05)' },
+  takedownBtn: {
+    marginTop: 8, borderColor: COLORS.pink + '55', backgroundColor: COLORS.pink + '10',
+  },
   btnText: { fontSize: 12, fontWeight: '800' },
 
   tabs: { flexDirection: 'row', gap: 8, paddingHorizontal: 12, paddingBottom: 8 },

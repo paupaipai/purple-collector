@@ -98,9 +98,14 @@ const en = {
   reports: 'Reports',
   reportsEmpty: 'No open reports',
   reportsEmptyDesc: 'Reports from users will show up here.',
-  reportKeep: 'Keep',
-  reportDismiss: 'Dismiss',
+  reportKeep: 'Keep image',
+  reportDismiss: 'Dismiss report',
+  reportRemove: 'Remove image',
   reportResolved: 'Report resolved.',
+  takedownTitle: 'Remove this image?',
+  takedownDesc: 'It will be deleted from storage and stop showing in the catalog. This cannot be undone.',
+  takedownConfirm: 'Remove',
+  takedownDone: 'Image removed from the catalog.',
   queuePending: 'Pending',
 
   // Album detail
@@ -326,9 +331,14 @@ const es: Translations = {
   reports: 'Reportes',
   reportsEmpty: 'Sin reportes abiertos',
   reportsEmptyDesc: 'Los reportes de usuarios aparecerán acá.',
-  reportKeep: 'Mantener',
-  reportDismiss: 'Descartar',
+  reportKeep: 'Mantener imagen',
+  reportDismiss: 'Desestimar reporte',
+  reportRemove: 'Retirar imagen',
   reportResolved: 'Reporte resuelto.',
+  takedownTitle: '¿Retirar esta imagen?',
+  takedownDesc: 'Se borrará de Storage y dejará de mostrarse en el catálogo. No se puede deshacer.',
+  takedownConfirm: 'Retirar',
+  takedownDone: 'Imagen retirada del catálogo.',
   queuePending: 'Pendientes',
 
   // Album detail

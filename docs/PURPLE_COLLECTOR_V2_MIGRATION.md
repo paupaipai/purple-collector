@@ -23,7 +23,9 @@ Roadmap de origen: `~/Downloads/Purple_Collector_v2_Roadmap.xlsx` (66 tareas).
 
 ### D1 — Legacy
 
-Las 4503 imágenes actuales **no se eliminan, no se ocultan y no se modifican**.
+Las 4503 imágenes actuales **no se eliminan, no se ocultan y no se modifican**
+— con **una excepción acordada el 2026-09-29**: el takedown por reclamo de
+copyright sí vacía `cards.image_path` de la card afectada (§2.11).
 
 - `cards.image_path` **permanece intacta**, indefinidamente, por compatibilidad
   con la Android v1 publicada.
@@ -360,38 +362,64 @@ sobre tablas.
 
 ---
 
-### 2.11 Lo que falta: el takedown
+### 2.11 Takedown (2026-09-29)
 
-**Retirar de verdad una imagen no está implementado**, y la bandeja de reportes
-solo ofrece `Mantener` y `Descartar` por eso. `resolved_removed` existe en el
-enum pero ninguna UI lo usa.
+Retirar una imagen ya publicada. Es la única acción de moderación que aplica
+**también a las legacy**, y por eso hacía falta: el 99,98% del catálogo lo es, y
+un reclamo de copyright sin forma de retirar es un buzón sin salida (tarea 37).
 
-Para una imagen **community aprobada** sería factible: borrar el objeto del
-bucket público y marcar la fila. Haría falta una acción nueva en
-`moderate-card-image`, porque su `reject` actual exige `status = 'pending'`.
+```
+POST { action: "takedown", cardImageId, reason, reportId? }
+```
 
-Para una **legacy** hay un problema de diseño real, y es tuyo de decidir:
+**Excepción acordada a la decisión D1.** Para una legacy no basta con tocar
+`card_images`:
 
 ```ts
 // lib/supabase.ts — getCardImageUrl()
 const path = card.primary_image_path ?? card.image_path ?? null;
 ```
 
-Ese fallback se añadió en FASE E para tolerar respuestas cacheadas. Significa que
-borrar la fila de `card_images` de una legacy **no la oculta**: la app sigue
-sirviéndola desde `cards.image_path`. Y va más profundo — la Android v1 publicada
-lee `cards.image_path` directamente.
+Ese fallback hace que la imagen siga sirviéndose desde `cards.image_path`, y la
+Android v1 publicada lee esa columna directamente. Así que el takedown **vacía
+`cards.image_path`**, que es lo único que la retira de verdad en las dos
+versiones. Se eligió esto sobre quitar el fallback porque esa alternativa dejaba
+la imagen visible en la v1 hasta que sus usuarios actualizaran — inaceptable para
+un reclamo de derechos.
 
-Así que un takedown real de una legacy exige **borrar el objeto de Storage y/o
-vaciar `cards.image_path`**, que es exactamente lo que la decisión **D1** dijo que
-no se toca nunca. Hay una tensión entre D1 y la tarea 37. Las dos salidas:
+El `UPDATE` sobre `cards` lleva `.eq("image_path", row.storage_path)`: si la
+columna ya apunta a otra cosa, no se pisa.
 
-1. Quitar el fallback y aceptar que una legacy retirada muestre placeholder en v2
-   mientras la v1 la siga viendo hasta que sus usuarios actualicen.
-2. Aceptar tocar `cards.image_path` en el caso concreto de un takedown, como
-   excepción documentada a D1.
+**Orden de operaciones, inverso al de approve y a propósito:**
 
-No la resuelvo por mi cuenta: cambia el contrato con la v1 publicada.
+1. actualizar la base — es lo que oculta la imagen
+2. borrar el objeto de Storage — **best-effort**
+
+Si (2) falla, la imagen ya no se muestra y sólo queda un huérfano. Al revés, un
+borrado exitoso con la base sin actualizar dejaría la app pidiendo un objeto que
+ya no existe.
+
+**Qué pasa con la fila de `card_images`:**
+
+| origen | qué se hace | por qué |
+|---|---|---|
+| `legacy` | `is_primary = false`, la fila **se conserva** | la constraint `card_images_legacy_is_approved` no deja marcarla `rejected`; quitarle `is_primary` basta porque es lo que la vista mira, y la fila queda como rastro de que existió |
+| `community` | `status = 'rejected'` + motivo | ahí sí se puede |
+
+Si el takedown viene de un reporte (`reportId`), la función lo cierra como
+`resolved_removed` en la **misma llamada**, para que el estado del reporte no
+pueda quedar desalineado del de la imagen.
+
+En la bandeja, *Retirar imagen* va **separado y en rojo** de *Mantener* y
+*Desestimar*, y pide confirmación: es la única acción que toca la imagen y es
+irreversible.
+
+#### Las etiquetas, corregidas
+
+Antes decían sólo *"Mantener"* y *"Descartar"*, que parecían actuar sobre la
+imagen cuando actúan sobre el **reporte**. Confundieron en la primera prueba
+real. Ahora dicen **"Mantener imagen"**, **"Desestimar reporte"** y
+**"Retirar imagen"**.
 
 ---
 

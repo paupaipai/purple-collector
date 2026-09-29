@@ -10,8 +10,9 @@ import { withSupabase } from "@supabase/server";
  * puede hacer desde el cliente ni desde el dashboard con comodidad, y es la
  * razón por la que CONTRIBUTIONS_ENABLED estaba apagado.
  *
- *   POST { action: "approve", cardImageId: number }
- *   POST { action: "reject",  cardImageId: number, reason: string }
+ *   POST { action: "approve",  cardImageId: number }
+ *   POST { action: "reject",   cardImageId: number, reason: string }
+ *   POST { action: "takedown", cardImageId: number, reason: string, reportId?: number }
  */
 
 const REVIEW_BUCKET = "photocard-community-review";
@@ -90,10 +91,11 @@ const protectedHandler = withSupabase({ auth: ["user"] }, async (req, ctx) => {
   const action = typeof body.action === "string" ? body.action : "";
   const cardImageId = typeof body.cardImageId === "number" ? body.cardImageId : null;
   const reason = typeof body.reason === "string" ? body.reason.trim() : "";
+  const reportId = typeof body.reportId === "number" ? body.reportId : null;
 
-  if (action !== "approve" && action !== "reject") {
+  if (action !== "approve" && action !== "reject" && action !== "takedown") {
     return Response.json(
-      { success: false, error: 'action must be "approve" or "reject"' },
+      { success: false, error: 'action must be "approve", "reject" or "takedown"' },
       { status: 400 },
     );
   }
@@ -102,9 +104,9 @@ const protectedHandler = withSupabase({ auth: ["user"] }, async (req, ctx) => {
   }
   // La constraint card_images_rejected_has_reason lo exige de todos modos; acá
   // se valida antes para devolver un 400 legible en vez de un 500 de Postgres.
-  if (action === "reject" && !reason) {
+  if ((action === "reject" || action === "takedown") && !reason) {
     return Response.json(
-      { success: false, error: "reason is required when rejecting" },
+      { success: false, error: `reason is required when ${action}ing` },
       { status: 400 },
     );
   }
@@ -123,9 +125,108 @@ const protectedHandler = withSupabase({ auth: ["user"] }, async (req, ctx) => {
     return Response.json({ success: false, error: "Image not found" }, { status: 404 });
   }
 
-  // Sólo se moderan aportaciones pendientes. Esto hace la función idempotente
-  // de hecho: reintentar sobre algo ya resuelto devuelve 409 en vez de mover el
-  // objeto por segunda vez o pisar quién la revisó.
+  const reviewedAt = new Date().toISOString();
+
+  // --------------------------------------------------------------- takedown ---
+  // Retirar una imagen YA PUBLICADA. Es la única acción que aplica también a las
+  // legacy, y por eso existe: el 99,98% del catálogo lo es, y un reclamo de
+  // copyright sin forma de retirar es un buzón sin salida (tarea 37).
+  if (action === "takedown") {
+    if (row.status !== "approved") {
+      return Response.json(
+        { success: false, error: `Only an approved image can be taken down (got ${row.status})` },
+        { status: 409 },
+      );
+    }
+
+    // ORDEN INVERSO al de approve, y a propósito: acá lo que oculta la imagen es
+    // el cambio en la base, así que va PRIMERO. Si el borrado del objeto fallara
+    // después, la imagen ya no se muestra y sólo queda un huérfano. Al revés, un
+    // borrado exitoso con la base sin actualizar dejaría la app pidiendo un
+    // objeto que ya no existe.
+    if (row.source_type === "legacy") {
+      // La fila legacy se conserva como rastro de que existió: la constraint
+      // card_images_legacy_is_approved no deja marcarla 'rejected', así que se
+      // le quita is_primary, que es lo que la vista mira.
+      const { error: imageError } = await ctx.supabaseAdmin
+        .from("card_images")
+        .update({ is_primary: false, reviewed_by: userId, reviewed_at: reviewedAt })
+        .eq("id", row.id);
+
+      if (imageError) {
+        console.error("[moderate-card-image] legacy takedown update failed:", imageError);
+        return Response.json({ success: false, error: "Could not take down the image" }, { status: 500 });
+      }
+
+      // EXCEPCIÓN DOCUMENTADA A LA DECISIÓN D1: se vacía cards.image_path.
+      // Sin esto la imagen seguiría visible, porque getCardImageUrl() cae de
+      // vuelta a esa columna y la Android v1 la lee directamente. El filtro por
+      // storage_path evita pisar la columna si ya apunta a otra cosa.
+      const { error: cardError } = await ctx.supabaseAdmin
+        .from("cards")
+        .update({ image_path: null })
+        .eq("id", row.card_id)
+        .eq("image_path", row.storage_path);
+
+      if (cardError) {
+        console.error("[moderate-card-image] cards.image_path clear failed:", cardError);
+        return Response.json({ success: false, error: "Could not take down the image" }, { status: 500 });
+      }
+    } else {
+      const { error: imageError } = await ctx.supabaseAdmin
+        .from("card_images")
+        .update({
+          status: "rejected",
+          rejection_reason: reason,
+          is_primary: false,
+          reviewed_by: userId,
+          reviewed_at: reviewedAt,
+        })
+        .eq("id", row.id);
+
+      if (imageError) {
+        console.error("[moderate-card-image] community takedown update failed:", imageError);
+        return Response.json({ success: false, error: "Could not take down the image" }, { status: 500 });
+      }
+    }
+
+    // Ahora sí el objeto. Best-effort: la imagen ya está oculta.
+    const { error: removeError } = await ctx.supabaseAdmin.storage
+      .from(row.bucket_id)
+      .remove([row.storage_path]);
+    if (removeError) {
+      console.error("[moderate-card-image] leftover after takedown:", row.storage_path, removeError);
+    }
+
+    // Si el takedown vino de un reporte, se cierra con el resultado correcto.
+    if (reportId != null) {
+      const { error: reportError } = await ctx.supabaseAdmin
+        .from("image_reports")
+        .update({
+          status: "resolved_removed",
+          resolved_by: userId,
+          resolved_at: reviewedAt,
+          resolution_note: reason,
+        })
+        .eq("id", reportId)
+        .eq("status", "open");
+      if (reportError) {
+        console.error("[moderate-card-image] report close failed:", reportError);
+      }
+    }
+
+    return Response.json({
+      success: true,
+      action: "takedown",
+      cardImageId: row.id,
+      cardId: row.card_id,
+      sourceType: row.source_type,
+    });
+  }
+
+  // De acá en adelante sólo se moderan aportaciones pendientes. Esto hace la
+  // función idempotente de hecho: reintentar sobre algo ya resuelto devuelve 409
+  // en vez de mover el objeto por segunda vez o pisar quién la revisó.
   if (row.source_type !== "community") {
     return Response.json(
       { success: false, error: `Only community images can be moderated (got ${row.source_type})` },
@@ -138,8 +239,6 @@ const protectedHandler = withSupabase({ auth: ["user"] }, async (req, ctx) => {
       { status: 409 },
     );
   }
-
-  const reviewedAt = new Date().toISOString();
 
   // ---------------------------------------------------------------- reject ---
   if (action === "reject") {

@@ -21,13 +21,8 @@ export interface OpenReport {
 }
 
 /**
- * Las unicas resoluciones que se ofrecen por ahora.
- *
- * `resolved_removed` existe en el enum pero NO se ofrece: retirar la imagen no
- * esta implementado. Para una legacy no basta con tocar card_images, porque
- * getCardImageUrl() cae de vuelta a cards.image_path y la Android v1 lee esa
- * columna directamente; y para una community aprobada haria falta borrar el
- * objeto del bucket publico, que solo puede service_role.
+ * Resoluciones que NO tocan la imagen. `resolved_removed` no va aca: retirar la
+ * imagen pasa por la edge function, no por un UPDATE (ver `takedown`).
  */
 export type ResolveAction = Extract<ReportStatus, 'resolved_kept' | 'dismissed'>;
 
@@ -153,5 +148,45 @@ export function useReportsQueue(enabled: boolean, adminId: string | null) {
     }
   }, [adminId]);
 
-  return { items, loading, error, working, refetch: fetchQueue, resolve };
+  /**
+   * Retirar la imagen reportada.
+   *
+   * Pasa por la edge function y no por un UPDATE porque hay que borrar el objeto
+   * de Storage y, si es legacy, vaciar `cards.image_path` -- lo unico que la
+   * oculta de verdad, ya que getCardImageUrl() cae de vuelta a esa columna y la
+   * Android v1 la lee directamente. La funcion cierra el reporte como
+   * `resolved_removed` en la misma llamada, para que el estado del reporte no
+   * pueda quedar desalineado del de la imagen.
+   */
+  const takedown = useCallback(async (
+    reportId: number,
+    cardImageId: number,
+    reason: string,
+  ): Promise<{ ok: true } | { ok: false; error: string }> => {
+    setWorking(reportId);
+    try {
+      const { data, error: fnError } = await supabase.functions.invoke('moderate-card-image', {
+        body: { action: 'takedown', cardImageId, reason, reportId },
+      });
+
+      if (fnError) {
+        let detail = fnError.message ?? String(fnError);
+        try {
+          const body = await (fnError as any).context?.json?.();
+          if (body?.error) detail = body.error;
+        } catch {}
+        return { ok: false, error: detail };
+      }
+      if (data && data.success === false) {
+        return { ok: false, error: String(data.error ?? 'unknown error') };
+      }
+
+      setItems(prev => prev.filter(item => item.id !== reportId));
+      return { ok: true };
+    } finally {
+      setWorking(null);
+    }
+  }, []);
+
+  return { items, loading, error, working, refetch: fetchQueue, resolve, takedown };
 }
