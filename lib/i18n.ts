@@ -62,6 +62,25 @@ const en = {
   contributeErrBadType: 'Only JPG, PNG or WebP images are accepted.',
   contributeErrFailed: "Couldn't send the image. Try again.",
 
+  // Moderation (FASE G) — admin only
+  moderation: 'Moderation',
+  moderationNotAllowed: 'This section is for maintainers only.',
+  moderationEmpty: 'Nothing to review',
+  moderationEmptyDesc: 'Contributed images will show up here.',
+  moderationSubmitted: 'Submitted',
+  moderationCurrent: 'Current',
+  moderationApproved: 'Image approved and published.',
+  moderationRejected: 'Image rejected.',
+  moderationError: "Couldn't complete the action.",
+  approve: 'Approve',
+  reject: 'Reject',
+  rejectTitle: 'Reject image',
+  rejectDesc: 'Pick a reason. The contributor will see it.',
+  rejectWrongCard: "Doesn't match the card",
+  rejectLowQuality: 'Poor quality or framing',
+  rejectNoRights: 'Cannot be shared',
+  rejectDuplicate: 'Duplicate',
+
   // Album detail
   photocardsOf: '{owned} of {total} Photocards',
   wordOf: 'of',
@@ -248,6 +267,25 @@ const es: Translations = {
   contributeErrTooLarge: 'Esa imagen es muy grande. Máximo 5 MB.',
   contributeErrBadType: 'Solo se aceptan imágenes JPG, PNG o WebP.',
   contributeErrFailed: 'No se pudo enviar la imagen. Inténtalo de nuevo.',
+
+  // Moderación (FASE G) — solo admin
+  moderation: 'Moderación',
+  moderationNotAllowed: 'Esta sección es solo para mantenedores.',
+  moderationEmpty: 'Nada por revisar',
+  moderationEmptyDesc: 'Las imágenes aportadas aparecerán acá.',
+  moderationSubmitted: 'Aportada',
+  moderationCurrent: 'Actual',
+  moderationApproved: 'Imagen aprobada y publicada.',
+  moderationRejected: 'Imagen rechazada.',
+  moderationError: 'No se pudo completar la acción.',
+  approve: 'Aprobar',
+  reject: 'Rechazar',
+  rejectTitle: 'Rechazar imagen',
+  rejectDesc: 'Elige un motivo. El contributor lo verá.',
+  rejectWrongCard: 'No corresponde a la card',
+  rejectLowQuality: 'Mala calidad o encuadre',
+  rejectNoRights: 'No se puede compartir',
+  rejectDuplicate: 'Duplicada',
 
   // Album detail
   photocardsOf: '{owned} de {total} Photocards',
