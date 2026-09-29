@@ -125,6 +125,7 @@ export default function AlbumDetailScreen() {
   };
 
   const contributionError = (reason: ContributionFailure) => {
+    if (reason === 'unavailable') return t('contributeErrUnavailable');
     if (reason === 'permission') return t('contributeErrPermission');
     if (reason === 'too_large') return t('contributeErrTooLarge');
     if (reason === 'bad_type') return t('contributeErrBadType');

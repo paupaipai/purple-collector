@@ -441,11 +441,15 @@ botón. i18n: 11 claves nuevas × 2 idiomas.
 | el autor retira su envío pendiente | 1 fila, ok |
 | ruta `<uid>/<uuid>.jpg` contra el predicado de Storage | pasa; con otro prefijo, no |
 
-**Apagado:** `CONTRIBUTIONS_ENABLED = false`. Aprobar exige **mover** el objeto
-del bucket privado al público, y eso necesita la edge function de FASE G. Dejar
-el botón vivo ahora solo acumularía envíos que nadie puede aprobar: el bucket de
-revisión es privado, así que cambiar el `status` sin mover el objeto no lo haría
-visible. **Encender después de FASE G.**
+**ENCENDIDO el 2026-09-29** (`CONTRIBUTIONS_ENABLED = true`), una vez que FASE G
+dejó el circuito cerrado: la edge function mueve el objeto al aprobar y la bandeja
+permite aprobar y rechazar.
+
+Al encenderlo se endureció `pickContributionImage()`: `expo-image-picker` es un
+módulo **nativo**, así que en un dev client o un build anterior a su instalación
+no existe y llamarlo **lanza**. Sin el guard, tocar "Aportar imagen" reventaba la
+pantalla; ahora devuelve `unavailable` y muestra "actualiza la app". En web
+funciona sin rebuild.
 
 **Lo que FASE D no incluye:** cámara (tarea 27), pantalla dedicada de aporte
 (vive en el modal), attribution nominal (falta decidir el handle) y toda la
@@ -1144,10 +1148,11 @@ leería historial divergente e intentaría reaplicarlas.
 
 1. **El takedown** (§2.11) — necesita tu decisión sobre la tensión entre D1 y la
    tarea 37 de copyright.
-2. **Encender `CONTRIBUTIONS_ENABLED`** y probar el circuito completo con una
-   aportación real: subir, aprobarla desde la bandeja, y verla sustituir a la
-   legacy. Es lo único de todo V2 que queda sin verificar, y cierra de paso el
-   movimiento de bytes entre buckets.
+2. **Probar el circuito completo con una aportación real**: subir, aprobarla
+   desde la bandeja, y verla sustituir a la legacy. `CONTRIBUTIONS_ENABLED` ya
+   está en `true`; falta un **dev build nuevo** para que el picker nativo exista
+   (en web funciona sin rebuild). Es lo único de todo V2 sin verificar, y cierra
+   de paso el movimiento de bytes entre buckets.
 2. **Handle público para la attribution** — decisión de producto: ¿columna
    `username` única elegida por el usuario, o `display_name` con fallback? Hoy
    `display_name` es nullable y no único. Bloquea la tarea 32 del roadmap.

@@ -25,6 +25,7 @@ import { supabase } from './supabase';
 
 export type ContributionFailure =
   | 'cancelled'      // el usuario cerro el selector
+  | 'unavailable'    // el modulo nativo no esta en este build
   | 'permission'     // no dio permiso de galeria
   | 'too_large'      // supera CONTRIBUTION_MAX_BYTES
   | 'bad_type'       // mime fuera de la whitelist
@@ -51,20 +52,29 @@ function extensionFor(mimeType: string): string {
 export async function pickContributionImage(): Promise<
   { ok: true; asset: ImagePicker.ImagePickerAsset } | { ok: false; reason: ContributionFailure }
 > {
-  const permission = await ImagePicker.requestMediaLibraryPermissionsAsync();
-  if (!permission.granted) return { ok: false, reason: 'permission' };
+  // expo-image-picker es un modulo nativo: en un dev client o un build anterior
+  // a su instalacion no existe, y llamarlo lanza. Sin este guard, tocar
+  // "Aportar imagen" reventaria la pantalla en vez de dar un aviso.
+  let result: ImagePicker.ImagePickerResult;
+  try {
+    const permission = await ImagePicker.requestMediaLibraryPermissionsAsync();
+    if (!permission.granted) return { ok: false, reason: 'permission' };
 
-  const result = await ImagePicker.launchImageLibraryAsync({
-    mediaTypes: ['images'],
-    allowsEditing: true,
-    // Las photocards son 55x85mm, o sea 2:3. Encuadrar aca evita que la grilla
-    // recorte la imagen despues.
-    aspect: [2, 3],
-    quality: 0.9,
-    exif: false,
-  });
+    result = await ImagePicker.launchImageLibraryAsync({
+      mediaTypes: ['images'],
+      allowsEditing: true,
+      // Las photocards son 55x85mm, o sea 2:3. Encuadrar aca evita que la grilla
+      // recorte la imagen despues.
+      aspect: [2, 3],
+      quality: 0.9,
+      exif: false,
+    });
+  } catch (err) {
+    console.error('[contributions] image picker unavailable:', err);
+    return { ok: false, reason: 'unavailable' };
+  }
 
-  if (result.canceled || result.assets.length === 0) {
+  if (result.canceled || !result.assets || result.assets.length === 0) {
     return { ok: false, reason: 'cancelled' };
   }
 

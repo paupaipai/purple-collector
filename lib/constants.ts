@@ -29,19 +29,22 @@ export const LEGACY_TREATMENT_ENABLED = false;
 export const LEGACY_BLUR_RADIUS = 3;
 export const LEGACY_VEIL_COLOR = 'rgba(11,0,36,0.35)';
 
-// Flujo de aporte de imagenes (FASE D). Mismo patron que PREMIUM_ENABLED: el
-// codigo entra completo y apagado.
+// Flujo de aporte de imagenes (FASE D).
 //
 // false = no aparece ninguna entrada para aportar imagenes.
 // true  = el usuario puede aportar desde el detalle de una card.
 //
-// Viene apagado porque la otra mitad todavia no existe: aprobar una aportacion
-// exige MOVER el objeto del bucket privado de revision al publico, y eso
-// necesita la edge function de FASE G. Sin ella, habilitar el boton solo
-// acumularia envios que nadie puede aprobar -- el bucket de revision es
-// privado, asi que dejar la imagen ahi y solo cambiar el status no la haria
-// visible. Encender esto DESPUES de FASE G.
-export const CONTRIBUTIONS_ENABLED = false;
+// ENCENDIDO el 2026-09-29, una vez que FASE G dejo el circuito cerrado: la edge
+// function moderate-card-image mueve el objeto del bucket privado de revision al
+// publico al aprobar, y la bandeja de /admin/moderation permite aprobar y
+// rechazar. Antes de eso habilitar el boton solo habria acumulado envios que
+// nadie podia aprobar.
+//
+// OJO: expo-image-picker es un modulo NATIVO. En un dev client o un build
+// anterior a su instalacion no existe, y pickContributionImage() devuelve
+// 'unavailable' en vez de reventar. Para probarlo en dispositivo hace falta un
+// build nuevo; en web funciona sin rebuild.
+export const CONTRIBUTIONS_ENABLED = true;
 
 export const COMMUNITY_BUCKET = 'photocard-community';
 export const COMMUNITY_REVIEW_BUCKET = 'photocard-community-review';
