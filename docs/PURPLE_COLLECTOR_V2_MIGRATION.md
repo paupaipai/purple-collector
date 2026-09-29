@@ -409,7 +409,8 @@ ficha de Play. La cámara (tarea 27) queda para después.
 
 | Función | Qué hace |
 |---|---|
-| `pickContributionImage()` | permiso → selector con recorte 2:3 (proporción real de una photocard) → valida mime y tamaño **antes** de subir, para dar un error legible en vez de un 400 del storage |
+| `pickContributionImage()` | permiso → selector. El cropper nativo solo se ofrece en **Android** (§3.0.1) |
+| `normalizeToPhotocard()` | recorta al mayor rectángulo **2:3 centrado** y reescala a ≤1000px, con `expo-image-manipulator` |
 | `submitContribution()` | sube a `photocard-community-review` en `<auth.uid()>/<uuid>.<ext>` → inserta la fila `community`/`pending` con `terms_accepted_at` y `terms_version` |
 | `fetchMyPendingContributions()` | los `card_id` con un aporte propio sin resolver, vía la policy `contributor reads own` |
 
@@ -450,6 +451,41 @@ módulo **nativo**, así que en un dev client o un build anterior a su instalaci
 no existe y llamarlo **lanza**. Sin el guard, tocar "Aportar imagen" reventaba la
 pantalla; ahora devuelve `unavailable` y muestra "actualiza la app". En web
 funciona sin rebuild.
+
+#### 3.0.1 El encuadre, corregido (2026-09-29)
+
+El primer aporte real entró en **158×162 px** — casi cuadrado, no 2:3. La causa:
+`allowsEditing` del picker **no es consistente entre plataformas**.
+
+| Plataforma | Qué hace `allowsEditing` + `aspect: [2,3]` |
+|---|---|
+| Android | respeta el aspect: recorte 2:3 de verdad |
+| **iOS** | **ignora el aspect y fuerza recorte CUADRADO** |
+| Web | no hay recorte en absoluto |
+
+O sea que el catálogo habría salido distinto según el dispositivo. El encuadre
+pasa a decidirse **en código** con `expo-image-manipulator`: se toma el mayor
+rectángulo 2:3 centrado y se reescala a ≤1000px de ancho. En Android el usuario
+ya recortó, así que no se le quita nada; en iOS y web corrige lo que el picker no
+hizo.
+
+El formato **se conserva**: un PNG sigue siendo PNG. Pasarlo todo a JPEG sería más
+liviano pero aplastaría la transparencia de un recorte con fondo transparente.
+
+Dos cosas más que cambiaron al normalizar, y que si no habrían sido bugs:
+
+- **El límite de tamaño se mide sobre el archivo final, no sobre el original.**
+  Validar el original rechazaría una foto de móvil de 8 MP que normalizada pesa
+  200 kB.
+- **El `contentType` de la subida es el del archivo normalizado.** Un HEIC del
+  carrete sale como JPEG; subirlo con el mime original lo habría hecho rechazar
+  por la whitelist del bucket.
+
+Si el normalizado falla se sube el original: mejor un aporte con mal encuadre
+—que el moderador puede rechazar— que perderlo entero.
+
+**Pendiente:** un cropper propio en la app, para que iOS y web también dejen
+elegir el encuadre en vez de recortar al centro a ciegas.
 
 **Lo que FASE D no incluye:** cámara (tarea 27), pantalla dedicada de aporte
 (vive en el modal), attribution nominal (falta decidir el handle) y toda la
