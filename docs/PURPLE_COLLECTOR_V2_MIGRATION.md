@@ -410,16 +410,24 @@ Si el takedown viene de un reporte (`reportId`), la función lo cierra como
 `resolved_removed` en la **misma llamada**, para que el estado del reporte no
 pueda quedar desalineado del de la imagen.
 
-En la bandeja, *Retirar imagen* va **separado y en rojo** de *Mantener* y
-*Desestimar*, y pide confirmación: es la única acción que toca la imagen y es
+#### Dos acciones, no tres
+
+La bandeja ofrece sólo **Retirar imagen** y **Mantener**. Al revisar un reporte
+la decisión es binaria: o se retira la imagen o se queda.
+
+El enum de la base tiene además `dismissed` ("el reporte no procedía"), pero
+distinguirlo de `resolved_kept` es un matiz de moderación que no cambia nada ni
+para el usuario ni para el catálogo. Se conserva en el enum por si algún día hace
+falta separarlos, pero no se ofrece.
+
+Esto salió de la primera prueba real: las etiquetas originales decían sólo
+*"Mantener"* y *"Descartar"*, que parecen actuar sobre la imagen cuando actuaban
+sobre el **reporte** — al descartar, la imagen seguía ahí. Tres acciones con esa
+ambigüedad eran peor que dos claras.
+
+*Retirar imagen* va a la izquierda y en rojo, igual que *Rechazar* en la pestaña
+de pendientes, y pide confirmación: es la única que toca la imagen y es
 irreversible.
-
-#### Las etiquetas, corregidas
-
-Antes decían sólo *"Mantener"* y *"Descartar"*, que parecían actuar sobre la
-imagen cuando actúan sobre el **reporte**. Confundieron en la primera prueba
-real. Ahora dicen **"Mantener imagen"**, **"Desestimar reporte"** y
-**"Retirar imagen"**.
 
 ---
 

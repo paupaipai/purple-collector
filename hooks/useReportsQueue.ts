@@ -21,10 +21,18 @@ export interface OpenReport {
 }
 
 /**
- * Resoluciones que NO tocan la imagen. `resolved_removed` no va aca: retirar la
- * imagen pasa por la edge function, no por un UPDATE (ver `takedown`).
+ * La unica resolucion que NO toca la imagen.
+ *
+ * Al revisar un reporte la decision es binaria: se retira la imagen o se queda.
+ * El enum de la base tiene ademas `dismissed` ("el reporte no procedia"), pero
+ * distinguirlo de `resolved_kept` es un matiz de moderacion que no cambia nada
+ * para el usuario ni para el catalogo, y en la primera prueba real solo genero
+ * confusion. Se conserva en el enum por si algun dia hace falta separarlos.
+ *
+ * `resolved_removed` tampoco va aca: retirar pasa por la edge function, no por
+ * un UPDATE (ver `takedown`).
  */
-export type ResolveAction = Extract<ReportStatus, 'resolved_kept' | 'dismissed'>;
+export type ResolveAction = Extract<ReportStatus, 'resolved_kept'>;
 
 export function useReportsQueue(enabled: boolean, adminId: string | null) {
   const [items, setItems] = useState<OpenReport[]>([]);

@@ -200,16 +200,18 @@ export default function ModerationScreen() {
                     </View>
                   ) : null}
 
+                  {/* Dos acciones, no tres: al revisar un reporte la decision es
+                      binaria. Retirar va a la izquierda y en rojo, igual que
+                      Rechazar en la pestana de pendientes. */}
                   <View style={styles.actions}>
                     <TouchableOpacity
-                      onPress={() => resolveReport(report, 'dismissed')}
+                      onPress={() => askTakedown(report)}
                       disabled={busy}
                       activeOpacity={0.7}
-                      style={[styles.btn, styles.dismissBtn, busy && styles.btnDisabled]}
+                      style={[styles.btn, styles.rejectBtn, busy && styles.btnDisabled]}
                     >
-                      <Text style={[styles.btnText, { color: COLORS.textSecondary }]}>
-                        {t('reportDismiss')}
-                      </Text>
+                      <Ionicons name="trash-outline" size={15} color={COLORS.pink} />
+                      <Text style={[styles.btnText, { color: COLORS.pink }]}>{t('reportRemove')}</Text>
                     </TouchableOpacity>
                     <TouchableOpacity
                       onPress={() => resolveReport(report, 'resolved_kept')}
@@ -224,18 +226,6 @@ export default function ModerationScreen() {
                       )}
                     </TouchableOpacity>
                   </View>
-
-                  {/* Retirar va aparte y en rojo: es la unica accion que toca la
-                      imagen, y es irreversible. */}
-                  <TouchableOpacity
-                    onPress={() => askTakedown(report)}
-                    disabled={busy}
-                    activeOpacity={0.7}
-                    style={[styles.btn, styles.takedownBtn, busy && styles.btnDisabled]}
-                  >
-                    <Ionicons name="trash-outline" size={15} color={COLORS.pink} />
-                    <Text style={[styles.btnText, { color: COLORS.pink }]}>{t('reportRemove')}</Text>
-                  </TouchableOpacity>
                 </GlassCard>
               );
             })}
@@ -372,10 +362,7 @@ const styles = StyleSheet.create({
   btnDisabled: { opacity: 0.5 },
   approveBtn: { borderColor: COLORS.green + '55', backgroundColor: COLORS.green + '14' },
   rejectBtn: { borderColor: COLORS.pink + '55', backgroundColor: COLORS.pink + '14' },
-  dismissBtn: { borderColor: 'rgba(255,255,255,0.14)', backgroundColor: 'rgba(255,255,255,0.05)' },
-  takedownBtn: {
-    marginTop: 8, borderColor: COLORS.pink + '55', backgroundColor: COLORS.pink + '10',
-  },
+
   btnText: { fontSize: 12, fontWeight: '800' },
 
   tabs: { flexDirection: 'row', gap: 8, paddingHorizontal: 12, paddingBottom: 8 },
