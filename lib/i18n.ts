@@ -49,6 +49,19 @@ const en = {
   imageSourceLegacy: 'Legacy',
   imageSourceCommunity: 'Community',
 
+  // Contributions (FASE D)
+  contribute: 'Contribute an image',
+  contributeTitle: 'Contribute an image',
+  contributeRights: 'Confirm that this photo is yours or that you may share it, and that you accept the contribution rules. It will be reviewed before appearing in the catalog.',
+  contributeConfirm: 'Choose a photo',
+  contributeSent: 'Sent for review',
+  contributeSentDesc: 'We will let you know when it is reviewed.',
+  contributePending: 'Your image is under review',
+  contributeErrPermission: 'Purple Collector needs access to your photos to contribute an image.',
+  contributeErrTooLarge: 'That image is too large. Maximum 5 MB.',
+  contributeErrBadType: 'Only JPG, PNG or WebP images are accepted.',
+  contributeErrFailed: "Couldn't send the image. Try again.",
+
   // Album detail
   photocardsOf: '{owned} of {total} Photocards',
   wordOf: 'of',
@@ -222,6 +235,19 @@ const es: Translations = {
   copiesMany: '{n} copias',
   imageSourceLegacy: 'Legacy',
   imageSourceCommunity: 'Comunidad',
+
+  // Aportes (FASE D)
+  contribute: 'Aportar imagen',
+  contributeTitle: 'Aportar imagen',
+  contributeRights: 'Confirma que esta foto es tuya o que puedes compartirla, y que aceptas las reglas de contribución. Se revisará antes de aparecer en el catálogo.',
+  contributeConfirm: 'Elegir foto',
+  contributeSent: 'Enviada a revisión',
+  contributeSentDesc: 'Te avisamos cuando la revisemos.',
+  contributePending: 'Tu imagen está en revisión',
+  contributeErrPermission: 'Purple Collector necesita acceso a tus fotos para aportar una imagen.',
+  contributeErrTooLarge: 'Esa imagen es muy grande. Máximo 5 MB.',
+  contributeErrBadType: 'Solo se aceptan imágenes JPG, PNG o WebP.',
+  contributeErrFailed: 'No se pudo enviar la imagen. Inténtalo de nuevo.',
 
   // Album detail
   photocardsOf: '{owned} de {total} Photocards',

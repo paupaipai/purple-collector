@@ -1,7 +1,7 @@
 # Purple Collector V2 — Migración al catálogo comunitario
 
 Fecha: 2026-09-27 · Rama: `feat/community-images-v2` (creada desde `main` @ `9688be0`)
-Estado: **FASE B.1 + B.3 + C.1 + E + F aplicadas · backfill hecho · SR-1 a SR-9, BUG-1, BUG-4 y BUG-5 hechos.**
+Estado: **FASE B.1 + B.3 + C.1 + D + E + F aplicadas · backfill hecho · SR-1 a SR-9 y BUG-1/2/4/5 hechos. Falta FASE G (moderación).**
 
 Documento hermano: [`PURPLE_V2_CURRENT_STATE.md`](./PURPLE_V2_CURRENT_STATE.md) — auditoría del estado real.
 Roadmap de origen: `~/Downloads/Purple_Collector_v2_Roadmap.xlsx` (66 tareas).
@@ -234,6 +234,64 @@ y la URL resuelta devuelve el PNG real (HTTP 200, 11 125 bytes).
 ### Lo que NO incluye FASE E
 
 El tratamiento visual de las legacy es **FASE F** (§3.1).
+
+---
+
+### 3.0 FASE D — flujo de aporte (2026-09-29)
+
+Lado **envío** del catálogo comunitario. La aprobación es FASE G.
+
+`expo-image-picker@~17.0.11` instalado — **es nativo, así que hace falta un dev
+build nuevo y un rebuild de EAS** antes de poder probarlo en dispositivo.
+`app.json` gana el plugin con `photosPermission`. **No** se pide permiso de
+cámara: solo implementé galería, y añadir un permiso que no se usa complica la
+ficha de Play. La cámara (tarea 27) queda para después.
+
+`lib/contributions.ts`:
+
+| Función | Qué hace |
+|---|---|
+| `pickContributionImage()` | permiso → selector con recorte 2:3 (proporción real de una photocard) → valida mime y tamaño **antes** de subir, para dar un error legible en vez de un 400 del storage |
+| `submitContribution()` | sube a `photocard-community-review` en `<auth.uid()>/<uuid>.<ext>` → inserta la fila `community`/`pending` con `terms_accepted_at` y `terms_version` |
+| `fetchMyPendingContributions()` | los `card_id` con un aporte propio sin resolver, vía la policy `contributor reads own` |
+
+Dos detalles que importan:
+
+- **Si el insert falla después de subir, se borra el objeto.** Sin eso quedaría
+  un huérfano que nada referencia — exactamente los 33 que la auditoría encontró
+  en `photocards` (§8). La policy de DELETE del bucket de revisión permite al
+  autor borrar lo propio, así que la limpieza es posible.
+- **El cliente no elige nada sensible.** `source_type`, `status`, `is_primary`,
+  `contributed_by` y el bucket los exige el WITH CHECK de la policy. Un cliente
+  modificado que intente marcarse `approved` o escribir en el bucket público es
+  rechazado por la base, no por el frontend.
+
+UI: entrada en `CardStatusModal` (el detalle de la card). El `Alert` con el texto
+de derechos **es** la aceptación explícita: `submitContribution` graba
+`terms_accepted_at` y `terms_version`, y la constraint
+`card_images_community_has_terms` no deja registrar el aporte sin ambos. Si ya
+hay un envío pendiente, el modal muestra "Tu imagen está en revisión" en vez del
+botón. i18n: 11 claves nuevas × 2 idiomas.
+
+**Verificado contra la base real**, con rollback forzado:
+
+| Prueba | Resultado |
+|---|---|
+| el payload exacto de `submitContribution()` pasa la RLS | 1 fila, ok |
+| se ve como pendiente propia | 1, ok |
+| **`cards_full` sigue resolviendo a `legacy`** | ok — la pending no se hace pública |
+| el autor retira su envío pendiente | 1 fila, ok |
+| ruta `<uid>/<uuid>.jpg` contra el predicado de Storage | pasa; con otro prefijo, no |
+
+**Apagado:** `CONTRIBUTIONS_ENABLED = false`. Aprobar exige **mover** el objeto
+del bucket privado al público, y eso necesita la edge function de FASE G. Dejar
+el botón vivo ahora solo acumularía envíos que nadie puede aprobar: el bucket de
+revisión es privado, así que cambiar el `status` sin mover el objeto no lo haría
+visible. **Encender después de FASE G.**
+
+**Lo que FASE D no incluye:** cámara (tarea 27), pantalla dedicada de aporte
+(vive en el modal), attribution nominal (falta decidir el handle) y toda la
+moderación.
 
 ---
 
@@ -765,7 +823,7 @@ No se corrigen dentro de la migration de `card_images`.
 | ID | Bug | Archivo | Commit propuesto |
 |---|---|---|---|
 | **BUG-1** | Filtra por `c.image_url`, que `cards_full` no expone (expone `image_path`). `Image.prefetch` del álbum **nunca corre**: el `filter` deja el array vacío. Código muerto + pérdida silenciosa de rendimiento en la pantalla más usada. | `hooks/useCards.ts:113-114` | `fix: prefetch de imágenes en la vista de álbum` |
-| **BUG-2** | **64 de los 140 `albums.cover_image_url` apuntan a objetos que no existen** en el bucket → portadas rotas. Hallazgo nuevo de esta iteración. | datos | `fix: portadas de álbum inexistentes` (requiere decidir: subir o vaciar) |
+| ~~**BUG-2**~~ | ~~64 de los 140 `albums.cover_image_url` apuntan a objetos que no existen~~ — **HECHO 2026-09-29**: `20260929013629_null_broken_album_covers.sql`. Se descartó que fueran fallos cercanos (ninguna existe con otra extensión ni ignorando mayúsculas): son rutas `/cover.png` escritas por anticipado. Vaciadas → la app usa su placeholder y deja de pedir 64 URLs que dan 404. Las 64 rutas quedan en la migration para restaurarlas. 140 → 76 portadas, 0 rotas. | datos | hecho |
 | **BUG-3** | `cards.is_visible` default `false`: una card insertada por un futuro flujo de aprobación queda invisible salvo que se ponga explícitamente. | schema | `chore: revisar default de cards.is_visible` |
 | ~~**BUG-4**~~ | ~~`card_status` tiene `pending` como DEFAULT~~ — **HECHO 2026-09-28**: `20260928223959_drop_user_cards_status_default.sql`. Estado fantasma: 0 filas sobre 7381. Ahora un insert sin `status` queda en NULL, que es como la app representa "sin marcar". `pending` sigue en el enum (quitarlo exigiría recrear el tipo). | schema | hecho |
 | ~~**BUG-5**~~ | ~~`cards_full` no expone `country` ni `draw_type`~~ — **HECHO 2026-09-28**: `20260928224041_cards_full_country_draw_sort.sql`. La vista gana `country`, `draw_type` y `category_sort_order` (32 columnas), y `useCards.ts` pasa de 4 consultas de catálogo a 2. | `hooks/useCards.ts` | hecho |
@@ -926,16 +984,16 @@ leería historial divergente e intentaría reaplicarlas.
 
 ### Pendiente
 
-1. **FASE D**: upload real. Requiere `expo-image-picker` (no está instalado, y
-   es nativo: implica rebuild de dev/EAS) y el flujo de aprobación que mueve el
-   objeto de `...-review` al bucket público.
+1. **FASE G — moderación.** Es lo que desbloquea todo lo demás: bandeja de
+   pendientes, aprobar (edge function que **mueve** el objeto de
+   `photocard-community-review` a `photocard-community` y actualiza
+   `bucket_id`/`storage_path`/`status`/`reviewed_by`/`reviewed_at`), rechazar con
+   motivo, y la tabla `image_reports` (§5.3). Hasta que exista,
+   `CONTRIBUTIONS_ENABLED` y `LEGACY_TREATMENT_ENABLED` siguen en `false`.
 2. **Handle público para la attribution** — decisión de producto: ¿columna
    `username` única elegida por el usuario, o `display_name` con fallback? Hoy
    `display_name` es nullable y no único. Bloquea la tarea 32 del roadmap.
-3. **BUG-2** — 64 de los 140 `albums.cover_image_url` apuntan a objetos que no
-   existen: 64 portadas rotas. Es el de más impacto visible, pero necesita
-   decidir si se suben las imágenes que faltan o se vacía la columna.
-4. **BUG-3** — `cards.is_visible` tiene default `false`. **No lo cambié a
+3. **BUG-3** — `cards.is_visible` tiene default `false`. **No lo cambié a
    propósito**: podría ser deliberado (insertar como borrador y publicar
    después), y con 4503/4503 visibles no hay evidencia de un flujo de borrador
    en uso. Cambiarlo a `true` podría publicar cards a medio cargar. Lo que sí

@@ -5,6 +5,7 @@ import { useEffect, useMemo, useRef, useState } from 'react';
 import { Image } from 'expo-image';
 import {
   ActivityIndicator,
+  Alert,
   Animated,
   Modal,
   ScrollView,
@@ -24,7 +25,10 @@ import CardStatusModal from '../../components/CardStatusModal';
 import StatusHelpModal from '../../components/StatusHelpModal';
 import { useAuth } from '../../hooks/useAuth';
 import { useAlbumCards } from '../../hooks/useCards';
-import { COLORS, MEMBERS, STATUS_LABEL_KEY } from '../../lib/constants';
+import { COLORS, MEMBERS, STATUS_LABEL_KEY, CONTRIBUTIONS_ENABLED } from '../../lib/constants';
+import {
+  ContributionFailure, fetchMyPendingContributions, pickContributionImage, submitContribution,
+} from '../../lib/contributions';
 import { useI18n } from '../../lib/I18nContext';
 import { getPhotocardUrl } from '../../lib/supabase';
 import { CardStatus, CardWithStatus } from '../../lib/types';
@@ -44,6 +48,9 @@ export default function AlbumDetailScreen() {
   const [showCelebration, setShowCelebration] = useState(false);
   const [showHelp, setShowHelp] = useState(false);
   const [showFilters, setShowFilters] = useState(false);
+  // card_id con una aportacion propia sin resolver. Vacio y sin consultar
+  // mientras CONTRIBUTIONS_ENABLED este en false.
+  const [pendingContrib, setPendingContrib] = useState<Set<number>>(new Set());
 
   // Track completion to trigger celebration
   const prevOwnedRef = useRef<number | null>(null);
@@ -55,6 +62,55 @@ export default function AlbumDetailScreen() {
     cards.forEach(c => { if (!seen.has(c.category_name)) seen.set(c.category_name, c.category_short); });
     return Array.from(seen, ([name, short]) => ({ name, short }));
   }, [cards]);
+
+  useEffect(() => {
+    if (!CONTRIBUTIONS_ENABLED || !userId || cards.length === 0) return;
+    let cancelled = false;
+    fetchMyPendingContributions(userId, cards.map(c => c.id)).then(set => {
+      if (!cancelled) setPendingContrib(set);
+    });
+    return () => { cancelled = true; };
+    // cards.length y no cards: el array se recrea en cada cambio de estado de
+    // una carta, y no hace falta recargar las aportaciones por eso.
+  }, [userId, id, cards.length]);
+
+  const contributionError = (reason: ContributionFailure) => {
+    if (reason === 'permission') return t('contributeErrPermission');
+    if (reason === 'too_large') return t('contributeErrTooLarge');
+    if (reason === 'bad_type') return t('contributeErrBadType');
+    return t('contributeErrFailed');
+  };
+
+  const handleContribute = () => {
+    const card = selectedCard;
+    if (!card) return;
+    // El Alert ES la aceptacion explicita de terminos: submitContribution
+    // guarda terms_accepted_at y terms_version, y la constraint
+    // card_images_community_has_terms no deja registrar el aporte sin ellos.
+    Alert.alert(t('contributeTitle'), t('contributeRights'), [
+      { text: t('cancel'), style: 'cancel' },
+      {
+        text: t('contributeConfirm'),
+        onPress: async () => {
+          const picked = await pickContributionImage();
+          if (!picked.ok) {
+            if (picked.reason !== 'cancelled') {
+              Alert.alert(t('contributeTitle'), contributionError(picked.reason));
+            }
+            return;
+          }
+          const sent = await submitContribution({ cardId: card.id, userId, asset: picked.asset });
+          if (!sent.ok) {
+            Alert.alert(t('contributeTitle'), contributionError(sent.reason));
+            return;
+          }
+          setPendingContrib(prev => new Set(prev).add(card.id));
+          setSelectedCard(null);
+          Alert.alert(t('contributeSent'), t('contributeSentDesc'));
+        },
+      },
+    ]);
+  };
 
   const filtered = useMemo(() => {
     let result = cards;
@@ -375,6 +431,8 @@ export default function AlbumDetailScreen() {
           setDuplicateCount(selectedCard.id, clamped);
           setSelectedCard(prev => prev ? { ...prev, duplicate_count: clamped } : null);
         }}
+        onContribute={handleContribute}
+        contributionPending={selectedCard ? pendingContrib.has(selectedCard.id) : false}
       />
 
       <StatusHelpModal visible={showHelp} onClose={() => setShowHelp(false)} />

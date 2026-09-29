@@ -60,6 +60,12 @@
         }
       ],
       [
+        "expo-image-picker",
+        {
+          "photosPermission": "Purple Collector necesita acceso a tus fotos para que puedas aportar la imagen de una photocard al catálogo."
+        }
+      ],
+      [
         "expo-notifications",
         {
           "icon": "./assets/images/notification-icon.png",

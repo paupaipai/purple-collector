@@ -3,6 +3,7 @@ import { Image } from 'expo-image';
 import { Modal, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
 import {
   COLORS, STATUS_CONFIG, STATUS_LABEL_KEY, LEGACY_TREATMENT_ENABLED,
+  CONTRIBUTIONS_ENABLED,
 } from '../lib/constants';
 import { useI18n } from '../lib/I18nContext';
 import { getCardImageUrl } from '../lib/supabase';
@@ -16,10 +17,15 @@ interface CardStatusModalProps {
   onClearStatus?: () => void;
   /** Solo donde se pueden editar duplicados. Recibe el conteo ya clampeado. */
   onSetDuplicates?: (count: number) => void;
+  /** Solo con CONTRIBUTIONS_ENABLED. Abre el flujo de aporte de imagen. */
+  onContribute?: () => void;
+  /** true si el usuario ya tiene una aportacion sin resolver para esta card. */
+  contributionPending?: boolean;
 }
 
 export default function CardStatusModal({
   card, onClose, onSetStatus, onClearStatus, onSetDuplicates,
+  onContribute, contributionPending,
 }: CardStatusModalProps) {
   const { t } = useI18n();
   const visible = !!card;
@@ -170,6 +176,23 @@ export default function CardStatusModal({
                 )}
               </View>
 
+              {/* Aporte de imagen — FASE D, tras CONTRIBUTIONS_ENABLED */}
+              {CONTRIBUTIONS_ENABLED && (contributionPending ? (
+                <View style={styles.contributeRow}>
+                  <Ionicons name="time-outline" size={15} color={COLORS.textSecondary} />
+                  <Text style={styles.contributePendingText}>{t('contributePending')}</Text>
+                </View>
+              ) : onContribute ? (
+                <TouchableOpacity
+                  onPress={onContribute}
+                  activeOpacity={0.7}
+                  style={[styles.contributeRow, styles.contributeBtn]}
+                >
+                  <Ionicons name="camera-outline" size={16} color={COLORS.purple3} />
+                  <Text style={styles.contributeText}>{t('contribute')}</Text>
+                </TouchableOpacity>
+              ) : null)}
+
               <TouchableOpacity onPress={onClose} activeOpacity={0.7} style={styles.closeBtn}>
                 <Text style={styles.closeText}>{t('cancel')}</Text>
               </TouchableOpacity>
@@ -205,6 +228,17 @@ const styles = StyleSheet.create({
     borderWidth: 2, borderColor: 'rgba(255,255,255,0.1)',
   },
   thumb: { width: '100%', height: '100%' },
+  contributeRow: {
+    flexDirection: 'row', alignItems: 'center', justifyContent: 'center',
+    gap: 6, marginTop: 10, paddingVertical: 10, width: '100%',
+  },
+  contributeBtn: {
+    borderRadius: 12, borderWidth: 1,
+    borderColor: 'rgba(168,85,247,0.35)',
+    backgroundColor: 'rgba(168,85,247,0.10)',
+  },
+  contributeText: { fontSize: 12, fontWeight: '800', color: COLORS.purple3 },
+  contributePendingText: { fontSize: 12, fontWeight: '700', color: COLORS.textSecondary },
   sourceTag: {
     position: 'absolute', bottom: 0, left: 0, right: 0,
     backgroundColor: 'rgba(0,0,0,0.6)', paddingVertical: 3,

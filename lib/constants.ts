@@ -29,6 +29,34 @@ export const LEGACY_TREATMENT_ENABLED = false;
 export const LEGACY_BLUR_RADIUS = 3;
 export const LEGACY_VEIL_COLOR = 'rgba(11,0,36,0.35)';
 
+// Flujo de aporte de imagenes (FASE D). Mismo patron que PREMIUM_ENABLED: el
+// codigo entra completo y apagado.
+//
+// false = no aparece ninguna entrada para aportar imagenes.
+// true  = el usuario puede aportar desde el detalle de una card.
+//
+// Viene apagado porque la otra mitad todavia no existe: aprobar una aportacion
+// exige MOVER el objeto del bucket privado de revision al publico, y eso
+// necesita la edge function de FASE G. Sin ella, habilitar el boton solo
+// acumularia envios que nadie puede aprobar -- el bucket de revision es
+// privado, asi que dejar la imagen ahi y solo cambiar el status no la haria
+// visible. Encender esto DESPUES de FASE G.
+export const CONTRIBUTIONS_ENABLED = false;
+
+export const COMMUNITY_BUCKET = 'photocard-community';
+export const COMMUNITY_REVIEW_BUCKET = 'photocard-community-review';
+
+// Debe coincidir con allowed_mime_types y file_size_limit de los buckets
+// community (migration 20260928150106). Se valida en cliente ANTES de subir
+// para dar un error legible en vez de un 400 del storage.
+export const CONTRIBUTION_MAX_BYTES = 5 * 1024 * 1024;
+export const CONTRIBUTION_MIME_TYPES = ['image/jpeg', 'image/png', 'image/webp'];
+
+// Version de los terminos que el usuario acepta al enviar. Se guarda en
+// card_images.terms_version, asi queda registrado QUE texto acepto. Subir esta
+// constante cada vez que cambien los terminos de contribucion.
+export const CONTRIBUTION_TERMS_VERSION = '2026-09-29';
+
 // Hosted from the paupaipai/purple-collector-legal repo (GitHub Pages), not this repo.
 export const PRIVACY_URL = 'https://paupaipai.github.io/purple-collector-legal/';
 
