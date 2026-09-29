@@ -1,0 +1,21 @@
+-- FASE G (corrección) — quita los grants de `anon` sobre `image_reports`.
+--
+-- La migration anterior afirmaba en un comentario que "`anon` no recibe ningun
+-- grant". Era FALSO: Supabase tiene `alter default privileges` que otorga el
+-- juego completo (SELECT, INSERT, UPDATE, DELETE, ...) a anon y authenticated
+-- sobre cada tabla nueva del esquema public. Crear la tabla ya se lo dio.
+--
+-- Funcionalmente no habia agujero -- la RLS lo bloquea, verificado: anon lee 0
+-- filas por SQL y recibe 401 al intentar insertar por REST, porque las tres
+-- policies son `to authenticated`. Pero el comentario mentia y la tabla
+-- aparecia en la superficie de API de anon sin necesidad.
+--
+-- Es el mismo error que SR-9: dar por supuesto quien tiene un privilegio en vez
+-- de mirarlo. Ahi el privilegio venia de PUBLIC sobre funciones; aca de los
+-- default privileges sobre tablas. La leccion se repite: comprobar el grant,
+-- no deducirlo.
+--
+-- Reversible con:
+--   grant select, insert, update, delete on public.image_reports to anon;
+
+revoke all on public.image_reports from anon;
