@@ -21,11 +21,15 @@ interface CardStatusModalProps {
   onContribute?: () => void;
   /** true si el usuario ya tiene una aportacion sin resolver para esta card. */
   contributionPending?: boolean;
+  /** Abre el flujo de reporte de la imagen que se esta viendo. */
+  onReport?: () => void;
+  /** true si el usuario ya reporto esta imagen. */
+  reportSent?: boolean;
 }
 
 export default function CardStatusModal({
   card, onClose, onSetStatus, onClearStatus, onSetDuplicates,
-  onContribute, contributionPending,
+  onContribute, contributionPending, onReport, reportSent,
 }: CardStatusModalProps) {
   const { t } = useI18n();
   const visible = !!card;
@@ -193,6 +197,27 @@ export default function CardStatusModal({
                 </TouchableOpacity>
               ) : null)}
 
+              {/* Reportar — NO va tras CONTRIBUTIONS_ENABLED: recibir un
+                  reclamo de copyright sobre una legacy es valioso desde ya, y
+                  las 4503 del catalogo son de terceros. Solo si hay imagen. */}
+              {onReport && card.primary_image_id != null && (
+                <TouchableOpacity
+                  onPress={reportSent ? undefined : onReport}
+                  disabled={reportSent}
+                  activeOpacity={0.7}
+                  style={styles.reportRow}
+                >
+                  <Ionicons
+                    name={reportSent ? 'flag' : 'flag-outline'}
+                    size={13}
+                    color={COLORS.textMuted}
+                  />
+                  <Text style={styles.reportText}>
+                    {reportSent ? t('reportAlreadySent') : t('reportImage')}
+                  </Text>
+                </TouchableOpacity>
+              )}
+
               <TouchableOpacity onPress={onClose} activeOpacity={0.7} style={styles.closeBtn}>
                 <Text style={styles.closeText}>{t('cancel')}</Text>
               </TouchableOpacity>
@@ -239,6 +264,11 @@ const styles = StyleSheet.create({
   },
   contributeText: { fontSize: 12, fontWeight: '800', color: COLORS.purple3 },
   contributePendingText: { fontSize: 12, fontWeight: '700', color: COLORS.textSecondary },
+  reportRow: {
+    flexDirection: 'row', alignItems: 'center', justifyContent: 'center',
+    gap: 5, marginTop: 8, paddingVertical: 6, width: '100%',
+  },
+  reportText: { fontSize: 11, fontWeight: '600', color: COLORS.textMuted },
   sourceTag: {
     position: 'absolute', bottom: 0, left: 0, right: 0,
     backgroundColor: 'rgba(0,0,0,0.6)', paddingVertical: 3,

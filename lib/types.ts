@@ -7,6 +7,25 @@ export type ImageSourceType = 'legacy' | 'community' | 'admin';
 /** Estado de moderacion de una imagen. Ortogonal a su procedencia. */
 export type ImageStatus = 'pending' | 'approved' | 'rejected';
 
+/** Motivo de un reporte sobre una imagen. */
+export type ReportReason =
+  | 'wrong_card' | 'duplicate' | 'copyright' | 'inappropriate' | 'low_quality' | 'other';
+/** Estado de un reporte. */
+export type ReportStatus = 'open' | 'resolved_kept' | 'resolved_removed' | 'dismissed';
+
+export interface ImageReport {
+  id: number;
+  card_image_id: number;
+  reported_by: string | null;
+  reason: ReportReason;
+  detail: string | null;
+  status: ReportStatus;
+  resolved_by: string | null;
+  resolved_at: string | null;
+  resolution_note: string | null;
+  created_at: string;
+}
+
 export interface CardImage {
   id: number;
   card_id: number;
@@ -125,6 +144,8 @@ export interface CardFull {
   primary_image_bucket: string | null;
   primary_image_source: ImageSourceType | null;
   primary_image_contributed_by: string | null;
+  /** `card_images.id` de la imagen resuelta. Necesario para reportarla. */
+  primary_image_id: number | null;
 }
 
 export interface CardWithStatus extends CardFull {

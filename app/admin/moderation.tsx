@@ -1,6 +1,7 @@
 import { Ionicons } from '@expo/vector-icons';
 import { Image } from 'expo-image';
 import { useRouter } from 'expo-router';
+import { useState } from 'react';
 import {
   ActivityIndicator,
   Alert,
@@ -19,8 +20,20 @@ import GlassCard from '../../components/GlassCard';
 import { useAuth } from '../../hooks/useAuth';
 import { useIsAdmin } from '../../hooks/useIsAdmin';
 import { PendingSubmission, RejectReason, useModerationQueue } from '../../hooks/useModerationQueue';
+import { OpenReport, ResolveAction, useReportsQueue } from '../../hooks/useReportsQueue';
 import { COLORS } from '../../lib/constants';
 import { useI18n } from '../../lib/I18nContext';
+import { ReportReason } from '../../lib/types';
+
+/** Motivo del reporte -> clave de i18n. */
+const REASON_KEY: Record<ReportReason, string> = {
+  copyright: 'reportCopyright',
+  wrong_card: 'reportWrongCard',
+  inappropriate: 'reportInappropriate',
+  low_quality: 'reportLowQuality',
+  duplicate: 'rejectDuplicate',
+  other: 'reportImage',
+};
 
 const REJECT_REASONS: { value: RejectReason; key: string }[] = [
   { value: 'wrong_card', key: 'rejectWrongCard' },
@@ -35,6 +48,8 @@ export default function ModerationScreen() {
   const { userId } = useAuth();
   const { isAdmin, loading: adminLoading } = useIsAdmin(userId);
   const { items, loading, error, working, refetch, moderate } = useModerationQueue(isAdmin);
+  const reports = useReportsQueue(isAdmin, userId);
+  const [tab, setTab] = useState<'pending' | 'reports'>('pending');
 
   const run = async (
     submission: PendingSubmission,
@@ -50,6 +65,15 @@ export default function ModerationScreen() {
       t('moderation'),
       action === 'approve' ? t('moderationApproved') : t('moderationRejected'),
     );
+  };
+
+  const resolveReport = async (report: OpenReport, action: ResolveAction) => {
+    const result = await reports.resolve(report.id, action);
+    if (!result.ok) {
+      Alert.alert(t('reports'), `${t('moderationError')}\n\n${result.error}`);
+      return;
+    }
+    Alert.alert(t('reports'), t('reportResolved'));
   };
 
   const askReason = (submission: PendingSubmission) => {
@@ -84,15 +108,106 @@ export default function ModerationScreen() {
             <Ionicons name="chevron-back" size={22} color={COLORS.textSecondary} />
           </TouchableOpacity>
           <Text style={styles.title}>{t('moderation')}</Text>
-          <Text style={styles.count}>{items.length}</Text>
         </View>
 
-        {adminLoading || loading ? (
+        <View style={styles.tabs}>
+          <TouchableOpacity
+            onPress={() => setTab('pending')}
+            activeOpacity={0.7}
+            style={[styles.tab, tab === 'pending' && styles.tabActive]}
+          >
+            <Text style={[styles.tabText, tab === 'pending' && styles.tabTextActive]}>
+              {t('queuePending')} · {items.length}
+            </Text>
+          </TouchableOpacity>
+          <TouchableOpacity
+            onPress={() => setTab('reports')}
+            activeOpacity={0.7}
+            style={[styles.tab, tab === 'reports' && styles.tabActive]}
+          >
+            <Text style={[styles.tabText, tab === 'reports' && styles.tabTextActive]}>
+              {t('reports')} · {reports.items.length}
+            </Text>
+          </TouchableOpacity>
+        </View>
+
+        {adminLoading || (tab === 'pending' ? loading : reports.loading) ? (
           <View style={styles.centered}>
             <ActivityIndicator color={COLORS.purple2} />
           </View>
-        ) : error ? (
-          <ErrorView message={error} onRetry={refetch} />
+        ) : (tab === 'pending' ? error : reports.error) ? (
+          <ErrorView
+            message={(tab === 'pending' ? error : reports.error) as string}
+            onRetry={tab === 'pending' ? refetch : reports.refetch}
+          />
+        ) : tab === 'reports' ? (
+          <ScrollView
+            contentContainerStyle={styles.list}
+            refreshControl={
+              <RefreshControl refreshing={false} onRefresh={reports.refetch} tintColor={COLORS.purple2} />
+            }
+          >
+            {reports.items.length === 0 ? (
+              <GlassCard style={styles.empty}>
+                <Ionicons name="flag-outline" size={26} color={COLORS.textMuted} />
+                <Text style={styles.emptyTitle}>{t('reportsEmpty')}</Text>
+                <Text style={styles.emptyDesc}>{t('reportsEmptyDesc')}</Text>
+              </GlassCard>
+            ) : reports.items.map(report => {
+              const busy = reports.working === report.id;
+              return (
+                <GlassCard key={report.id} style={styles.item}>
+                  <View style={styles.reportHead}>
+                    <View style={styles.flex}>
+                      <Text style={styles.reasonText}>{t(REASON_KEY[report.reason] as any)}</Text>
+                      <Text style={styles.cardMeta} numberOfLines={1}>
+                        {report.cardName} · {report.sourceType ?? '—'}
+                      </Text>
+                      <Text style={styles.cardCode} numberOfLines={1}>{report.cardCode}</Text>
+                    </View>
+                    {report.reportCount > 1 && (
+                      <Text style={styles.count}>×{report.reportCount}</Text>
+                    )}
+                  </View>
+
+                  {report.detail ? (
+                    <Text style={styles.detailText}>{`\u201c${report.detail}\u201d`}</Text>
+                  ) : null}
+
+                  {report.imageUrl ? (
+                    <View style={styles.reportThumbWrap}>
+                      <Image source={{ uri: report.imageUrl }} style={styles.reportThumb} contentFit="contain" />
+                    </View>
+                  ) : null}
+
+                  <View style={styles.actions}>
+                    <TouchableOpacity
+                      onPress={() => resolveReport(report, 'dismissed')}
+                      disabled={busy}
+                      activeOpacity={0.7}
+                      style={[styles.btn, styles.dismissBtn, busy && styles.btnDisabled]}
+                    >
+                      <Text style={[styles.btnText, { color: COLORS.textSecondary }]}>
+                        {t('reportDismiss')}
+                      </Text>
+                    </TouchableOpacity>
+                    <TouchableOpacity
+                      onPress={() => resolveReport(report, 'resolved_kept')}
+                      disabled={busy}
+                      activeOpacity={0.7}
+                      style={[styles.btn, styles.approveBtn, busy && styles.btnDisabled]}
+                    >
+                      {busy ? (
+                        <ActivityIndicator size="small" color={COLORS.green} />
+                      ) : (
+                        <Text style={[styles.btnText, { color: COLORS.green }]}>{t('reportKeep')}</Text>
+                      )}
+                    </TouchableOpacity>
+                  </View>
+                </GlassCard>
+              );
+            })}
+          </ScrollView>
         ) : (
           <ScrollView
             contentContainerStyle={styles.list}
@@ -225,5 +340,27 @@ const styles = StyleSheet.create({
   btnDisabled: { opacity: 0.5 },
   approveBtn: { borderColor: COLORS.green + '55', backgroundColor: COLORS.green + '14' },
   rejectBtn: { borderColor: COLORS.pink + '55', backgroundColor: COLORS.pink + '14' },
+  dismissBtn: { borderColor: 'rgba(255,255,255,0.14)', backgroundColor: 'rgba(255,255,255,0.05)' },
   btnText: { fontSize: 12, fontWeight: '800' },
+
+  tabs: { flexDirection: 'row', gap: 8, paddingHorizontal: 12, paddingBottom: 8 },
+  tab: {
+    flex: 1, alignItems: 'center', paddingVertical: 8, borderRadius: 10,
+    borderWidth: 1, borderColor: COLORS.border,
+  },
+  tabActive: { borderColor: COLORS.borderActive, backgroundColor: 'rgba(168,85,247,0.12)' },
+  tabText: { fontSize: 11, fontWeight: '800', color: COLORS.textMuted },
+  tabTextActive: { color: COLORS.purple3 },
+
+  reportHead: { flexDirection: 'row', alignItems: 'flex-start', gap: 8 },
+  reasonText: { fontSize: 13, fontWeight: '800', color: COLORS.textPrimary },
+  detailText: {
+    fontSize: 11, fontStyle: 'italic', color: COLORS.textSecondary, marginTop: 6,
+  },
+  reportThumbWrap: { alignItems: 'flex-start', marginTop: 10 },
+  reportThumb: {
+    width: 74, aspectRatio: 2 / 3, borderRadius: 8,
+    backgroundColor: '#0d0520',
+    borderWidth: 1, borderColor: 'rgba(168,85,247,0.2)',
+  },
 });

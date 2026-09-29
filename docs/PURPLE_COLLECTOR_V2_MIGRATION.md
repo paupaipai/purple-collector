@@ -1,7 +1,7 @@
 # Purple Collector V2 — Migración al catálogo comunitario
 
 Fecha: 2026-09-27 · Rama: `feat/community-images-v2` (creada desde `main` @ `9688be0`)
-Estado: **FASE B.1 + B.3 + C.1 + D + E + F aplicadas · SR-1 a SR-9 y BUG-1/2/4/5 hechos · FASE G empezada: la edge function de moderar está desplegada.**
+Estado: **FASE B.1 + B.3 + C.1 + D + E + F + G aplicadas · SR-1 a SR-9 y BUG-1/2/4/5 hechos. Queda el takedown (§2.11).**
 
 Documento hermano: [`PURPLE_V2_CURRENT_STATE.md`](./PURPLE_V2_CURRENT_STATE.md) — auditoría del estado real.
 Roadmap de origen: `~/Downloads/Purple_Collector_v2_Roadmap.xlsx` (66 tareas).
@@ -310,6 +310,88 @@ producción.
 
 **Falta para cerrar FASE G:** la bandeja de moderación (la app **no tiene panel
 de admin**, nunca lo tuvo) y la tabla `image_reports` (§5.3).
+
+---
+
+### 2.10 FASE G — reportes (2026-09-29)
+
+`image_reports`, más el flujo de reporte en la app y la pestaña de reportes en la
+bandeja. Cubre la tarea 37 del roadmap: canal para reclamos de copyright.
+
+Un reporte apunta a **cualquier** fila de `card_images`, no solo a las community:
+reportar una legacy por copyright es el caso que más importa, porque las 4503 del
+catálogo son de terceros. Por eso el botón de reportar **no** está detrás de
+`CONTRIBUTIONS_ENABLED` — recibir un reclamo es valioso desde ya.
+
+**Decisiones de la tabla:**
+
+| Decisión | Por qué |
+|---|---|
+| `reported_by` con `on delete set null` | un reclamo de copyright no puede desaparecer porque quien lo hizo borró su cuenta |
+| `unique (card_image_id, reported_by)` | una persona reporta una imagen una sola vez, así nadie infla la cola. Varios NULL conviven |
+| **sin lectura pública** | un reporte es entre quien lo hace y el mantenedor; público lo volvería una señal social |
+| sin UPDATE ni DELETE para el autor | un reporte enviado no se edita ni se retira; si es improcedente, el mantenedor lo marca `dismissed` |
+| check de resolución | un reporte resuelto siempre deja rastro de quién y cuándo |
+
+`cards_full` gana `primary_image_id` (33 columnas) para poder reportar la imagen
+que se está viendo sin una consulta extra.
+
+**Dos migrations, porque la primera traía un comentario falso.** Afirmaba que
+`anon` no recibía ningún grant; los `alter default privileges` de Supabase le dan
+el juego completo sobre cada tabla nueva de `public`, así que crear la tabla ya se
+lo dio. Funcionalmente no había agujero —la RLS lo bloquea— pero el comentario
+mentía. **Es el mismo error que SR-9**: dar por supuesto un privilegio en vez de
+mirarlo. Allí venía de `PUBLIC` sobre funciones, aquí de los default privileges
+sobre tablas.
+
+**Verificado**, con rollback forzado:
+
+| Prueba | Resultado |
+|---|---|
+| reportar una legacy por copyright | ok |
+| reportar en nombre de otro | bloqueado |
+| autoresolverse al crear | bloqueado |
+| reportar dos veces la misma imagen | bloqueado (unique) |
+| el autor ve solo el suyo | 1 |
+| el autor edita o borra su reporte | 0 filas |
+| el admin ve los 2 abiertos y los resuelve | 2 filas |
+| el contador agrupa por imagen | ×2 |
+| `anon` tras la revocación | fuera de los grants |
+
+---
+
+### 2.11 Lo que falta: el takedown
+
+**Retirar de verdad una imagen no está implementado**, y la bandeja de reportes
+solo ofrece `Mantener` y `Descartar` por eso. `resolved_removed` existe en el
+enum pero ninguna UI lo usa.
+
+Para una imagen **community aprobada** sería factible: borrar el objeto del
+bucket público y marcar la fila. Haría falta una acción nueva en
+`moderate-card-image`, porque su `reject` actual exige `status = 'pending'`.
+
+Para una **legacy** hay un problema de diseño real, y es tuyo de decidir:
+
+```ts
+// lib/supabase.ts — getCardImageUrl()
+const path = card.primary_image_path ?? card.image_path ?? null;
+```
+
+Ese fallback se añadió en FASE E para tolerar respuestas cacheadas. Significa que
+borrar la fila de `card_images` de una legacy **no la oculta**: la app sigue
+sirviéndola desde `cards.image_path`. Y va más profundo — la Android v1 publicada
+lee `cards.image_path` directamente.
+
+Así que un takedown real de una legacy exige **borrar el objeto de Storage y/o
+vaciar `cards.image_path`**, que es exactamente lo que la decisión **D1** dijo que
+no se toca nunca. Hay una tensión entre D1 y la tarea 37. Las dos salidas:
+
+1. Quitar el fallback y aceptar que una legacy retirada muestre placeholder en v2
+   mientras la v1 la siga viendo hasta que sus usuarios actualicen.
+2. Aceptar tocar `cards.image_path` en el caso concreto de un takedown, como
+   excepción documentada a D1.
+
+No la resuelvo por mi cuenta: cambia el contrato con la v1 publicada.
 
 ---
 
@@ -1060,12 +1142,12 @@ leería historial divergente e intentaría reaplicarlas.
 
 ### Pendiente
 
-1. **Terminar FASE G.** La edge function de aprobar/rechazar ya está desplegada
-   (§2.9). Falta: la **bandeja de moderación** —la app no tiene panel de admin,
-   así que hay que crear la pantalla protegida por `is_admin`— y la tabla
-   `image_reports` (§5.3). Con la bandeja en pie ya se puede encender
-   `CONTRIBUTIONS_ENABLED` y probar el circuito completo con una aportación real,
-   que es lo único que queda sin verificar.
+1. **El takedown** (§2.11) — necesita tu decisión sobre la tensión entre D1 y la
+   tarea 37 de copyright.
+2. **Encender `CONTRIBUTIONS_ENABLED`** y probar el circuito completo con una
+   aportación real: subir, aprobarla desde la bandeja, y verla sustituir a la
+   legacy. Es lo único de todo V2 que queda sin verificar, y cierra de paso el
+   movimiento de bytes entre buckets.
 2. **Handle público para la attribution** — decisión de producto: ¿columna
    `username` única elegida por el usuario, o `display_name` con fallback? Hoy
    `display_name` es nullable y no único. Bloquea la tarea 32 del roadmap.

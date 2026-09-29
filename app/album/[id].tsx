@@ -29,9 +29,10 @@ import { COLORS, MEMBERS, STATUS_LABEL_KEY, CONTRIBUTIONS_ENABLED } from '../../
 import {
   ContributionFailure, fetchMyPendingContributions, pickContributionImage, submitContribution,
 } from '../../lib/contributions';
+import { fetchMyReportedImages, submitImageReport } from '../../lib/reports';
 import { useI18n } from '../../lib/I18nContext';
 import { getPhotocardUrl } from '../../lib/supabase';
-import { CardStatus, CardWithStatus } from '../../lib/types';
+import { CardStatus, CardWithStatus, ReportReason } from '../../lib/types';
 
 export default function AlbumDetailScreen() {
   const { id } = useLocalSearchParams<{ id: string }>();
@@ -51,6 +52,8 @@ export default function AlbumDetailScreen() {
   // card_id con una aportacion propia sin resolver. Vacio y sin consultar
   // mientras CONTRIBUTIONS_ENABLED este en false.
   const [pendingContrib, setPendingContrib] = useState<Set<number>>(new Set());
+  // card_images.id que esta persona ya reporto, para no ofrecerlo dos veces.
+  const [reported, setReported] = useState<Set<number>>(new Set());
 
   // Track completion to trigger celebration
   const prevOwnedRef = useRef<number | null>(null);
@@ -73,6 +76,53 @@ export default function AlbumDetailScreen() {
     // cards.length y no cards: el array se recrea en cada cambio de estado de
     // una carta, y no hace falta recargar las aportaciones por eso.
   }, [userId, id, cards.length]);
+
+  useEffect(() => {
+    if (!userId || cards.length === 0) return;
+    let cancelled = false;
+    const imageIds = cards
+      .map(c => c.primary_image_id)
+      .filter((v): v is number => v != null);
+    fetchMyReportedImages(userId, imageIds).then(set => {
+      if (!cancelled) setReported(set);
+    });
+    return () => { cancelled = true; };
+  }, [userId, id, cards.length]);
+
+  const REPORT_REASONS: { value: ReportReason; key: string }[] = [
+    { value: 'copyright', key: 'reportCopyright' },
+    { value: 'wrong_card', key: 'reportWrongCard' },
+    { value: 'inappropriate', key: 'reportInappropriate' },
+    { value: 'low_quality', key: 'reportLowQuality' },
+  ];
+
+  const handleReport = () => {
+    const card = selectedCard;
+    if (!card || card.primary_image_id == null) return;
+    const imageId = card.primary_image_id;
+
+    Alert.alert(t('reportTitle'), t('reportDesc'), [
+      ...REPORT_REASONS.map(r => ({
+        text: t(r.key as any),
+        onPress: async () => {
+          const sent = await submitImageReport({ cardImageId: imageId, userId, reason: r.value });
+          if (!sent.ok) {
+            Alert.alert(
+              t('reportTitle'),
+              sent.reason === 'already' ? t('reportErrAlready') : t('reportErrFailed'),
+            );
+            // 'already' significa que el reporte existe, asi que la UI debe
+            // reflejarlo igual.
+            if (sent.reason === 'already') setReported(prev => new Set(prev).add(imageId));
+            return;
+          }
+          setReported(prev => new Set(prev).add(imageId));
+          Alert.alert(t('reportSent'), t('reportSentDesc'));
+        },
+      })),
+      { text: t('cancel'), style: 'cancel' as const },
+    ]);
+  };
 
   const contributionError = (reason: ContributionFailure) => {
     if (reason === 'permission') return t('contributeErrPermission');
@@ -433,6 +483,10 @@ export default function AlbumDetailScreen() {
         }}
         onContribute={handleContribute}
         contributionPending={selectedCard ? pendingContrib.has(selectedCard.id) : false}
+        onReport={handleReport}
+        reportSent={
+          selectedCard?.primary_image_id != null && reported.has(selectedCard.primary_image_id)
+        }
       />
 
       <StatusHelpModal visible={showHelp} onClose={() => setShowHelp(false)} />
