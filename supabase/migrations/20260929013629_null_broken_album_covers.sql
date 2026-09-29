@@ -1,0 +1,105 @@
+-- BUG-2 — Vacia las 64 portadas de album que apuntan a objetos inexistentes.
+--
+-- De los 140 `albums.cover_image_url` poblados, 64 apuntaban a un objeto que no
+-- existe en el bucket `photocards`. La app no lo detectaba: renderiza
+-- <Image source={getPhotocardUrl(cover)}> en cuanto el campo no es nulo, asi
+-- que pedia 64 URLs que devuelven 404 y mostraba el hueco.
+--
+-- Se descarto que fueran fallos cercanos y recuperables: para ninguna de las 64
+-- existe el objeto ignorando mayusculas ni con otra extension. Las 64 terminan
+-- en `/cover.png` y estan todas en dvd_bluray y merch_seasons_greetings, o sea
+-- que son rutas escritas por anticipado para portadas que nunca se subieron.
+--
+-- Vaciar la columna es lo correcto porque la app YA tiene fallback para null en
+-- los tres sitios que la leen:
+--
+--   app/type/[id].tsx:66      `{album.cover_image_url ? <Image/> : <placeholder/>}`
+--   app/album/[id].tsx:136    albumCover queda null y no renderiza la cabecera
+--   hooks/useEraAlbums.ts:115 filtra por cover_image_url antes de precargar,
+--                             asi que deja de precargar 64 URLs que dan 404
+--
+-- O sea: el usuario pasa de ver un hueco roto a ver el placeholder de diseno, y
+-- la app deja de hacer 64 peticiones inutiles.
+--
+-- NO se toca ninguna imagen de Storage y no se borra nada: solo se pone en NULL
+-- una referencia que ya estaba rota.
+--
+-- Cuando se suban las portadas, restaurar es volver a escribir la ruta. Las 64
+-- quedan aqui para eso:
+--
+--   update public.albums as a set cover_image_url = v.path
+--   from (values
+--   (69, 'dvd_bluray/documentary_movie/burn_the_stage/cover.png'),  -- Burn The Stage
+--   (70, 'dvd_bluray/documentary_movie/bring_the_soul/cover.png'),  -- Bring The Soul
+--   (71, 'dvd_bluray/documentary_movie/break_the_silence/cover.png'),  -- Break The Silence
+--   (72, 'dvd_bluray/documentary_movie/yet_to_come_cinemas/cover.png'),  -- Yet To Come in Cinemas
+--   (85, 'merch_seasons_greetings/deco_kit_merch_box/deco_kit/cover.png'),  -- Deco Kit
+--   (91, 'merch_seasons_greetings/festa_anniversary/festa_2021/cover.png'),  -- Festa 2021
+--   (125, 'dvd_bluray/documentary_movie/bts_now/cover.png'),  -- BTS NOW
+--   (126, 'merch_seasons_greetings/summer_winter_package/summer_package_2014/cover.png'),  -- 2014 Summer Package
+--   (127, 'merch_seasons_greetings/summer_winter_package/winter_package_2021/cover.png'),  -- 2021 Winter Package
+--   (128, 'dvd_bluray/world_tour/hyyh_on_stage/cover.png'),  -- 2015 HYYH On Stage
+--   (129, 'dvd_bluray/world_tour/hyyh_os_epilogue/cover.png'),  -- 2016 HYYH On Stage: Epilogue
+--   (130, 'dvd_bluray/world_tour/dday_in_japan/cover.png'),  -- D-DAY in Japan
+--   (131, 'dvd_bluray/world_tour/runseokjin_tour_jp/cover.png'),  -- #RunSeokjin EP. Tour in Japan
+--   (132, 'merch_seasons_greetings/photobooks/beyond_the_stage/cover.png'),  -- Beyond The Stage
+--   (133, 'merch_seasons_greetings/photobooks/beyond_the_story/cover.png'),  -- Beyond The Story
+--   (135, 'merch_seasons_greetings/exhibitions/oneul_exhibition/cover.png'),  -- Oneul Exhibition
+--   (137, 'merch_seasons_greetings/photobooks/pf_entirety/cover.png'),  -- Photo-Folio: Entirety
+--   (138, 'merch_seasons_greetings/photobooks/pf_sea_of_jin/cover.png'),  -- Photo-Folio: Sea of JIN island
+--   (139, 'merch_seasons_greetings/photobooks/pf_wholly/cover.png'),  -- Photo-Folio: Wholly or Whole me
+--   (140, 'merch_seasons_greetings/photobooks/pf_all_new_hope/cover.png'),  -- Photo-Folio: All New Hope
+--   (141, 'merch_seasons_greetings/photobooks/pf_id_chaos/cover.png'),  -- Photo-Folio: ID : Chaos
+--   (142, 'merch_seasons_greetings/photobooks/pf_veautiful/cover.png'),  -- Photo-Folio: Veautiful Days
+--   (143, 'merch_seasons_greetings/photobooks/pf_time_diff/cover.png'),  -- Photo-Folio: Time Difference
+--   (144, 'merch_seasons_greetings/photobooks/pf_we/cover.png'),  -- Photo-Folio: We
+--   (145, 'merch_seasons_greetings/games/run_bts_poly/cover.png'),  -- Run BTS Poly
+--   (151, 'merch_seasons_greetings/muster_fanmeeting_merch/muster4_merch/cover.png'),  -- 4th Muster Merch
+--   (152, 'merch_seasons_greetings/muster_fanmeeting_merch/fmv4_merch/cover.png'),  -- Fanmeeting Vol. 4 Merch
+--   (153, 'merch_seasons_greetings/muster_fanmeeting_merch/muster5_merch/cover.png'),  -- 5th Muster Merch
+--   (154, 'merch_seasons_greetings/muster_fanmeeting_merch/fmv5_merch/cover.png'),  -- Fanmeeting Vol. 5 Merch
+--   (155, 'merch_seasons_greetings/muster_fanmeeting_merch/sowoozoo_merch/cover.png'),  -- 6th Muster Sowoozoo Merch
+--   (156, 'merch_seasons_greetings/misc_merch/army_bomb/cover.png'),  -- ARMY Bomb
+--   (157, 'merch_seasons_greetings/misc_merch/armypedia/cover.png'),  -- ARMYpedia
+--   (158, 'merch_seasons_greetings/misc_merch/art_toy/cover.png'),  -- Art Toy
+--   (159, 'merch_seasons_greetings/misc_merch/film_viewer/cover.png'),  -- Film Viewer
+--   (160, 'merch_seasons_greetings/misc_merch/pop_up_stores/cover.png'),  -- Pop-Up Stores
+--   (161, 'merch_seasons_greetings/misc_merch/artist_made_collection/cover.png'),  -- Artist-Made Collection
+--   (162, 'merch_seasons_greetings/misc_merch/dalmajung/cover.png'),  -- Dalmajung
+--   (163, 'merch_seasons_greetings/misc_merch/fortune_box/cover.png'),  -- Fortune Box
+--   (164, 'merch_seasons_greetings/misc_merch/in_the_soop/cover.png'),  -- In The Soop
+--   (165, 'merch_seasons_greetings/misc_merch/little_wishes/cover.png'),  -- Little Wishes
+--   (166, 'merch_seasons_greetings/misc_merch/hybe_insight/cover.png'),  -- HYBE Insight
+--   (167, 'merch_seasons_greetings/muster_fanmeeting_merch/muster1_merch/cover.png'),  -- 1st Muster Merch
+--   (168, 'merch_seasons_greetings/muster_fanmeeting_merch/fmv3_merch/cover.png'),  -- Fanmeeting Vol. 3 Merch
+--   (169, 'merch_seasons_greetings/muster_fanmeeting_merch/muster2_merch/cover.png'),  -- 2nd Muster Merch
+--   (170, 'merch_seasons_greetings/muster_fanmeeting_merch/muster3_merch/cover.png'),  -- 3rd Muster Merch
+--   (171, 'merch_seasons_greetings/membership_kit/membership_kit_2nd/cover.png'),  -- ARMY Membership Kit 2nd
+--   (172, 'merch_seasons_greetings/membership_kit/membership_kit_3rd/cover.png'),  -- ARMY Membership Kit 3rd
+--   (173, 'merch_seasons_greetings/membership_kit/membership_kit_4th/cover.png'),  -- ARMY Membership Kit 4th
+--   (174, 'merch_seasons_greetings/membership_kit/membership_kit_10th/cover.png'),  -- ARMY Membership Kit 10th
+--   (175, 'merch_seasons_greetings/membership_kit/membership_kit_11th/cover.png'),  -- ARMY Membership Kit 11th
+--   (176, 'merch_seasons_greetings/membership_kit/membership_kit_12th/cover.png'),  -- ARMY Membership Kit 12th
+--   (177, 'merch_seasons_greetings/deco_kit_merch_box/merch_box/cover.png'),  -- Merch Box
+--   (178, 'merch_seasons_greetings/membership_kit/jpfc_membership/cover.png'),  -- JPFC Membership
+--   (179, 'merch_seasons_greetings/photobooks/dicon_vol2/cover.png'),  -- D'ICON Vol. 2
+--   (180, 'merch_seasons_greetings/photobooks/dicon_vol10/cover.png'),  -- D'ICON Vol. 10
+--   (181, 'merch_seasons_greetings/photobooks/dicon_101/cover.png'),  -- D'ICON 101
+--   (182, 'merch_seasons_greetings/photobooks/dfesta_photobook/cover.png'),  -- D'FESTA Photobook
+--   (183, 'merch_seasons_greetings/photobooks/dfesta_exhibition/cover.png'),  -- D'FESTA Exhibition
+--   (184, 'merch_seasons_greetings/photobooks/dfesta_mini/cover.png'),  -- D'FESTA Mini Edition
+--   (185, 'merch_seasons_greetings/misc_merch/brand_collabs/cover.png'),  -- Brand Collabs
+--   (186, 'merch_seasons_greetings/misc_merch/the_fact_awards/cover.png'),  -- The Fact Awards
+--   (187, 'merch_seasons_greetings/misc_merch/broadcast_live/cover.png'),  -- Broadcast / Live
+--   (188, 'merch_seasons_greetings/festa_anniversary/festa_2024/cover.png'),  -- Festa 2024
+--   (189, 'merch_seasons_greetings/festa_anniversary/festa_2025/cover.png')   -- Festa 2025
+--   ) as v(id, path)
+--   where a.id = v.id;
+
+update public.albums a
+set cover_image_url = null
+where a.cover_image_url is not null
+  and not exists (
+    select 1 from storage.objects o
+    where o.bucket_id = 'photocards' and o.name = a.cover_image_url
+  );
