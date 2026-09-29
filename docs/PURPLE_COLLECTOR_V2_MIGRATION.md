@@ -1,7 +1,7 @@
 # Purple Collector V2 — Migración al catálogo comunitario
 
 Fecha: 2026-09-27 · Rama: `feat/community-images-v2` (creada desde `main` @ `9688be0`)
-Estado: **FASE B.1 + B.3 + C.1 + D + E + F aplicadas · backfill hecho · SR-1 a SR-9 y BUG-1/2/4/5 hechos. Falta FASE G (moderación).**
+Estado: **FASE B.1 + B.3 + C.1 + D + E + F aplicadas · SR-1 a SR-9 y BUG-1/2/4/5 hechos · FASE G empezada: la edge function de moderar está desplegada.**
 
 Documento hermano: [`PURPLE_V2_CURRENT_STATE.md`](./PURPLE_V2_CURRENT_STATE.md) — auditoría del estado real.
 Roadmap de origen: `~/Downloads/Purple_Collector_v2_Roadmap.xlsx` (66 tareas).
@@ -234,6 +234,82 @@ y la URL resuelta devuelve el PNG real (HTTP 200, 11 125 bytes).
 ### Lo que NO incluye FASE E
 
 El tratamiento visual de las legacy es **FASE F** (§3.1).
+
+---
+
+### 2.9 FASE G — `moderate-card-image` (2026-09-29)
+
+La pieza que faltaba para cerrar el circuito. **Desplegada y ACTIVE**
+(`supabase/functions/moderate-card-image/`, registrada en `config.toml` con
+`verify_jwt = true`).
+
+```
+POST /functions/v1/moderate-card-image
+  { "action": "approve", "cardImageId": 123 }
+  { "action": "reject",  "cardImageId": 123, "reason": "..." }
+```
+
+**Por qué hacía falta una función y no bastaba un UPDATE:** una imagen pendiente
+vive en el bucket **privado**. Aprobarla exige moverla al público — cambiar solo
+el `status` no la haría visible. Ese es exactamente el motivo por el que
+`CONTRIBUTIONS_ENABLED` estaba apagado.
+
+**Orden de operaciones al aprobar**, elegido para que no exista ningún estado en
+el que la fila diga "público" y el objeto no esté ahí:
+
+1. copiar al bucket público (`download` + `upload`)
+2. bajar la community primaria anterior de esa card, si había
+3. actualizar la fila: `status`, `bucket_id`, `storage_path`, `is_primary`, `reviewed_by`, `reviewed_at`
+4. borrar el original del bucket privado — **best-effort a propósito**
+
+Si (1) falla, no se toca nada. Si (2) o (3) fallan, se deshace la copia pública.
+Si (4) falla, solo queda una copia extra en un bucket privado que nada
+referencia: fallar ahí sería peor que dejar el sobrante.
+
+Se usa `download` + `upload` en vez de `storage.copy({ destinationBucket })`
+porque no depende de la versión del SDK que resuelva Deno. Los objetos están
+limitados a 5 MiB por el bucket, así que pasar los bytes por la función es
+asumible.
+
+**Detalles de diseño:**
+
+- El paso 2 no es opcional: la primaria es única por `(card_id, source_type)`
+  entre las aprobadas, así que sin bajar la anterior el `UPDATE` violaría el
+  índice. La **legacy no se toca** — es otro `source_type` y sigue siendo el
+  fallback.
+- Los `UPDATE` llevan `.eq("status", "pending")`, así que reintentar es inocuo.
+  Y se devuelve **409** si la imagen ya está resuelta o no es `community`, en vez
+  de mover el objeto dos veces o pisar quién la revisó.
+- Al rechazar **se conserva el objeto** en el bucket privado: no es accesible y
+  permite que el contributor entienda qué se rechazó. La retención es una
+  decisión aparte.
+- La ruta pública se organiza por card (`<card_id>/<archivo>`), no por usuario:
+  ahí ya no importa quién la subió —eso vive en `contributed_by`— sino a qué
+  card pertenece, y así el takedown de una card es un prefijo.
+
+**Verificado:**
+
+| Prueba | Resultado |
+|---|---|
+| POST sin credencial | **401** `Missing authorization header` |
+| POST con la clave publicable | **401** — `@supabase/server` responde que solo acepta un JWT de usuario |
+| preflight `OPTIONS` | 204 |
+| primer aprobar: demote | 0 filas (correcto, no había anterior) |
+| tras aprobar, `cards_full` | pasa a **`community`** + bucket público |
+| la fila legacy sigue `is_primary` | **sí** — solo perdió la prioridad |
+| segundo aprobar: demote | **1 fila** — necesario para el índice único |
+| primaria final | la más reciente |
+| `cards_full` sigue devolviendo 1 fila | sí |
+| attribution llega | sí |
+
+**Lo que NO está verificado:** el movimiento real de bytes entre buckets. Para
+probarlo hace falta un objeto subido por un usuario autenticado y un JWT de
+admin para invocar la función, y no puedo generar ninguno de los dos. Toda la
+lógica de base de datos y el gate de autorización sí están probados contra
+producción.
+
+**Falta para cerrar FASE G:** la bandeja de moderación (la app **no tiene panel
+de admin**, nunca lo tuvo) y la tabla `image_reports` (§5.3).
 
 ---
 
@@ -984,12 +1060,12 @@ leería historial divergente e intentaría reaplicarlas.
 
 ### Pendiente
 
-1. **FASE G — moderación.** Es lo que desbloquea todo lo demás: bandeja de
-   pendientes, aprobar (edge function que **mueve** el objeto de
-   `photocard-community-review` a `photocard-community` y actualiza
-   `bucket_id`/`storage_path`/`status`/`reviewed_by`/`reviewed_at`), rechazar con
-   motivo, y la tabla `image_reports` (§5.3). Hasta que exista,
-   `CONTRIBUTIONS_ENABLED` y `LEGACY_TREATMENT_ENABLED` siguen en `false`.
+1. **Terminar FASE G.** La edge function de aprobar/rechazar ya está desplegada
+   (§2.9). Falta: la **bandeja de moderación** —la app no tiene panel de admin,
+   así que hay que crear la pantalla protegida por `is_admin`— y la tabla
+   `image_reports` (§5.3). Con la bandeja en pie ya se puede encender
+   `CONTRIBUTIONS_ENABLED` y probar el circuito completo con una aportación real,
+   que es lo único que queda sin verificar.
 2. **Handle público para la attribution** — decisión de producto: ¿columna
    `username` única elegida por el usuario, o `display_name` con fallback? Hoy
    `display_name` es nullable y no único. Bloquea la tarea 32 del roadmap.

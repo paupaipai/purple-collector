@@ -20,3 +20,12 @@ enabled = true
 verify_jwt = true
 import_map = "./functions/send-notification/deno.json"
 entrypoint = "./functions/send-notification/index.ts"
+
+[functions.moderate-card-image]
+enabled = true
+# Igual que send-notification: la verificacion de JWT de plataforma queda
+# encendida, y el withSupabase({ auth: ["user"] }) + el chequeo de is_admin del
+# handler van encima, no en su lugar.
+verify_jwt = true
+import_map = "./functions/moderate-card-image/deno.json"
+entrypoint = "./functions/moderate-card-image/index.ts"
