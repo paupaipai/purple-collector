@@ -50,6 +50,36 @@ export interface NewCardDraft {
   notes: string;
 }
 
+/**
+ * Motivo de rechazo -> clave de i18n.
+ *
+ * `rejection_reason` guarda el valor del enum tal cual ('wrong_card'), porque
+ * es lo que se puede consultar y agrupar despues. Pero eso es un dato interno:
+ * a quien aporto hay que decirle "No corresponde a la card", no el token. Sin
+ * esta traduccion la pantalla de aportes le enseñaba literalmente `wrong_card`.
+ *
+ * Devuelve null cuando no lo reconoce, y ahi se muestra el texto tal cual: los
+ * retiros por reporte escriben un motivo libre, que ya es una frase.
+ */
+export function rejectionReasonKey(reason: string | null): string | null {
+  if (!reason) return null;
+  const known: Record<string, string> = {
+    // aportaciones de imagen
+    wrong_card: 'rejectWrongCard',
+    low_quality: 'rejectLowQuality',
+    no_rights: 'rejectNoRights',
+    duplicate: 'rejectDuplicate',
+    // propuestas de card nueva
+    already_exists: 'submissionRejectExists',
+    wrong_taxonomy: 'submissionRejectTaxonomy',
+    not_a_photocard: 'submissionRejectNotPhotocard',
+    // retiros que vienen de un reporte
+    copyright: 'reportCopyright',
+    inappropriate: 'reportInappropriate',
+  };
+  return known[reason] ?? null;
+}
+
 /** Codigo de violacion de unico en Postgres, via PostgREST. */
 const UNIQUE_VIOLATION = '23505';
 

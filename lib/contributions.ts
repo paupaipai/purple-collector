@@ -144,15 +144,23 @@ export async function pickContributionImage(): Promise<
       // Sin el cropper nativo: se comporta distinto en cada plataforma. El
       // encuadre lo elige la persona en ImageCropper, que es igual en las tres.
       allowsEditing: false,
-      quality: 0.9,
+      // "Cannot load representation of type public.jpeg".
+      //
+      // El modulo tiene dos caminos para leer la foto. El RAPIDO copia el
+      // archivo original pidiendo el tipo generico `public.image`. El LENTO
+      // pide el primer tipo que el asset declara -- que suele ser
+      // `public.jpeg` -- y falla cuando el sistema no puede producir esos
+      // bytes, que es lo que pasa con varios assets del simulador.
+      //
+      // El camino rapido solo se toma si NO hay allowsEditing, si la calidad es
+      // 1 y si el modo de representacion es `current` (el de por defecto). De
+      // los tres, el que nos sacaba de ahi era `quality: 0.9`.
+      //
+      // Poner 1 no empeora nada: normalizeToPhotocard() recorta y reencoda
+      // despues con compress 0.85, asi que pedirle al picker que reencode
+      // primero era comprimir dos veces y perder calidad para nada.
+      quality: 1,
       exif: false,
-      // "Cannot load representation of type public.jpeg": con el modo por
-      // defecto, PHPicker intenta entregar la representacion ACTUAL del asset y
-      // falla si no puede producir un jpeg a partir de ella. `compatible` le
-      // pide la representacion mas compatible, transcodificando si hace falta.
-      // Es el caso de las HEIC y de las fotos optimizadas en iCloud.
-      preferredAssetRepresentationMode:
-        ImagePicker.UIImagePickerPreferredAssetRepresentationMode.Compatible,
     });
   } catch (err) {
     // Aca el modulo ya demostro que existe, asi que esto es la foto: puede ser

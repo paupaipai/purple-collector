@@ -1,3 +1,4 @@
+import { Ionicons } from '@expo/vector-icons';
 import { Tabs } from 'expo-router';
 import { Image } from 'react-native';
 import { COLORS } from '../../lib/constants';
@@ -52,6 +53,24 @@ export default function TabsLayout() {
           title: t('tabWishlist'),
           tabBarIcon: ({ focused }) => (
             <TabIcon source={require('../../assets/images/menu/wishlist.png')} focused={focused} />
+          ),
+        }}
+      />
+      {/* Aportes. El icono es un Ionicon PROVISIONAL: los otros cuatro son PNG
+          propios en assets/images/menu/, y hasta que exista el quinto este va a
+          desentonar un poco. Se cambia por <TabIcon source={...} /> en cuanto
+          lo haya. */}
+      <Tabs.Screen
+        name="contributions"
+        options={{
+          title: t('tabContributions'),
+          tabBarIcon: ({ focused }) => (
+            <Ionicons
+              name="add-circle"
+              size={28}
+              color={focused ? COLORS.purple2 : COLORS.textMuted}
+              style={{ opacity: focused ? 1 : 0.7 }}
+            />
           ),
         }}
       />

@@ -254,6 +254,15 @@ const en = {
   statusHelpOtw: "It's already on the way.",
   statusHelpNotCollecting: 'You decided not to collect it.',
   statusHelpGotIt: 'Got it',
+  tabContributions: 'Contribute',
+  myContributions: 'MY CONTRIBUTIONS',
+  myContributionsEmpty: 'Nothing yet',
+  myContributionsEmptyDesc: 'What you contribute shows up here, with what happened to it.',
+  contributionKindCard: 'New card',
+  contributionKindImage: 'Image for an existing card',
+  statusPendingReview: 'Under review',
+  statusApproved: 'Approved',
+  statusRejected: 'Rejected',
 
   // Aportar una card que no esta en el catalogo
   newCardEntry: 'Contribute a missing card',
@@ -561,6 +570,15 @@ const es: Translations = {
   statusHelpOtw: 'Ya viene en camino.',
   statusHelpNotCollecting: 'Decidiste no coleccionarla.',
   statusHelpGotIt: 'Entendido',
+  tabContributions: 'Aportes',
+  myContributions: 'MIS APORTES',
+  myContributionsEmpty: 'Todavía nada',
+  myContributionsEmptyDesc: 'Lo que aportes aparece acá, con lo que pasó con cada cosa.',
+  contributionKindCard: 'Card nueva',
+  contributionKindImage: 'Imagen para una card existente',
+  statusPendingReview: 'En revisión',
+  statusApproved: 'Aprobada',
+  statusRejected: 'Rechazada',
 
   // Aportar una card que no esta en el catalogo
   newCardEntry: 'Aportar una card que falta',
