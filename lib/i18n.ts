@@ -50,6 +50,7 @@ const en = {
   imageSourceCommunity: 'Community',
   // Va sobre la imagen en la grilla: dos lineas, centrado.
   imageLegacyBadge: 'Legacy\nimage',
+  imageMissingBadge: 'No\nimage',
 
   // Contributions (FASE D)
   contribute: 'Contribute an image',
@@ -301,6 +302,7 @@ const es: Translations = {
   imageSourceCommunity: 'Comunidad',
   // Va sobre la imagen en la grilla: dos lineas, centrado.
   imageLegacyBadge: 'Imagen\nLegacy',
+  imageMissingBadge: 'Sin\nimagen',
 
   // Aportes (FASE D)
   contribute: 'Aportar imagen',

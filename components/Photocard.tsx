@@ -83,17 +83,25 @@ export default function Photocard({
           ) : (
             <View style={[
               styles.placeholder,
-              { backgroundColor: isOwned ? (member?.colors[0] || '#1a1a2e') : '#120828' },
+              { backgroundColor: member?.colors[0] || '#1a1a2e' },
             ]}>
-              {isOwned ? (
-                <LinearGradient
-                  colors={member ? [member.colors[0], member.colors[1] + 'aa', member.colors[2] + '66'] : ['#2a1a4a', '#1a1030']}
-                  style={StyleSheet.absoluteFill}
-                />
-              ) : null}
-              <Text style={[styles.emoji, !isOwned && { opacity: 0.4 }]}>
+              {/* El degradado del miembro va SIEMPRE, no solo en las adquiridas.
+                  Antes una card vacia que no tenias quedaba en un plano casi
+                  negro con la inicial al 40%: se leia como hueco roto, no como
+                  "esta card existe y le falta la foto". El color del miembro es
+                  lo que deja identificarla de un vistazo. */}
+              <LinearGradient
+                colors={member
+                  ? [member.colors[0], member.colors[1] + 'aa', member.colors[2] + '66']
+                  : ['#2a1a4a', '#1a1030']}
+                style={[StyleSheet.absoluteFill, !isOwned && styles.placeholderDim]}
+              />
+              <Text style={styles.emptyInitial}>
                 {card.member?.charAt(0) || '?'}
               </Text>
+              {/* Mismo lenguaje que la marca de las legacy, para que las dos
+                  situaciones se lean como parte del mismo sistema. */}
+              <Text style={styles.emptyLabel}>{t('imageMissingBadge')}</Text>
 
               {/* Card sin imagen: invitacion discreta a aportar una. Es el mismo
                   estado tanto si nunca tuvo como si se retiro -- para quien mira,
@@ -287,8 +295,28 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'center',
   },
-  emoji: {
-    fontSize: 32,
+  placeholderDim: {
+    // Las no adquiridas siguen apagandose respecto de las que si tienes, pero
+    // lo justo para que el color del miembro se siga distinguiendo.
+    opacity: 0.55,
+  },
+  emptyInitial: {
+    fontSize: 28,
+    fontWeight: '900',
+    color: 'rgba(255,255,255,0.92)',
+    textShadowColor: 'rgba(0,0,0,0.5)',
+    textShadowRadius: 4,
+  },
+  emptyLabel: {
+    marginTop: 1,
+    fontSize: 8,
+    fontWeight: '800',
+    color: 'rgba(255,255,255,0.8)',
+    letterSpacing: 0.4,
+    lineHeight: 10,
+    textAlign: 'center',
+    textShadowColor: 'rgba(0,0,0,0.6)',
+    textShadowRadius: 3,
   },
   rarityBadge: {
     position: 'absolute',

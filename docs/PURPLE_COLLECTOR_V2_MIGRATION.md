@@ -664,8 +664,18 @@ la acción posible es la misma —no hay foto, puedes aportar una— y así no s
 airea públicamente que hubo un reclamo de derechos, que invitaría a especular
 sobre qué había. Además deja un solo estado que mantener.
 
-**El placeholder mantiene la inicial del miembro y suma una pastilla discreta
-"+ Aportar"** abajo a la izquierda, opuesta al icono de estado. Se eligió sobre
+**El placeholder usa el color del miembro, su inicial y una marca "Sin imagen",
+más una pastilla discreta "+ Aportar"** abajo a la izquierda, opuesta al icono de
+estado.
+
+El degradado del miembro va **siempre**, no sólo en las adquiridas. En la primera
+versión sólo se aplicaba si tenías la card, así que una card vacía que *querías*
+quedaba en un plano casi negro con la inicial al 40%: se leía como hueco roto, no
+como "esta card existe y le falta la foto". El color del miembro es lo que deja
+identificarla de un vistazo —Jin azul, Jimin morado— y la marca "Sin imagen" usa
+el mismo lenguaje que la de las legacy, para que las dos situaciones se lean como
+parte del mismo sistema. Las no adquiridas se siguen apagando, pero lo justo para
+que el color se distinga. Se eligió sobre
 alternativas más llamativas (invitación a página completa, marco punteado) porque
 la grilla es de 3 columnas con cards de ~110px: cualquier cosa más grande la
 rompe, y con muchas cards sin imagen se vuelve ruido. La pastilla no es un botón
