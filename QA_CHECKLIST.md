@@ -18,8 +18,7 @@ Bloque nuevo. Nada de esto existe en la Android v1 publicada.
 
 - [ ] `CONTRIBUTIONS_ENABLED = true` — el botón de aportar está visible
 - [ ] `LEGACY_TREATMENT_ENABLED = true` — las legacy salen borrosas y marcadas
-- [ ] `CARD_SUBMISSIONS_ENABLED` — propuestas de cards nuevas (apagada hasta
-      probar la bandeja)
+- [ ] `CARD_SUBMISSIONS_ENABLED = true` — se puede proponer una card que falta
 - [ ] `PREMIUM_ENABLED = false` y `BIAS_ENABLED = false` (sin cambios)
 
 ### Tratamiento visual de las legacy
@@ -50,8 +49,8 @@ Bloque nuevo. Nada de esto existe en la Android v1 publicada.
 
 ### Aportar una card que NO está en el catálogo
 
-> Requiere `CARD_SUBMISSIONS_ENABLED = true` y la migration
-> `create_card_submissions` aplicada.
+> No requiere build nativo nuevo: usa los mismos módulos que el aporte de
+> imagen, que ya están en el binario.
 
 - [ ] Perfil → **Aportar una card que falta** → abre el formulario
 - [ ] Al pie de un álbum → misma entrada → llega con **tipo, era y álbum ya

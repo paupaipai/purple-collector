@@ -61,12 +61,19 @@ export const CONTRIBUTIONS_ENABLED = true;
 // false = no aparece ninguna entrada para proponer cards nuevas.
 // true  = el usuario puede proponerlas desde el perfil y desde el album.
 //
-// Viene apagada: encenderla antes de que la bandeja de moderacion este probada
-// solo acumularia propuestas que nadie puede aprobar, que es exactamente el
-// error que ya se cometio con CONTRIBUTIONS_ENABLED. Aprobar una propuesta CREA
-// una card en el catalogo, asi que el coste de equivocarse es mayor que con una
-// imagen: conviene mirar la bandeja con datos reales antes.
-export const CARD_SUBMISSIONS_ENABLED = false;
+// ENCENDIDA el 2026-09-30, una vez aplicada la migration create_card_submissions
+// y desplegada moderate-card-submission: el circuito esta cerrado, aprobar crea
+// la card y publica la imagen. Antes de eso habilitarla solo habria acumulado
+// propuestas que nadie podia aprobar, el error que ya se cometio con
+// CONTRIBUTIONS_ENABLED.
+//
+// OJO: aprobar CREA una card visible para todo el mundo. Es lo que mas cuesta
+// deshacer de todo V2 -- mas que una imagen, que se puede retirar dejando la
+// card en pie -- asi que la bandeja pide confirmacion antes de aprobar.
+//
+// No hace falta un build nativo nuevo: usa los mismos modulos que el aporte de
+// imagen (expo-image-picker y expo-image-manipulator), que ya estan en el build.
+export const CARD_SUBMISSIONS_ENABLED = true;
 
 export const COMMUNITY_BUCKET = 'photocard-community';
 export const COMMUNITY_REVIEW_BUCKET = 'photocard-community-review';
