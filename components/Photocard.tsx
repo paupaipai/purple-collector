@@ -6,6 +6,7 @@ import { LinearGradient } from 'expo-linear-gradient';
 import {
   COLORS, MEMBER_MAP, RARITIES, STATUS_CONFIG,
   LEGACY_TREATMENT_ENABLED, LEGACY_BLUR_RADIUS, LEGACY_VEIL_COLOR,
+  CONTRIBUTIONS_ENABLED,
 } from '../lib/constants';
 import { CardWithStatus } from '../lib/types';
 import { getCardImageUrl } from '../lib/supabase';
@@ -22,9 +23,13 @@ interface PhotocardProps {
   card: CardWithStatus;
   onPress: () => void;
   onLongPress?: () => void;
+  /** Si esta persona ya tiene un aporte sin resolver para esta card. */
+  contributionPending?: boolean;
 }
 
-export default function Photocard({ card, onPress, onLongPress }: PhotocardProps) {
+export default function Photocard({
+  card, onPress, onLongPress, contributionPending,
+}: PhotocardProps) {
   const member = MEMBER_MAP[card.member];
   const rarity = RARITIES[card.rarity];
   const isOwned = card.status === 'have';
@@ -89,6 +94,21 @@ export default function Photocard({ card, onPress, onLongPress }: PhotocardProps
               <Text style={[styles.emoji, !isOwned && { opacity: 0.4 }]}>
                 {card.member?.charAt(0) || '?'}
               </Text>
+
+              {/* Card sin imagen: invitacion discreta a aportar una. Es el mismo
+                  estado tanto si nunca tuvo como si se retiro -- para quien mira,
+                  la accion posible es la misma, y no hace falta airear que hubo
+                  un reclamo de derechos.
+
+                  Va abajo a la IZQUIERDA porque el icono de estado ocupa la
+                  derecha. Solo abre el modal, que es donde vive el flujo: la
+                  pastilla es una pista, no un boton aparte. */}
+              {CONTRIBUTIONS_ENABLED && !contributionPending && (
+                <View style={styles.addHint} pointerEvents="none">
+                  <Ionicons name="add" size={10} color={COLORS.purple3} />
+                  <Text style={styles.addHintText}>{t('contributeShort')}</Text>
+                </View>
+              )}
             </View>
           )}
 
@@ -190,6 +210,26 @@ const styles = StyleSheet.create({
   legacyVeil: {
     ...StyleSheet.absoluteFillObject,
     backgroundColor: LEGACY_VEIL_COLOR,
+  },
+  addHint: {
+    position: 'absolute',
+    bottom: 6,
+    left: 6,
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 1,
+    paddingHorizontal: 4,
+    paddingVertical: 2,
+    borderRadius: 5,
+    borderWidth: 1,
+    borderColor: 'rgba(168,85,247,0.35)',
+    backgroundColor: 'rgba(168,85,247,0.14)',
+  },
+  addHintText: {
+    fontSize: 8,
+    fontWeight: '800',
+    color: COLORS.purple3,
+    letterSpacing: 0.2,
   },
   legacyOverlay: {
     ...StyleSheet.absoluteFillObject,

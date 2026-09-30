@@ -583,6 +583,26 @@ El detalle de la card difumina igual, por coherencia.
 (`@usuaria`) sobre las imágenes comunitarias. Sigue bloqueada por la falta de un
 handle público — ver los pendientes.
 
+#### El estado "sin imagen" (decidido 2026-09-30)
+
+Tras un takedown la card queda sin imagen. Dos decisiones de producto:
+
+**Una card retirada se ve igual que una que nunca tuvo imagen.** Para quien mira,
+la acción posible es la misma —no hay foto, puedes aportar una— y así no se
+airea públicamente que hubo un reclamo de derechos, que invitaría a especular
+sobre qué había. Además deja un solo estado que mantener.
+
+**El placeholder mantiene la inicial del miembro y suma una pastilla discreta
+"+ Aportar"** abajo a la izquierda, opuesta al icono de estado. Se eligió sobre
+alternativas más llamativas (invitación a página completa, marco punteado) porque
+la grilla es de 3 columnas con cards de ~110px: cualquier cosa más grande la
+rompe, y con muchas cards sin imagen se vuelve ruido. La pastilla no es un botón
+aparte —tocar la card abre el modal, que es donde vive el flujo— sino una pista
+de que se puede.
+
+Se oculta si esa persona ya tiene un aporte pendiente para esa card, y si
+`CONTRIBUTIONS_ENABLED` está apagada, para no ofrecer un callejón sin salida.
+
 **Lo que FASE F no incluye:** la attribution nominal ("Aportada por @usuario",
 tarea 32 del roadmap) está **bloqueada**: `user_profiles` no tiene columna
 `username` y `display_name` es nullable y no único. La vista ya expone

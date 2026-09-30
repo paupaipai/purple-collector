@@ -436,6 +436,7 @@ export default function AlbumDetailScreen() {
                 <View style={styles.pcGrid}>
                   {catCards.map(card => (
                     <Photocard
+                      contributionPending={pendingContrib.has(card.id)}
                       key={card.id}
                       card={card}
                       onPress={() => setSelectedCard(card)}

@@ -53,6 +53,8 @@ const en = {
 
   // Contributions (FASE D)
   contribute: 'Contribute an image',
+  // Cabe en la pastilla de la grilla: 3 columnas, cards de ~110px.
+  contributeShort: 'Add',
   contributeTitle: 'Contribute an image',
   contributeRights: 'Confirm that this photo is yours or that you may share it, and that you accept the contribution rules. It will be reviewed before appearing in the catalog.',
   contributeConfirm: 'Choose a photo',
@@ -287,6 +289,8 @@ const es: Translations = {
 
   // Aportes (FASE D)
   contribute: 'Aportar imagen',
+  // Cabe en la pastilla de la grilla: 3 columnas, cards de ~110px.
+  contributeShort: 'Aportar',
   contributeTitle: 'Aportar imagen',
   contributeRights: 'Confirma que esta foto es tuya o que puedes compartirla, y que aceptas las reglas de contribución. Se revisará antes de aparecer en el catálogo.',
   contributeConfirm: 'Elegir foto',
