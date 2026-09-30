@@ -573,8 +573,29 @@ Dos cosas más que cambiaron al normalizar, y que si no habrían sido bugs:
 Si el normalizado falla se sube el original: mejor un aporte con mal encuadre
 —que el moderador puede rechazar— que perderlo entero.
 
-**Pendiente:** un cropper propio en la app, para que iOS y web también dejen
-elegir el encuadre en vez de recortar al centro a ciegas.
+#### El cropper propio (2026-09-30)
+
+El recorte al centro resolvía la proporción pero no dejaba elegir **qué parte**
+de la foto entra. `components/ImageCropper.tsx` lo sustituye: marco 2:3 fijo, la
+imagen se arrastra y se pellizca por detrás, y al confirmar se traduce el marco a
+píxeles de la imagen original.
+
+**Se usa `PanResponder`, de React Native, y no `react-native-gesture-handler`:**
+no está instalado, es nativo —implicaría otro rebuild— y para mover y escalar una
+imagen el gesto no necesita correr fuera del hilo de JS. De paso funciona igual
+en las tres plataformas.
+
+`allowsEditing` del picker se desactiva **en todas**, no sólo en iOS: el cropper
+propio da el mismo resultado en las tres, que es justo lo que el nativo no hacía.
+
+Invariantes: la escala mínima hace que la imagen **cubra** el marco siempre (no
+hay huecos), el desplazamiento se acota para que no se despegue, y el rectángulo
+final se recorta a los límites reales de la imagen porque el redondeo puede
+sacarlo un píxel fuera.
+
+**La matemática está verificada** con ocho casos —cuadrada, apaisada, vertical,
+ya-2:3, arrastrada en cada eje, zoom 1 y zoom 5—: todos dan 2:3 dentro del
+redondeo y todos caen dentro de la imagen.
 
 **Lo que FASE D no incluye:** cámara (tarea 27), pantalla dedicada de aporte
 (vive en el modal), attribution nominal (falta decidir el handle) y toda la

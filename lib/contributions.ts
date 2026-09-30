@@ -1,7 +1,6 @@
 import * as Crypto from 'expo-crypto';
 import { ImageManipulator, SaveFormat } from 'expo-image-manipulator';
 import * as ImagePicker from 'expo-image-picker';
-import { Platform } from 'react-native';
 
 import {
   CONTRIBUTION_MAX_BYTES,
@@ -51,18 +50,24 @@ const PHOTOCARD_ASPECT = 2 / 3;
 /** Techo de ancho. Las legacy del catalogo rondan los 160px, asi que sobra. */
 const MAX_WIDTH = 1000;
 
+/** Rectangulo de recorte en pixeles de la imagen original. */
+export interface CropRect {
+  originX: number;
+  originY: number;
+  width: number;
+  height: number;
+}
+
 /**
  * Deja la imagen en 2:3 exacto y a un tamano razonable.
  *
- * Hace falta porque `allowsEditing` del picker NO es consistente entre
- * plataformas: la opcion `aspect` solo la respeta Android; iOS ignora el aspect
- * y fuerza un recorte CUADRADO; y en web no hay recorte en absoluto. Confiar en
- * ella producia catalogos distintos segun el dispositivo -- el primer aporte de
- * prueba entro en 158x162, casi cuadrado.
+ * El encuadre lo elige la persona en ImageCropper y llega aqui como `crop`. Si
+ * no llega --por ejemplo si algo fallo antes-- se cae al mayor rectangulo 2:3
+ * CENTRADO, que al menos garantiza la proporcion.
  *
- * Asi que el encuadre se decide en codigo: se toma el mayor rectangulo 2:3
- * CENTRADO que quepa en la imagen. En Android el usuario ya recorto a 2:3, asi
- * que esto no le quita nada; en iOS y web corrige lo que el picker no hizo.
+ * El encuadre NO puede delegarse en `allowsEditing` del picker: `aspect` solo lo
+ * respeta Android, iOS lo ignora y fuerza un recorte cuadrado, y web no recorta.
+ * El primer aporte de prueba entro en 158x162 por eso.
  *
  * El formato se conserva: un PNG sigue siendo PNG. Pasarlo todo a JPEG seria
  * mas liviano, pero aplastaria la transparencia de un recorte con fondo
@@ -71,24 +76,30 @@ const MAX_WIDTH = 1000;
 async function normalizeToPhotocard(
   asset: ImagePicker.ImagePickerAsset,
   mimeType: string,
+  crop?: CropRect,
 ): Promise<{ uri: string; width: number; height: number } | null> {
   const w = asset.width;
   const h = asset.height;
   if (!w || !h) return null;
 
-  let cropW = w;
-  let cropH = Math.round(w / PHOTOCARD_ASPECT);
-  if (cropH > h) {
-    cropH = h;
-    cropW = Math.round(h * PHOTOCARD_ASPECT);
+  let rect = crop;
+  if (!rect) {
+    let cropW = w;
+    let cropH = Math.round(w / PHOTOCARD_ASPECT);
+    if (cropH > h) {
+      cropH = h;
+      cropW = Math.round(h * PHOTOCARD_ASPECT);
+    }
+    rect = {
+      originX: Math.round((w - cropW) / 2),
+      originY: Math.round((h - cropH) / 2),
+      width: cropW,
+      height: cropH,
+    };
   }
 
-  const context = ImageManipulator.manipulate(asset.uri).crop({
-    originX: Math.round((w - cropW) / 2),
-    originY: Math.round((h - cropH) / 2),
-    width: cropW,
-    height: cropH,
-  });
+  const cropW = rect.width;
+  const context = ImageManipulator.manipulate(asset.uri).crop(rect);
 
   if (cropW > MAX_WIDTH) context.resize({ width: MAX_WIDTH });
 
@@ -119,11 +130,9 @@ export async function pickContributionImage(): Promise<
 
     result = await ImagePicker.launchImageLibraryAsync({
       mediaTypes: ['images'],
-      // Solo Android respeta `aspect`, asi que el cropper nativo solo se ofrece
-      // ahi. En iOS forzaria un recorte cuadrado y en web no hace nada; en esas
-      // dos el encuadre lo resuelve normalizeToPhotocard().
-      allowsEditing: Platform.OS === 'android',
-      aspect: [2, 3],
+      // Sin el cropper nativo: se comporta distinto en cada plataforma. El
+      // encuadre lo elige la persona en ImageCropper, que es igual en las tres.
+      allowsEditing: false,
       quality: 0.9,
       exif: false,
     });
@@ -155,8 +164,10 @@ export async function submitContribution(params: {
   cardId: number;
   userId: string | null;
   asset: ImagePicker.ImagePickerAsset;
+  /** Encuadre elegido en ImageCropper. Sin el se recorta al centro. */
+  crop?: CropRect;
 }): Promise<ContributionResult> {
-  const { cardId, userId, asset } = params;
+  const { cardId, userId, asset, crop } = params;
   if (!userId) return { ok: false, reason: 'no_session' };
 
   const sourceMime = asset.mimeType ?? 'image/jpeg';
@@ -165,7 +176,7 @@ export async function submitContribution(params: {
   // encuadre --que el moderador puede rechazar-- que perderlo entero.
   let normalized: { uri: string; width: number; height: number } | null = null;
   try {
-    normalized = await normalizeToPhotocard(asset, sourceMime);
+    normalized = await normalizeToPhotocard(asset, sourceMime, crop);
   } catch (err) {
     console.error('[contributions] no se pudo normalizar el encuadre:', err);
   }

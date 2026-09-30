@@ -22,10 +22,12 @@ import GalaxyBackground from '../../components/GalaxyBackground';
 import NeonBar from '../../components/NeonBar';
 import Photocard from '../../components/Photocard';
 import CardStatusModal from '../../components/CardStatusModal';
+import ImageCropper, { CropRect } from '../../components/ImageCropper';
 import StatusHelpModal from '../../components/StatusHelpModal';
 import { useAuth } from '../../hooks/useAuth';
 import { useAlbumCards } from '../../hooks/useCards';
 import { COLORS, MEMBERS, STATUS_LABEL_KEY, CONTRIBUTIONS_ENABLED } from '../../lib/constants';
+import type { ImagePickerAsset } from 'expo-image-picker';
 import {
   ContributionFailure, fetchMyPendingContributions, pickContributionImage, submitContribution,
 } from '../../lib/contributions';
@@ -54,6 +56,9 @@ export default function AlbumDetailScreen() {
   const [pendingContrib, setPendingContrib] = useState<Set<number>>(new Set());
   // card_images.id que esta persona ya reporto, para no ofrecerlo dos veces.
   const [reported, setReported] = useState<Set<number>>(new Set());
+  // Foto elegida esperando encuadre. Guarda tambien la card, porque el modal de
+  // la card se cierra al abrir el cropper.
+  const [cropping, setCropping] = useState<{ asset: ImagePickerAsset; cardId: number } | null>(null);
 
   // Track completion to trigger celebration
   const prevOwnedRef = useRef<number | null>(null);
@@ -124,6 +129,20 @@ export default function AlbumDetailScreen() {
     ]);
   };
 
+  const finishContribution = async (crop: CropRect) => {
+    if (!cropping) return;
+    const { asset, cardId } = cropping;
+    setCropping(null);
+
+    const sent = await submitContribution({ cardId, userId, asset, crop });
+    if (!sent.ok) {
+      Alert.alert(t('contributeTitle'), contributionError(sent.reason));
+      return;
+    }
+    setPendingContrib(prev => new Set(prev).add(cardId));
+    Alert.alert(t('contributeSent'), t('contributeSentDesc'));
+  };
+
   const contributionError = (reason: ContributionFailure) => {
     if (reason === 'unavailable') return t('contributeErrUnavailable');
     if (reason === 'permission') return t('contributeErrPermission');
@@ -150,14 +169,10 @@ export default function AlbumDetailScreen() {
             }
             return;
           }
-          const sent = await submitContribution({ cardId: card.id, userId, asset: picked.asset });
-          if (!sent.ok) {
-            Alert.alert(t('contributeTitle'), contributionError(sent.reason));
-            return;
-          }
-          setPendingContrib(prev => new Set(prev).add(card.id));
+          // El envio no ocurre aca: primero se encuadra. Lo continua
+          // finishContribution().
           setSelectedCard(null);
-          Alert.alert(t('contributeSent'), t('contributeSentDesc'));
+          setCropping({ asset: picked.asset, cardId: card.id });
         },
       },
     ]);
@@ -489,6 +504,15 @@ export default function AlbumDetailScreen() {
         reportSent={
           selectedCard?.primary_image_id != null && reported.has(selectedCard.primary_image_id)
         }
+      />
+
+      <ImageCropper
+        visible={!!cropping}
+        uri={cropping?.asset.uri ?? null}
+        imageWidth={cropping?.asset.width ?? 0}
+        imageHeight={cropping?.asset.height ?? 0}
+        onCancel={() => setCropping(null)}
+        onConfirm={finishContribution}
       />
 
       <StatusHelpModal visible={showHelp} onClose={() => setShowHelp(false)} />
