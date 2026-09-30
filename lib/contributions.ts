@@ -27,6 +27,7 @@ import { supabase } from './supabase';
 export type ContributionFailure =
   | 'cancelled'      // el usuario cerro el selector
   | 'unavailable'    // el modulo nativo no esta en este build
+  | 'read_failed'    // se eligio una foto pero no se pudo leer
   | 'permission'     // no dio permiso de galeria
   | 'too_large'      // supera CONTRIBUTION_MAX_BYTES
   | 'bad_type'       // mime fuera de la whitelist
@@ -123,11 +124,21 @@ export async function pickContributionImage(): Promise<
   // expo-image-picker es un modulo nativo: en un dev client o un build anterior
   // a su instalacion no existe, y llamarlo lanza. Sin este guard, tocar
   // "Aportar imagen" reventaria la pantalla en vez de dar un aviso.
-  let result: ImagePicker.ImagePickerResult;
+  //
+  // Pedir el permiso sirve ademas para SABER si el modulo esta: si esta llamada
+  // pasa, el modulo existe, y cualquier fallo posterior es de la foto elegida,
+  // no del build. Sin esa distincion todo error acababa diciendo "actualiza la
+  // app", que manda a la persona a hacer algo que no arregla nada.
   try {
     const permission = await ImagePicker.requestMediaLibraryPermissionsAsync();
     if (!permission.granted) return { ok: false, reason: 'permission' };
+  } catch (err) {
+    console.error('[contributions] image picker unavailable:', err);
+    return { ok: false, reason: 'unavailable' };
+  }
 
+  let result: ImagePicker.ImagePickerResult;
+  try {
     result = await ImagePicker.launchImageLibraryAsync({
       mediaTypes: ['images'],
       // Sin el cropper nativo: se comporta distinto en cada plataforma. El
@@ -135,10 +146,19 @@ export async function pickContributionImage(): Promise<
       allowsEditing: false,
       quality: 0.9,
       exif: false,
+      // "Cannot load representation of type public.jpeg": con el modo por
+      // defecto, PHPicker intenta entregar la representacion ACTUAL del asset y
+      // falla si no puede producir un jpeg a partir de ella. `compatible` le
+      // pide la representacion mas compatible, transcodificando si hace falta.
+      // Es el caso de las HEIC y de las fotos optimizadas en iCloud.
+      preferredAssetRepresentationMode:
+        ImagePicker.UIImagePickerPreferredAssetRepresentationMode.Compatible,
     });
   } catch (err) {
-    console.error('[contributions] image picker unavailable:', err);
-    return { ok: false, reason: 'unavailable' };
+    // Aca el modulo ya demostro que existe, asi que esto es la foto: puede ser
+    // un asset que iOS no logra materializar, o uno que ya no esta.
+    console.error('[contributions] no se pudo leer la foto elegida:', err);
+    return { ok: false, reason: 'read_failed' };
   }
 
   if (result.canceled || !result.assets || result.assets.length === 0) {
