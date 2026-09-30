@@ -146,6 +146,8 @@ export interface CardFull {
   primary_image_contributed_by: string | null;
   /** `card_images.id` de la imagen resuelta. Necesario para reportarla. */
   primary_image_id: number | null;
+  /** Handle publico de quien la aporto. Null en las legacy. */
+  primary_image_handle: string | null;
 }
 
 export interface CardWithStatus extends CardFull {

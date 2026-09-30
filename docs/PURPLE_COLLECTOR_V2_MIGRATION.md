@@ -431,6 +431,59 @@ irreversible.
 
 ---
 
+### 2.12 Attribution: el handle público (2026-09-30)
+
+Tarea 32 del roadmap. Lo que faltaba era decidir **qué** se publica.
+
+**Se descartó `display_name`.** Lo puebla el trigger `handle_new_user` desde el
+proveedor OAuth, así que suele ser el **nombre real** de la persona. Publicar
+"Aportada por María González" en el catálogo es un problema de privacidad, no
+sólo de duplicados. Va una columna `username` propia: minúsculas, números y `_`,
+3–20 caracteres, única, y con una lista de reservados (`admin`, `soporte`,
+`purple`…) para que nadie se haga pasar por la app.
+
+#### Por qué el handle se desnormaliza en `card_images`
+
+**SR-2 cerró la lectura de `user_profiles`**: cada quien sólo ve su propia fila.
+Y la RLS de Postgres filtra **filas, no columnas**, así que no hay forma de decir
+"de mi fila todo, de las demás sólo el handle" con una sola tabla:
+
+| Intento | Por qué no |
+|---|---|
+| Policy permisiva `using (username is not null)` | dejaría ver la fila **entera** de quien tenga handle — `display_name`, `is_admin`… |
+| Grants por columna | el grant de tabla que ya tiene `authenticated` los hace redundantes |
+| Vista `SECURITY DEFINER` | reabre el **ERROR del advisor que cerró SR-1**, y mete un join de `user_profiles` en el camino caliente de `cards_full` |
+
+Así que `card_images` guarda una copia (`contributor_handle`) y **dos triggers**
+la mantienen: uno la rellena al crear la aportación, y otro la propaga a todas
+las aportaciones de esa persona si cambia su handle. La vista lo lee sin tocar
+`user_profiles`, sin definer y sin join extra.
+
+Los dos triggers son `SECURITY DEFINER` con `search_path = ''` (lección de SR-5)
+porque leen y escriben filas fuera del alcance del llamante, y se les revoca
+`EXECUTE` **de `PUBLIC`** (lección de SR-9).
+
+**El cliente no escribe el handle en `card_images`**: lo pone el trigger. Nadie
+puede atribuirse un handle que no es suyo, ni con un cliente modificado.
+
+**Verificado**, con rollback forzado:
+
+| Prueba | Resultado |
+|---|---|
+| mayúsculas, menos de 3 caracteres, handle reservado | bloqueados |
+| poner un handle válido | propaga a las 2 aportaciones ya hechas |
+| `cards_full` lo expone | sí |
+| cambiar el handle | la vista muestra el nuevo |
+| otra persona toma el mismo | bloqueado |
+| una legacy | handle `null` |
+
+En la app: la pastilla `@handle` va abajo a la izquierda de la card, sólo en las
+`community` y sólo si quien aportó tiene handle. Y el perfil gana una fila
+*Handle* con un modal para definirlo; `username` se suma a las columnas que SR-8
+deja actualizar.
+
+---
+
 ### 3.0 FASE D — flujo de aporte (2026-09-29)
 
 Lado **envío** del catálogo comunitario. La aprobación es FASE G.
@@ -579,9 +632,7 @@ duplicados, estado).
 
 El detalle de la card difumina igual, por coherencia.
 
-**Lo que el mockup de referencia incluye y esto no:** la pastilla de attribution
-(`@usuaria`) sobre las imágenes comunitarias. Sigue bloqueada por la falta de un
-handle público — ver los pendientes.
+**La pastilla de attribution** (`@usuaria`) del mockup ya está — ver §2.12.
 
 #### El estado "sin imagen" (decidido 2026-09-30)
 
@@ -1265,9 +1316,8 @@ leería historial divergente e intentaría reaplicarlas.
    está en `true`; falta un **dev build nuevo** para que el picker nativo exista
    (en web funciona sin rebuild). Es lo único de todo V2 sin verificar, y cierra
    de paso el movimiento de bytes entre buckets.
-2. **Handle público para la attribution** — decisión de producto: ¿columna
-   `username` única elegida por el usuario, o `display_name` con fallback? Hoy
-   `display_name` es nullable y no único. Bloquea la tarea 32 del roadmap.
+2. **Un cropper propio** para iOS y web: hoy el encuadre ahí es al centro y a
+   ciegas (§3.0.1). Y la **cámara** (tarea 27).
 3. **BUG-3** — `cards.is_visible` tiene default `false`. **No lo cambié a
    propósito**: podría ser deliberado (insertar como borrador y publicar
    después), y con 4503/4503 visibles no hay evidencia de un flujo de borrador

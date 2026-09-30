@@ -59,9 +59,58 @@ function StatCard({ value, label, color, icon }: { value: number | string; label
 
 export default function ProfileScreen() {
   const router = useRouter();
+  const HANDLE_RE = /^[a-z0-9_]{3,20}$/;
   const { user, userId, userName, userAvatar, authProvider, signOut, deleteAccount } = useAuth();
   const { isAdmin } = useIsAdmin(userId);
+
+  useEffect(() => {
+    if (!userId) { setHandle(null); return; }
+    let cancelled = false;
+    supabase
+      .from('user_profiles')
+      .select('username')
+      .eq('id', userId)
+      .single()
+      .then(({ data }) => { if (!cancelled) setHandle(data?.username ?? null); });
+    return () => { cancelled = true; };
+  }, [userId]);
+
+  const saveHandle = async () => {
+    const value = handleDraft.trim().toLowerCase();
+    if (!HANDLE_RE.test(value)) {
+      Alert.alert(t('handleTitle'), t('handleInvalid'));
+      return;
+    }
+    setHandleSaving(true);
+    const { error } = await supabase
+      .from('user_profiles')
+      .update({ username: value })
+      .eq('id', userId!);
+    setHandleSaving(false);
+
+    if (error) {
+      // El formato ya se valido arriba, asi que un check_violation aca solo
+      // puede venir de la lista de handles reservados.
+      const code = (error as any).code;
+      Alert.alert(
+        t('handleTitle'),
+        code === '23505' ? t('handleTaken')
+          : code === '23514' ? t('handleReserved')
+          : t('handleFailed'),
+      );
+      return;
+    }
+    setHandle(value);
+    setHandleModal(false);
+    Alert.alert(t('handleTitle'), t('handleSaved'));
+  };
   const [deleteModal, setDeleteModal] = useState(false);
+  // Handle publico para la attribution. Se lee de la propia fila, que es lo
+  // unico que la RLS permite desde SR-2.
+  const [handle, setHandle] = useState<string | null>(null);
+  const [handleModal, setHandleModal] = useState(false);
+  const [handleDraft, setHandleDraft] = useState('');
+  const [handleSaving, setHandleSaving] = useState(false);
   const [confirmText, setConfirmText] = useState('');
   const [deleting, setDeleting] = useState(false);
   const [showBiasEdit, setShowBiasEdit] = useState(false);
@@ -330,6 +379,20 @@ export default function ProfileScreen() {
             <Text style={styles.infoValue} numberOfLines={1}>{user?.email || '—'}</Text>
           </View>
           <View style={styles.rowSep} />
+          <TouchableOpacity
+            style={styles.infoRow}
+            activeOpacity={0.7}
+            onPress={() => { setHandleDraft(handle ?? ''); setHandleModal(true); }}
+          >
+            <Text style={styles.infoLabel}>{t('handleLabel')}</Text>
+            <View style={styles.handleValue}>
+              <Text style={styles.infoValue} numberOfLines={1}>
+                {handle ? `@${handle}` : t('handleNone')}
+              </Text>
+              <Ionicons name="pencil" size={12} color={COLORS.purple3} />
+            </View>
+          </TouchableOpacity>
+          <View style={styles.rowSep} />
           <View style={styles.infoRow}>
             <Text style={styles.infoLabel}>{t('labelProvider')}</Text>
             <View style={styles.providerBadge}>
@@ -423,6 +486,55 @@ export default function ProfileScreen() {
             }}
           />
         </View>
+      </Modal>
+
+      {/* Handle publico */}
+      <Modal visible={handleModal} transparent animationType="fade" onRequestClose={() => setHandleModal(false)}>
+        <TouchableOpacity
+          style={styles.handleBackdrop}
+          activeOpacity={1}
+          onPress={() => setHandleModal(false)}
+        >
+          <TouchableOpacity activeOpacity={1} style={styles.handleSheet}>
+            <Text style={styles.handleSheetTitle}>{t('handleTitle')}</Text>
+            <Text style={styles.handleSheetDesc}>{t('handleDesc')}</Text>
+
+            <View style={styles.handleInputRow}>
+              <Text style={styles.handleAt}>@</Text>
+              <TextInput
+                value={handleDraft}
+                onChangeText={text => setHandleDraft(text.toLowerCase())}
+                placeholder="paupau"
+                placeholderTextColor={COLORS.textMuted}
+                autoCapitalize="none"
+                autoCorrect={false}
+                maxLength={20}
+                style={styles.handleInput}
+              />
+            </View>
+            <Text style={styles.handleHint}>{t('handleRules')}</Text>
+
+            <View style={styles.handleActions}>
+              <TouchableOpacity
+                style={styles.handleCancel}
+                activeOpacity={0.7}
+                onPress={() => setHandleModal(false)}
+              >
+                <Text style={styles.handleCancelText}>{t('cancel')}</Text>
+              </TouchableOpacity>
+              <TouchableOpacity
+                style={[styles.handleSave, !HANDLE_RE.test(handleDraft) && styles.handleSaveOff]}
+                activeOpacity={0.7}
+                disabled={handleSaving || !HANDLE_RE.test(handleDraft)}
+                onPress={saveHandle}
+              >
+                {handleSaving
+                  ? <ActivityIndicator size="small" color="#fff" />
+                  : <Text style={styles.handleSaveText}>{t('saveChanges')}</Text>}
+              </TouchableOpacity>
+            </View>
+          </TouchableOpacity>
+        </TouchableOpacity>
       </Modal>
 
       {/* Delete account modal */}
@@ -540,6 +652,38 @@ const styles = StyleSheet.create({
   memberRowCount: { fontSize: 13, fontWeight: '900' },
 
   infoRow: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', paddingVertical: 6 },
+  handleValue: { flexDirection: 'row', alignItems: 'center', gap: 6, maxWidth: '60%' },
+  handleBackdrop: {
+    flex: 1, backgroundColor: 'rgba(0,0,0,0.65)',
+    alignItems: 'center', justifyContent: 'center', padding: 24,
+  },
+  handleSheet: {
+    width: '100%', maxWidth: 380, borderRadius: 18, padding: 20,
+    backgroundColor: COLORS.surface2,
+    borderWidth: 1, borderColor: COLORS.border,
+  },
+  handleSheetTitle: { fontSize: 16, fontWeight: '800', color: COLORS.textPrimary },
+  handleSheetDesc: { fontSize: 12, color: COLORS.textSecondary, marginTop: 6, lineHeight: 17 },
+  handleInputRow: {
+    flexDirection: 'row', alignItems: 'center', gap: 2, marginTop: 16,
+    borderRadius: 12, borderWidth: 1, borderColor: COLORS.borderActive,
+    backgroundColor: 'rgba(0,0,0,0.25)', paddingHorizontal: 12,
+  },
+  handleAt: { fontSize: 15, fontWeight: '800', color: COLORS.textMuted },
+  handleInput: { flex: 1, color: COLORS.textPrimary, fontSize: 15, fontWeight: '700', paddingVertical: 11 },
+  handleHint: { fontSize: 11, color: COLORS.textMuted, marginTop: 7 },
+  handleActions: { flexDirection: 'row', gap: 10, marginTop: 18 },
+  handleCancel: {
+    flex: 1, alignItems: 'center', paddingVertical: 12, borderRadius: 12,
+    borderWidth: 1, borderColor: 'rgba(255,255,255,0.14)',
+  },
+  handleCancelText: { fontSize: 13, fontWeight: '700', color: COLORS.textSecondary },
+  handleSave: {
+    flex: 1, alignItems: 'center', justifyContent: 'center',
+    paddingVertical: 12, borderRadius: 12, backgroundColor: COLORS.purple1,
+  },
+  handleSaveOff: { opacity: 0.4 },
+  handleSaveText: { fontSize: 13, fontWeight: '800', color: '#fff' },
   infoLabel: { color: COLORS.textMuted, fontSize: 13 },
   infoValue: { color: COLORS.textSecondary, fontSize: 13, fontWeight: '600', maxWidth: '60%' },
   rowSep: { height: 1, backgroundColor: 'rgba(255,255,255,0.04)', marginVertical: 4 },

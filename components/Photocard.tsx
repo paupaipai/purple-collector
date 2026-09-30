@@ -143,6 +143,19 @@ export default function Photocard({
             </View>
           )}
 
+          {/* Attribution — sólo en las aportadas por la comunidad, y sólo si
+              quien la aportó tiene handle. Va abajo a la izquierda: la derecha
+              es del icono de estado, y la pastilla de "+ Aportar" nunca coincide
+              con esta porque aquella sólo sale cuando NO hay imagen. */}
+          {card.primary_image_source === 'community' && card.primary_image_handle && (
+            <View style={styles.attribution} pointerEvents="none">
+              <Ionicons name="person-circle" size={11} color={COLORS.purple4} />
+              <Text style={styles.attributionText} numberOfLines={1}>
+                @{card.primary_image_handle}
+              </Text>
+            </View>
+          )}
+
           {/* Status icon — bottom-right corner of image */}
           <View style={styles.statusCorner}>
             {isOwned ? (
@@ -210,6 +223,25 @@ const styles = StyleSheet.create({
   legacyVeil: {
     ...StyleSheet.absoluteFillObject,
     backgroundColor: LEGACY_VEIL_COLOR,
+  },
+  attribution: {
+    position: 'absolute',
+    bottom: 6,
+    left: 6,
+    maxWidth: '72%',
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 2,
+    paddingHorizontal: 4,
+    paddingVertical: 2,
+    borderRadius: 7,
+    backgroundColor: 'rgba(88,28,135,0.82)',
+  },
+  attributionText: {
+    fontSize: 8,
+    fontWeight: '800',
+    color: COLORS.purple4,
+    letterSpacing: 0.2,
   },
   addHint: {
     position: 'absolute',
