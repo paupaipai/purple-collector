@@ -56,6 +56,9 @@ const en = {
   contribute: 'Contribute an image',
   // Cabe en la pastilla de la grilla: 3 columnas, cards de ~110px.
   contributeShort: 'Add',
+  replaceShort: 'Replace',
+  imageRetiredTitle: 'Image removed',
+  imageRetiredSub: 'Available for replacement',
   // Handle publico (attribution)
   handleLabel: 'Handle',
   handleNone: 'Not set',
@@ -307,7 +310,10 @@ const es: Translations = {
   // Aportes (FASE D)
   contribute: 'Aportar imagen',
   // Cabe en la pastilla de la grilla: 3 columnas, cards de ~110px.
-  contributeShort: 'Aportar',
+  contributeShort: 'Agregar',
+  replaceShort: 'Reemplazar',
+  imageRetiredTitle: 'Imagen retirada',
+  imageRetiredSub: 'Disponible para reemplazo',
   // Handle publico (attribution)
   handleLabel: 'Handle',
   handleNone: 'Sin definir',

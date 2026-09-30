@@ -150,7 +150,15 @@ const protectedHandler = withSupabase({ auth: ["user"] }, async (req, ctx) => {
       // le quita is_primary, que es lo que la vista mira.
       const { error: imageError } = await ctx.supabaseAdmin
         .from("card_images")
-        .update({ is_primary: false, reviewed_by: userId, reviewed_at: reviewedAt })
+        .update({
+          is_primary: false,
+          reviewed_by: userId,
+          reviewed_at: reviewedAt,
+          // Marca explícita: la app la usa para mostrar "Imagen retirada" en vez
+          // de "Sin imagen". No se puede deducir de is_primary, porque una
+          // aportación rechazada también lo pierde y eso no es un retiro.
+          taken_down_at: reviewedAt,
+        })
         .eq("id", row.id);
 
       if (imageError) {
@@ -181,6 +189,7 @@ const protectedHandler = withSupabase({ auth: ["user"] }, async (req, ctx) => {
           is_primary: false,
           reviewed_by: userId,
           reviewed_at: reviewedAt,
+          taken_down_at: reviewedAt,
         })
         .eq("id", row.id);
 

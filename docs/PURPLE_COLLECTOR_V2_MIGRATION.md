@@ -659,10 +659,34 @@ El detalle de la card difumina igual, por coherencia.
 
 Tras un takedown la card queda sin imagen. Dos decisiones de producto:
 
-**Una card retirada se ve igual que una que nunca tuvo imagen.** Para quien mira,
-la acción posible es la misma —no hay foto, puedes aportar una— y así no se
-airea públicamente que hubo un reclamo de derechos, que invitaría a especular
-sobre qué había. Además deja un solo estado que mantener.
+**Una card retirada se ve DISTINTA de una que nunca tuvo imagen.**
+
+> Esto **revierte** la decisión inicial, que era mostrarlas iguales para no airear
+> que hubo un reclamo. El diseño de referencia dice *"Imagen retirada · disponible
+> para reemplazo"* **sin mencionar el motivo**, así que esa objeción ya no aplica:
+> no se publica que hubo copyright de por medio, sólo que falta una foto y se
+> puede reemplazar. Y distinguirlas convierte el hueco en una invitación concreta.
+
+| Estado | Fondo | Contenido | Acción |
+|---|---|---|---|
+| **Retirada** | violeta de marca | icono + "Imagen retirada" + "Disponible para reemplazo" | **+ Reemplazar** |
+| **Nunca tuvo** | color del miembro | inicial + "Sin imagen" | **+ Agregar** |
+
+**Hizo falta una marca explícita en la base.** No se puede deducir del estado que
+ya existía:
+
+- `is_primary = false` no sirve: una aportación **rechazada** también lo pierde, y
+  eso no es un retiro. Había una en la base que habría dado falso positivo.
+- `status` tampoco: una legacy retirada sigue en `approved`, porque la constraint
+  `card_images_legacy_is_approved` no deja marcarla de otro modo.
+
+De ahí `card_images.taken_down_at`, que además da la fecha del retiro —antes se
+reusaba `reviewed_at` y se confundía con la revisión de una aportación—. La vista
+lo expone como `image_retired`.
+
+Ninguno de los dos estados vacíos se atenúa por no tener la card: atenuar sirve
+para distinguir lo adquirido entre imágenes reales, y aquí el objetivo es el
+contrario, invitar a actuar.
 
 **El placeholder usa el color del miembro, su inicial y una marca "Sin imagen",
 más una pastilla discreta "+ Aportar"** abajo a la izquierda, opuesta al icono de

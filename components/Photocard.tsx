@@ -35,6 +35,9 @@ export default function Photocard({
   const isOwned = card.status === 'have';
   const imageUrl = getCardImageUrl(card);
   const hasImage = !!imageUrl && !card.is_blurred;
+  // Sin imagen hay dos situaciones distintas, y se muestran distinto: la que
+  // nunca tuvo foto y la que la tuvo y se retiro.
+  const retired = !hasImage && card.image_retired;
 
   // Solo se marca lo que realmente viene del catalogo legacy. Una imagen
   // aportada por la comunidad y aprobada no lleva ninguna marca.
@@ -83,25 +86,40 @@ export default function Photocard({
           ) : (
             <View style={[
               styles.placeholder,
-              { backgroundColor: member?.colors[0] || '#1a1a2e' },
+              { backgroundColor: retired ? '#2a1147' : (member?.colors[0] || '#1a1a2e') },
             ]}>
-              {/* El degradado del miembro va SIEMPRE, no solo en las adquiridas.
-                  Antes una card vacia que no tenias quedaba en un plano casi
-                  negro con la inicial al 40%: se leia como hueco roto, no como
-                  "esta card existe y le falta la foto". El color del miembro es
-                  lo que deja identificarla de un vistazo. */}
+              {/* Ninguno de los dos estados vacios se apaga por no tener la
+                  card: atenuar es para distinguir lo adquirido entre imagenes
+                  reales, y aca el objetivo es el contrario -- invitar a actuar.
+
+                  La retirada usa el violeta de la marca y no el color del
+                  miembro, para que se distinga de un vistazo de la que nunca
+                  tuvo foto. */}
               <LinearGradient
-                colors={member
-                  ? [member.colors[0], member.colors[1] + 'aa', member.colors[2] + '66']
-                  : ['#2a1a4a', '#1a1030']}
-                style={[StyleSheet.absoluteFill, !isOwned && styles.placeholderDim]}
+                colors={retired
+                  ? ['#3b1a63', '#5b2a92', '#7c3fb8']
+                  : (member
+                      ? [member.colors[0], member.colors[1] + 'aa', member.colors[2] + '66']
+                      : ['#2a1a4a', '#1a1030'])}
+                style={StyleSheet.absoluteFill}
               />
-              <Text style={styles.emptyInitial}>
-                {card.member?.charAt(0) || '?'}
-              </Text>
-              {/* Mismo lenguaje que la marca de las legacy, para que las dos
-                  situaciones se lean como parte del mismo sistema. */}
-              <Text style={styles.emptyLabel}>{t('imageMissingBadge')}</Text>
+
+              {retired ? (
+                <>
+                  <Ionicons name="image-outline" size={21} color="rgba(255,255,255,0.88)" />
+                  <Text style={styles.retiredTitle}>{t('imageRetiredTitle')}</Text>
+                  <Text style={styles.retiredSub}>{t('imageRetiredSub')}</Text>
+                </>
+              ) : (
+                <>
+                  <Text style={styles.emptyInitial}>
+                    {card.member?.charAt(0) || '?'}
+                  </Text>
+                  {/* Mismo lenguaje que la marca de las legacy, para que las
+                      tres situaciones se lean como un solo sistema. */}
+                  <Text style={styles.emptyLabel}>{t('imageMissingBadge')}</Text>
+                </>
+              )}
 
               {/* Card sin imagen: invitacion discreta a aportar una. Es el mismo
                   estado tanto si nunca tuvo como si se retiro -- para quien mira,
@@ -113,8 +131,10 @@ export default function Photocard({
                   pastilla es una pista, no un boton aparte. */}
               {CONTRIBUTIONS_ENABLED && !contributionPending && (
                 <View style={styles.addHint} pointerEvents="none">
-                  <Ionicons name="add" size={10} color={COLORS.purple3} />
-                  <Text style={styles.addHintText}>{t('contributeShort')}</Text>
+                  <Ionicons name="add" size={11} color="#fff" />
+                  <Text style={styles.addHintText}>
+                    {t(retired ? 'replaceShort' : 'contributeShort')}
+                  </Text>
                 </View>
               )}
             </View>
@@ -253,22 +273,22 @@ const styles = StyleSheet.create({
   },
   addHint: {
     position: 'absolute',
-    bottom: 6,
-    left: 6,
+    bottom: 7,
+    left: 7,
     flexDirection: 'row',
     alignItems: 'center',
-    gap: 1,
-    paddingHorizontal: 4,
-    paddingVertical: 2,
-    borderRadius: 5,
+    gap: 2,
+    paddingHorizontal: 7,
+    paddingVertical: 4,
+    borderRadius: 11,
     borderWidth: 1,
-    borderColor: 'rgba(168,85,247,0.35)',
-    backgroundColor: 'rgba(168,85,247,0.14)',
+    borderColor: 'rgba(255,255,255,0.45)',
+    backgroundColor: 'rgba(0,0,0,0.22)',
   },
   addHintText: {
-    fontSize: 8,
+    fontSize: 8.5,
     fontWeight: '800',
-    color: COLORS.purple3,
+    color: '#fff',
     letterSpacing: 0.2,
   },
   legacyOverlay: {
@@ -295,10 +315,22 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'center',
   },
-  placeholderDim: {
-    // Las no adquiridas siguen apagandose respecto de las que si tienes, pero
-    // lo justo para que el color del miembro se siga distinguiendo.
-    opacity: 0.55,
+  retiredTitle: {
+    marginTop: 5,
+    fontSize: 9,
+    fontWeight: '800',
+    color: '#fff',
+    textAlign: 'center',
+    letterSpacing: 0.2,
+  },
+  retiredSub: {
+    marginTop: 2,
+    fontSize: 7.5,
+    fontWeight: '600',
+    color: 'rgba(255,255,255,0.75)',
+    textAlign: 'center',
+    lineHeight: 9.5,
+    paddingHorizontal: 6,
   },
   emptyInitial: {
     fontSize: 28,

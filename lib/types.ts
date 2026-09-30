@@ -148,6 +148,11 @@ export interface CardFull {
   primary_image_id: number | null;
   /** Handle publico de quien la aporto. Null en las legacy. */
   primary_image_handle: string | null;
+  /**
+   * La imagen de esta card fue retirada. Distinto de "nunca tuvo imagen": sale
+   * de card_images.taken_down_at, no de deducirlo del estado.
+   */
+  image_retired: boolean;
 }
 
 export interface CardWithStatus extends CardFull {
