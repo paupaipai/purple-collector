@@ -26,7 +26,7 @@ import ImageCropper, { CropRect } from '../../components/ImageCropper';
 import StatusHelpModal from '../../components/StatusHelpModal';
 import { useAuth } from '../../hooks/useAuth';
 import { useAlbumCards } from '../../hooks/useCards';
-import { COLORS, MEMBERS, STATUS_LABEL_KEY, CONTRIBUTIONS_ENABLED } from '../../lib/constants';
+import { CARD_SUBMISSIONS_ENABLED, COLORS, MEMBERS, STATUS_LABEL_KEY, CONTRIBUTIONS_ENABLED } from '../../lib/constants';
 import type { ImagePickerAsset } from 'expo-image-picker';
 import {
   ContributionFailure, fetchMyPendingContributions, pickContributionImage, submitContribution,
@@ -475,6 +475,20 @@ export default function AlbumDetailScreen() {
             <Text style={styles.emptyText}>{t('noCardsFilter')}</Text>
           </View>
         )}
+
+        {/* Al pie de la grilla y no arriba: quien llega a proponer una card es
+            quien ya recorrio el album y no la encontro. Lleva el albumId para
+            no volver a preguntar donde va. */}
+        {CARD_SUBMISSIONS_ENABLED && !loading && (
+          <TouchableOpacity
+            onPress={() => router.push(`/contribute/new-card?albumId=${id}`)}
+            activeOpacity={0.7}
+            style={styles.missingCardBtn}
+          >
+            <Ionicons name="add-circle-outline" size={16} color={COLORS.purple3} />
+            <Text style={styles.missingCardText}>{t('newCardEntry')}</Text>
+          </TouchableOpacity>
+        )}
       </ScrollView>
 
       <FilterBottomSheet
@@ -635,6 +649,13 @@ const styles = StyleSheet.create({
   catCount: { color: COLORS.textSecondary, fontSize: 11, fontWeight: '600' },
   catBarWrap: { marginBottom: 12 },
   pcGrid: { flexDirection: 'row', flexWrap: 'wrap', gap: 10, justifyContent: 'flex-start' },
+  missingCardBtn: {
+    flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 6,
+    marginTop: 20, marginHorizontal: 12, paddingVertical: 13,
+    borderRadius: 12, borderWidth: 1, borderStyle: 'dashed',
+    borderColor: COLORS.borderActive,
+  },
+  missingCardText: { fontSize: 12, fontWeight: '800', color: COLORS.purple3 },
   emptyWrap: { alignItems: 'center', marginTop: 50, gap: 10, paddingHorizontal: 32 },
   emptyText: { color: COLORS.textMuted, fontSize: 14 },
   emptyTextSub: { color: COLORS.textMuted, fontSize: 12, textAlign: 'center', opacity: 0.7, marginTop: -4 },

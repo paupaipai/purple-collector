@@ -46,6 +46,62 @@ export interface CardImage {
   created_at: string;
 }
 
+/**
+ * Un set de cards dentro de un album: "Weverse preorder", "Japan version
+ * lucky draw"... Es el nivel mas fino de la taxonomia y el que trae retailer,
+ * pais y draw type, asi que al aprobar una propuesta la card los hereda.
+ */
+export interface CardSet {
+  id: number;
+  album_id: number;
+  version_id: number | null;
+  category_id: number | null;
+  name: string;
+  short_name: string;
+  retailer: string | null;
+  round: string | null;
+  country: string | null;
+  draw_type: string | null;
+  sort_order: number;
+  is_active: boolean;
+}
+
+/**
+ * Propuesta de una card que no esta en el catalogo.
+ *
+ * `era_id` y `collection_type_id` NO los manda el cliente: un trigger los
+ * deriva de `album_id`, para que no pueda existir una fila con una era de un
+ * tipo y un album de otro.
+ */
+export interface CardSubmission {
+  id: number;
+  submitted_by: string | null;
+  contributor_handle: string | null;
+  status: ImageStatus;
+  album_id: number;
+  version_id: number | null;
+  category_id: number;
+  card_set_id: number | null;
+  era_id: number | null;
+  collection_type_id: number | null;
+  member: string;
+  card_name: string;
+  notes: string | null;
+  bucket_id: string;
+  storage_path: string;
+  width: number | null;
+  height: number | null;
+  byte_size: number | null;
+  terms_accepted_at: string | null;
+  terms_version: string | null;
+  reviewed_by: string | null;
+  reviewed_at: string | null;
+  rejection_reason: string | null;
+  /** La card que creo al aprobarse. Null mientras no se apruebe. */
+  created_card_id: number | null;
+  created_at: string;
+}
+
 export interface CollectionType {
   id: number;
   name: string;

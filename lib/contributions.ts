@@ -73,7 +73,7 @@ export interface CropRect {
  * mas liviano, pero aplastaria la transparencia de un recorte con fondo
  * transparente.
  */
-async function normalizeToPhotocard(
+export async function normalizeToPhotocard(
   asset: ImagePicker.ImagePickerAsset,
   mimeType: string,
   crop?: CropRect,
@@ -160,16 +160,38 @@ export async function pickContributionImage(): Promise<
  * `terms_version`, asi que no hay forma de registrar un aporte sin dejar
  * constancia de que se aceptaron los terminos.
  */
-export async function submitContribution(params: {
-  cardId: number;
-  userId: string | null;
+/**
+ * Sube una imagen al bucket PRIVADO de revision y devuelve lo que hace falta
+ * para registrarla.
+ *
+ * Esta separado del insert porque hay dos cosas que se aportan --una imagen
+ * para una card existente (`card_images`) y una card nueva entera
+ * (`card_submissions`)-- y la parte de la imagen es exactamente la misma. Lo
+ * unico que cambia es el prefijo de la ruta, que sirve para saber de un vistazo
+ * que hay en el bucket.
+ *
+ * La ruta empieza SIEMPRE por el uid porque la policy de Storage
+ * "community review insert own" deriva la propiedad del primer segmento del
+ * path; los segmentos siguientes son libres.
+ */
+export async function uploadReviewImage(params: {
+  userId: string;
   asset: ImagePicker.ImagePickerAsset;
-  /** Encuadre elegido en ImageCropper. Sin el se recorta al centro. */
   crop?: CropRect;
-}): Promise<ContributionResult> {
-  const { cardId, userId, asset, crop } = params;
-  if (!userId) return { ok: false, reason: 'no_session' };
-
+  /** Segundo segmento de la ruta. 'cards' para una propuesta de card nueva. */
+  folder?: string;
+}): Promise<
+  | {
+      ok: true;
+      storagePath: string;
+      mime: string;
+      width: number | null;
+      height: number | null;
+      byteSize: number;
+    }
+  | { ok: false; reason: ContributionFailure; detail?: string }
+> {
+  const { userId, asset, crop, folder } = params;
   const sourceMime = asset.mimeType ?? 'image/jpeg';
 
   // Si el normalizado falla se sube el original: es mejor un aporte con mal
@@ -196,9 +218,8 @@ export async function submitContribution(params: {
   }
 
   const finalUri = normalized?.uri ?? asset.uri;
-  const finalWidth = normalized?.width ?? asset.width ?? null;
-  const finalHeight = normalized?.height ?? asset.height ?? null;
-  const storagePath = `${userId}/${Crypto.randomUUID()}.${extensionFor(finalMime)}`;
+  const segments = [userId, folder, `${Crypto.randomUUID()}.${extensionFor(finalMime)}`];
+  const storagePath = segments.filter(Boolean).join('/');
 
   // En React Native no hay Blob util para el SDK de storage; el camino fiable
   // es leer el file:// como ArrayBuffer.
@@ -224,21 +245,52 @@ export async function submitContribution(params: {
     return { ok: false, reason: 'upload_failed', detail: uploadError.message };
   }
 
+  return {
+    ok: true,
+    storagePath,
+    mime: finalMime,
+    width: normalized?.width ?? asset.width ?? null,
+    height: normalized?.height ?? asset.height ?? null,
+    byteSize: body.byteLength,
+  };
+}
+
+/**
+ * Sube el asset y registra la aportacion.
+ *
+ * Los terminos no son decorativos: la constraint
+ * card_images_community_has_terms rechaza la fila sin `terms_accepted_at` y
+ * `terms_version`, asi que no hay forma de registrar un aporte sin dejar
+ * constancia de que se aceptaron.
+ */
+export async function submitContribution(params: {
+  cardId: number;
+  userId: string | null;
+  asset: ImagePicker.ImagePickerAsset;
+  /** Encuadre elegido en ImageCropper. Sin el se recorta al centro. */
+  crop?: CropRect;
+}): Promise<ContributionResult> {
+  const { cardId, userId, asset, crop } = params;
+  if (!userId) return { ok: false, reason: 'no_session' };
+
+  const uploaded = await uploadReviewImage({ userId, asset, crop });
+  if (!uploaded.ok) return uploaded;
+
   const { error: insertError } = await supabase.from('card_images').insert({
     card_id: cardId,
     bucket_id: COMMUNITY_REVIEW_BUCKET,
-    storage_path: storagePath,
+    storage_path: uploaded.storagePath,
     source_type: 'community',
     status: 'pending',
     is_primary: false,
     contributed_by: userId,
     terms_accepted_at: new Date().toISOString(),
     terms_version: CONTRIBUTION_TERMS_VERSION,
-    width: finalWidth,
-    height: finalHeight,
+    width: uploaded.width,
+    height: uploaded.height,
     // El tamano del asset original ya no aplica tras recortar y reescalar; el
     // real es el del buffer que se acaba de subir.
-    byte_size: body.byteLength,
+    byte_size: uploaded.byteSize,
   });
 
   if (insertError) {
@@ -246,11 +298,11 @@ export async function submitContribution(params: {
     // en el bucket que nada referencia -- exactamente los 33 que la auditoria
     // encontro en `photocards`. La policy de DELETE del bucket de revision
     // permite al autor borrar lo propio, asi que esta limpieza si es posible.
-    await supabase.storage.from(COMMUNITY_REVIEW_BUCKET).remove([storagePath]);
+    await supabase.storage.from(COMMUNITY_REVIEW_BUCKET).remove([uploaded.storagePath]);
     return { ok: false, reason: 'insert_failed', detail: insertError.message };
   }
 
-  return { ok: true, storagePath };
+  return { ok: true, storagePath: uploaded.storagePath };
 }
 
 /**

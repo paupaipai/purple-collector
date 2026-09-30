@@ -17,7 +17,7 @@ import { useIsAdmin } from '../../hooks/useIsAdmin';
 import { useCollection } from '../../hooks/useCollection';
 import { useWishlist } from '../../hooks/useWishlist';
 import { useBias } from '../../lib/BiasContext';
-import { BIAS_ENABLED, COLORS, getMemberByKey, MEMBERS, PREMIUM_ENABLED, PRIVACY_URL, RARITIES, RARITY_LABEL_KEY } from '../../lib/constants';
+import { BIAS_ENABLED, CARD_SUBMISSIONS_ENABLED, COLORS, getMemberByKey, MEMBERS, PREMIUM_ENABLED, PRIVACY_URL, RARITIES, RARITY_LABEL_KEY } from '../../lib/constants';
 import { useI18n } from '../../lib/I18nContext';
 import { usePremium } from '../../lib/PremiumContext';
 import { fetchAllByIds, fetchAllPages, supabase } from '../../lib/supabase';
@@ -421,6 +421,27 @@ export default function ProfileScreen() {
           </View>
         </GlassCard>
 
+        {/* Aportar una card que falta. Va en el perfil y no en el album porque
+            desde aca se llega sin haber elegido album todavia: es el camino
+            para quien no encontro la card en ningun sitio. */}
+        {CARD_SUBMISSIONS_ENABLED && (
+          <TouchableOpacity
+            onPress={() => router.push('/contribute/new-card')}
+            activeOpacity={0.8}
+          >
+            <GlassCard style={styles.card}>
+              <View style={styles.adminRow}>
+                <Ionicons name="add-circle-outline" size={17} color={COLORS.purple3} />
+                <View style={styles.flex}>
+                  <Text style={styles.adminText}>{t('newCardEntry')}</Text>
+                  <Text style={styles.contributeDesc}>{t('newCardEntryDesc')}</Text>
+                </View>
+                <Ionicons name="chevron-forward" size={16} color={COLORS.textMuted} />
+              </View>
+            </GlassCard>
+          </TouchableOpacity>
+        )}
+
         {/* Moderacion — solo para mantenedores. El gate real esta en la RLS y
             en la edge function; esto solo decide si se muestra la entrada. */}
         {isAdmin && (
@@ -687,7 +708,9 @@ const styles = StyleSheet.create({
   infoLabel: { color: COLORS.textMuted, fontSize: 13 },
   infoValue: { color: COLORS.textSecondary, fontSize: 13, fontWeight: '600', maxWidth: '60%' },
   rowSep: { height: 1, backgroundColor: 'rgba(255,255,255,0.04)', marginVertical: 4 },
+  flex: { flex: 1 },
   adminRow: { flexDirection: 'row', alignItems: 'center', gap: 9 },
+  contributeDesc: { fontSize: 11, color: COLORS.textMuted, marginTop: 2 },
   adminText: { flex: 1, fontSize: 13, fontWeight: '800', color: COLORS.textPrimary },
   providerBadge: {
     backgroundColor: COLORS.purple1 + '55',

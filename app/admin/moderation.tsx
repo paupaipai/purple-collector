@@ -21,8 +21,10 @@ import { useAuth } from '../../hooks/useAuth';
 import { useIsAdmin } from '../../hooks/useIsAdmin';
 import { PendingSubmission, RejectReason, useModerationQueue } from '../../hooks/useModerationQueue';
 import { OpenReport, ResolveAction, useReportsQueue } from '../../hooks/useReportsQueue';
+import { PendingCardSubmission, useSubmissionsQueue } from '../../hooks/useSubmissionsQueue';
 import { COLORS } from '../../lib/constants';
 import { useI18n } from '../../lib/I18nContext';
+import { SubmissionRejectReason } from '../../lib/submissions';
 import { ReportReason } from '../../lib/types';
 
 /** Motivo del reporte -> clave de i18n. */
@@ -34,6 +36,19 @@ const REASON_KEY: Record<ReportReason, string> = {
   duplicate: 'rejectDuplicate',
   other: 'reportImage',
 };
+
+/**
+ * Motivos de rechazo de una PROPUESTA de card, que no son los mismos que los de
+ * una imagen: aca lo que mas se va a rechazar es una card que ya esta en el
+ * catalogo o mal ubicada, y eso no tiene nada que ver con la calidad de la foto.
+ */
+const SUBMISSION_REJECT_REASONS: { value: SubmissionRejectReason; key: string }[] = [
+  { value: 'already_exists', key: 'submissionRejectExists' },
+  { value: 'wrong_taxonomy', key: 'submissionRejectTaxonomy' },
+  { value: 'not_a_photocard', key: 'submissionRejectNotPhotocard' },
+  { value: 'low_quality', key: 'rejectLowQuality' },
+  { value: 'no_rights', key: 'rejectNoRights' },
+];
 
 const REJECT_REASONS: { value: RejectReason; key: string }[] = [
   { value: 'wrong_card', key: 'rejectWrongCard' },
@@ -49,7 +64,16 @@ export default function ModerationScreen() {
   const { isAdmin, loading: adminLoading } = useIsAdmin(userId);
   const { items, loading, error, working, refetch, moderate } = useModerationQueue(isAdmin);
   const reports = useReportsQueue(isAdmin, userId);
-  const [tab, setTab] = useState<'pending' | 'reports'>('pending');
+  const submissions = useSubmissionsQueue(isAdmin);
+  const [tab, setTab] = useState<'pending' | 'cards' | 'reports'>('pending');
+
+  // Cada bandeja tiene su carga y su error; se mira la de la pestana activa
+  // para no mostrar el spinner de otra.
+  const active = tab === 'pending'
+    ? { loading, error, refetch }
+    : tab === 'cards'
+      ? { loading: submissions.loading, error: submissions.error, refetch: submissions.refetch }
+      : { loading: reports.loading, error: reports.error, refetch: reports.refetch };
 
   const run = async (
     submission: PendingSubmission,
@@ -93,6 +117,42 @@ export default function ModerationScreen() {
           Alert.alert(t('reports'), t('takedownDone'));
         },
       },
+    ]);
+  };
+
+  const runSubmission = async (
+    item: PendingCardSubmission,
+    action: 'approve' | 'reject',
+    reason?: SubmissionRejectReason,
+  ) => {
+    const result = await submissions.moderate(item.id, action, reason);
+    if (!result.ok) {
+      Alert.alert(t('moderation'), `${t('moderationError')}\n\n${result.error}`);
+      return;
+    }
+    Alert.alert(
+      t('moderation'),
+      action === 'approve' ? t('submissionApproved') : t('submissionRejected'),
+    );
+  };
+
+  // Aprobar una propuesta CREA una card en el catalogo, que es visible para
+  // todo el mundo en cuanto se guarda. Por eso pide confirmacion y rechazar no:
+  // rechazar no publica nada.
+  const askApproveCard = (item: PendingCardSubmission) => {
+    Alert.alert(t('newCardTitle'), `${item.cardName}\n${item.albumName} \u00b7 ${item.member}`, [
+      { text: t('cancel'), style: 'cancel' },
+      { text: t('approve'), onPress: () => runSubmission(item, 'approve') },
+    ]);
+  };
+
+  const askSubmissionReason = (item: PendingCardSubmission) => {
+    Alert.alert(t('submissionRejectTitle'), t('submissionRejectDesc'), [
+      ...SUBMISSION_REJECT_REASONS.map(r => ({
+        text: t(r.key as any),
+        onPress: () => runSubmission(item, 'reject', r.value),
+      })),
+      { text: t('cancel'), style: 'cancel' as const },
     ]);
   };
 
@@ -141,6 +201,15 @@ export default function ModerationScreen() {
             </Text>
           </TouchableOpacity>
           <TouchableOpacity
+            onPress={() => setTab('cards')}
+            activeOpacity={0.7}
+            style={[styles.tab, tab === 'cards' && styles.tabActive]}
+          >
+            <Text style={[styles.tabText, tab === 'cards' && styles.tabTextActive]}>
+              {t('queueCards')} · {submissions.items.length}
+            </Text>
+          </TouchableOpacity>
+          <TouchableOpacity
             onPress={() => setTab('reports')}
             activeOpacity={0.7}
             style={[styles.tab, tab === 'reports' && styles.tabActive]}
@@ -151,15 +220,12 @@ export default function ModerationScreen() {
           </TouchableOpacity>
         </View>
 
-        {adminLoading || (tab === 'pending' ? loading : reports.loading) ? (
+        {adminLoading || active.loading ? (
           <View style={styles.centered}>
             <ActivityIndicator color={COLORS.purple2} />
           </View>
-        ) : (tab === 'pending' ? error : reports.error) ? (
-          <ErrorView
-            message={(tab === 'pending' ? error : reports.error) as string}
-            onRetry={tab === 'pending' ? refetch : reports.refetch}
-          />
+        ) : active.error ? (
+          <ErrorView message={active.error} onRetry={active.refetch} />
         ) : tab === 'reports' ? (
           <ScrollView
             contentContainerStyle={styles.list}
@@ -223,6 +289,94 @@ export default function ModerationScreen() {
                         <ActivityIndicator size="small" color={COLORS.green} />
                       ) : (
                         <Text style={[styles.btnText, { color: COLORS.green }]}>{t('reportKeep')}</Text>
+                      )}
+                    </TouchableOpacity>
+                  </View>
+                </GlassCard>
+              );
+            })}
+          </ScrollView>
+        ) : tab === 'cards' ? (
+          <ScrollView
+            contentContainerStyle={styles.list}
+            refreshControl={
+              <RefreshControl
+                refreshing={false}
+                onRefresh={submissions.refetch}
+                tintColor={COLORS.purple2}
+              />
+            }
+          >
+            {submissions.items.length === 0 ? (
+              <GlassCard style={styles.empty}>
+                <Ionicons name="albums-outline" size={26} color={COLORS.textMuted} />
+                <Text style={styles.emptyTitle}>{t('submissionsEmpty')}</Text>
+                <Text style={styles.emptyDesc}>{t('submissionsEmptyDesc')}</Text>
+              </GlassCard>
+            ) : submissions.items.map(item => {
+              const busy = submissions.working === item.id;
+              return (
+                <GlassCard key={item.id} style={styles.item}>
+                  <View style={styles.submissionRow}>
+                    {item.signedUrl ? (
+                      <Image
+                        source={{ uri: item.signedUrl }}
+                        style={styles.submissionThumb}
+                        contentFit="cover"
+                      />
+                    ) : (
+                      <View style={[styles.submissionThumb, styles.thumbEmpty]}>
+                        <Ionicons name="alert-circle-outline" size={18} color={COLORS.textMuted} />
+                      </View>
+                    )}
+                    <View style={styles.flex}>
+                      <Text style={styles.cardName} numberOfLines={2}>{item.cardName}</Text>
+                      <Text style={styles.cardMeta}>
+                        {item.member}{item.handle ? ` \u00b7 @${item.handle}` : ''}
+                      </Text>
+                      {/* La cadena taxonomica completa. Aprobar CREA la card,
+                          asi que hay que poder ver donde va a caer sin salir
+                          de la bandeja. */}
+                      <Text style={styles.chain} numberOfLines={3}>
+                        {[item.typeName, item.eraName, item.albumName, item.versionName, item.categoryName]
+                          .filter(Boolean).join(' \u203a ')}
+                      </Text>
+                      {item.cardSetName ? (
+                        <Text style={styles.cardCode} numberOfLines={2}>
+                          {item.cardSetName}
+                          {item.cardSetDetail ? ` \u00b7 ${item.cardSetDetail}` : ''}
+                        </Text>
+                      ) : null}
+                    </View>
+                  </View>
+
+                  {item.notes ? (
+                    <Text style={styles.detailText}>{`\u201c${item.notes}\u201d`}</Text>
+                  ) : null}
+
+                  <View style={styles.actions}>
+                    <TouchableOpacity
+                      onPress={() => askSubmissionReason(item)}
+                      disabled={busy}
+                      activeOpacity={0.7}
+                      style={[styles.btn, styles.rejectBtn, busy && styles.btnDisabled]}
+                    >
+                      <Ionicons name="close" size={16} color={COLORS.pink} />
+                      <Text style={[styles.btnText, { color: COLORS.pink }]}>{t('reject')}</Text>
+                    </TouchableOpacity>
+                    <TouchableOpacity
+                      onPress={() => askApproveCard(item)}
+                      disabled={busy}
+                      activeOpacity={0.7}
+                      style={[styles.btn, styles.approveBtn, busy && styles.btnDisabled]}
+                    >
+                      {busy ? (
+                        <ActivityIndicator size="small" color={COLORS.green} />
+                      ) : (
+                        <>
+                          <Ionicons name="checkmark" size={16} color={COLORS.green} />
+                          <Text style={[styles.btnText, { color: COLORS.green }]}>{t('approve')}</Text>
+                        </>
                       )}
                     </TouchableOpacity>
                   </View>
@@ -379,6 +533,13 @@ const styles = StyleSheet.create({
   detailText: {
     fontSize: 11, fontStyle: 'italic', color: COLORS.textSecondary, marginTop: 6,
   },
+  submissionRow: { flexDirection: 'row', gap: 10 },
+  submissionThumb: {
+    width: 62, aspectRatio: 2 / 3, borderRadius: 8,
+    backgroundColor: '#0d0520',
+    borderWidth: 1, borderColor: 'rgba(168,85,247,0.2)',
+  },
+  chain: { fontSize: 10, lineHeight: 14, color: COLORS.purple3, marginTop: 3 },
   reportThumbWrap: { alignItems: 'flex-start', marginTop: 10 },
   reportThumb: {
     width: 74, aspectRatio: 2 / 3, borderRadius: 8,

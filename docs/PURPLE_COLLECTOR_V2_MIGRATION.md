@@ -717,6 +717,121 @@ público.
 
 ---
 
+### 3.2 Aportar una card que NO está en el catálogo (2026-09-30)
+
+Hasta acá sólo se podía aportar una **imagen para una card que ya existe**. Esto
+es lo otro: proponer la card entera, con su sitio en la taxonomía y su foto.
+
+#### Por qué aparece `card_submissions`, que D2 había descartado
+
+D2 dijo *"una sola tabla `card_images`, NO crear `card_submissions` en el MVP"*,
+y sigue valiendo **para lo que era el MVP**. Pero `card_images.card_id` es
+`NOT NULL` con FK a `cards`: una card que todavía no existe no tiene dónde
+vivir ahí. Las alternativas eran peores:
+
+| Opción | Por qué no |
+|---|---|
+| `card_id` nullable | Rompe el índice único parcial `(card_id, source_type)`, el `LEFT JOIN LATERAL` de `cards_full` y las policies que se apoyan en él |
+| Crear la card al proponer, invisible | Mete basura sin revisar en `cards`, la tabla que la Android v1 lee directamente |
+| Tabla nueva | Aísla lo no revisado y deja `cards` intacta |
+
+Así que `card_submissions`, y `cards` sigue siendo sólo catálogo aprobado.
+
+#### La taxonomía se deriva, no se manda
+
+El formulario cascadea **tipo → era → álbum → versión → categoría → card set**,
+que es la cadena real del catálogo:
+
+```
+collection_types (6) → album_eras (33) → albums (159) → album_versions (128)
+                                              ↓
+                                        card_sets (882) → cards (4503)
+                     card_categories (15) cruza en card_sets y en cards
+```
+
+De todo eso sólo `album_id`, `version_id`, `category_id` y `card_set_id` son
+**datos**. El tipo y la era **se deducen del álbum**, y un trigger los rellena:
+guardar lo que mandó el cliente permitiría una fila incoherente —una era de un
+tipo con un álbum de otro—. El mismo trigger valida que la versión y el set
+pertenezcan al álbum elegido, que es algo que las FK no pueden expresar.
+
+El cascadeo existe por una razón de interfaz, no de modelo: **882 card sets no
+se pueden mostrar de golpe**. Filtrados por álbum son unos pocos.
+
+#### Qué se puede proponer y qué no
+
+Se propone una **card dentro de un álbum que ya existe**. No álbumes, ni eras,
+ni tipos. Son 159 álbumes ya cargados, y un álbum mal creado arrastra eras,
+versiones y sets detrás: la superficie de moderación se multiplicaría. Si el
+álbum falta de verdad, va en `notes` y lo crea un mantenedor.
+
+#### Aprobar crea una card: cuatro pasos sin transacción
+
+`moderate-card-submission` hace en una llamada lo que no se puede hacer en una
+transacción, porque cruza Storage y Postgres:
+
+1. nace la fila en `cards`, con un `code` único derivado de la taxonomía;
+2. la imagen pasa del bucket privado de revisión al público;
+3. se registra en `card_images` como `community` / `approved` / `is_primary`;
+4. la propuesta queda `approved` apuntando a la card creada.
+
+El orden no es casual: **lo reversible va primero** (una card recién creada se
+borra sin dejar rastro) y lo irreversible al final. Cada fallo deshace lo
+anterior a mano (`unwind`), y borrar el objeto de revisión es el último paso y
+best-effort.
+
+Tres detalles que costaría descubrir tarde:
+
+- **`is_visible` se pone en `true` explícitamente.** La columna tiene default
+  `false` (BUG-3), así que sin eso la card nacería invisible y la propuesta
+  quedaría aprobada sin que nadie viera nada nuevo. Es exactamente lo que §9
+  advertía que el flujo de aprobación tenía que hacer.
+- **El `code` sigue la convención existente**: `ÁLBUM[-VERSIÓN]-MIEMBRO-CATEGORÍA`,
+  como `LYH-V-JHOPE-ALBUM`. Es `UNIQUE`, así que si está ocupado se numera: dos
+  propuestas de la misma card generan el mismo code base.
+- **`contributed_by` es quien propuso, no quien aprobó.** Es lo que hace que la
+  atribución `@handle` salga bien en la grilla.
+
+`retailer`, `country` y `draw_type` los **hereda del card set**: es el nivel que
+describe cómo se distribuyó la card, y sin eso la card nueva saldría sin datos
+que sus hermanas del mismo set sí tienen. `member_full_name` y `member_emoji` se
+copian de otra card del mismo miembro —son del miembro, no de la card— en vez de
+pedirlos en el formulario.
+
+#### Sin `UPDATE`, ni para el admin
+
+`card_submissions` **no tiene grant de `UPDATE`** para `authenticated`, aunque la
+policy de admin sea `ALL`. Es deliberado: resolver una propuesta significa crear
+una card y mover un objeto entre buckets, y el único camino es la edge function
+con `service_role`. Así no existe un atajo por PostgREST que deje una propuesta
+aprobada sin card, o una card sin imagen.
+
+También se le revoca todo a `anon`. Es la lección de SR-9 otra vez: Supabase
+tiene `alter default privileges` concediendo todo a `anon` en las tablas nuevas,
+así que **una tabla recién creada no nace cerrada**.
+
+Y a diferencia de `card_images`, **no hay lectura pública**: una propuesta
+aprobada ya está en el catálogo como card, así que exponer la fila no aportaría
+nada y sí expondría el texto de `notes`.
+
+#### Lo que la base impide
+
+| Constraint / índice | Qué evita |
+|---|---|
+| `pending_is_private` | Una propuesta sin revisar apuntando al bucket público |
+| `has_terms` | Registrar un aporte sin constancia de los términos |
+| `approved_has_card` | Una propuesta "aprobada" sin card creada |
+| `resolved_has_reviewer` | Cerrarla sin dejar quién y cuándo |
+| `member_known` | Un miembro fuera de los 8 valores, que se vería sin color ni emoji |
+| `no_dup_pending` | Que una misma persona mande dos veces la misma card |
+
+#### Estado
+
+`CARD_SUBMISSIONS_ENABLED = false`. Encenderla antes de probar la bandeja sólo
+acumularía propuestas que nadie puede aprobar —el error que ya se cometió con
+`CONTRIBUTIONS_ENABLED`—. Y acá el coste de equivocarse es mayor: aprobar
+publica una card en el catálogo.
+
 ## 4. Storage — policies de los buckets (creados 2026-09-28)
 
 ### 4.1 Por qué dos buckets y no uno

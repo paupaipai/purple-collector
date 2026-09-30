@@ -55,6 +55,19 @@ export const LEGACY_VEIL_COLOR = 'rgba(11,0,36,0.16)';
 // build nuevo; en web funciona sin rebuild.
 export const CONTRIBUTIONS_ENABLED = true;
 
+// Aportar una CARD que no esta en el catalogo, no solo una imagen para una que
+// ya existe (CONTRIBUTIONS_ENABLED).
+//
+// false = no aparece ninguna entrada para proponer cards nuevas.
+// true  = el usuario puede proponerlas desde el perfil y desde el album.
+//
+// Viene apagada: encenderla antes de que la bandeja de moderacion este probada
+// solo acumularia propuestas que nadie puede aprobar, que es exactamente el
+// error que ya se cometio con CONTRIBUTIONS_ENABLED. Aprobar una propuesta CREA
+// una card en el catalogo, asi que el coste de equivocarse es mayor que con una
+// imagen: conviene mirar la bandeja con datos reales antes.
+export const CARD_SUBMISSIONS_ENABLED = false;
+
 export const COMMUNITY_BUCKET = 'photocard-community';
 export const COMMUNITY_REVIEW_BUCKET = 'photocard-community-review';
 

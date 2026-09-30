@@ -18,6 +18,8 @@ Bloque nuevo. Nada de esto existe en la Android v1 publicada.
 
 - [ ] `CONTRIBUTIONS_ENABLED = true` — el botón de aportar está visible
 - [ ] `LEGACY_TREATMENT_ENABLED = true` — las legacy salen borrosas y marcadas
+- [ ] `CARD_SUBMISSIONS_ENABLED` — propuestas de cards nuevas (apagada hasta
+      probar la bandeja)
 - [ ] `PREMIUM_ENABLED = false` y `BIAS_ENABLED = false` (sin cambios)
 
 ### Tratamiento visual de las legacy
@@ -45,6 +47,47 @@ Bloque nuevo. Nada de esto existe en la Android v1 publicada.
 - [ ] Foto de móvil grande (>5 MB) → **se acepta**: el límite se mide sobre la
       imagen ya recortada y reescalada, no sobre la original
 - [ ] Sin conexión al enviar → error legible, no se queda colgado
+
+### Aportar una card que NO está en el catálogo
+
+> Requiere `CARD_SUBMISSIONS_ENABLED = true` y la migration
+> `create_card_submissions` aplicada.
+
+- [ ] Perfil → **Aportar una card que falta** → abre el formulario
+- [ ] Al pie de un álbum → misma entrada → llega con **tipo, era y álbum ya
+      rellenos** (viene por `?albumId=`)
+- [ ] **Cascada**: elegir un tipo llena las eras; cambiar el tipo **vacía** era,
+      álbum, versión y card set
+- [ ] Un álbum **sin versiones** deja el selector de versión vacío y bloqueado,
+      no muestra las de otro álbum
+- [ ] Los **card sets** que aparecen son sólo los del álbum elegido, y se
+      reducen al elegir versión o categoría
+- [ ] El buscador aparece en álbumes (159) y en sets, pero **no** en tipos (6)
+- [ ] **Enviar está apagado** hasta tener foto + álbum + categoría + miembro +
+      nombre (≥2 caracteres)
+- [ ] Elegir foto → abre el **cropper 2:3**; la miniatura queda encuadrada
+- [ ] Enviar → pide confirmación de derechos → *"Propuesta enviada"*
+- [ ] Enviar **la misma card otra vez** → *"Ya enviaste esta misma card"*, no un
+      error de base
+- [ ] Sin conexión al enviar → error legible, y **no** queda una imagen huérfana
+      en el bucket
+
+### Moderación de propuestas (solo admin)
+
+- [ ] Pestaña **Cards** en Moderación, con el contador
+- [ ] La ficha muestra la foto, el miembro, el `@handle` y **la cadena completa**
+      (tipo › era › álbum › versión › categoría)
+- [ ] Las notas del contributor se ven entre comillas
+- [ ] **Aprobar** pide confirmación (crea una card visible para todo el mundo)
+- [ ] Tras aprobar: la card **aparece en el álbum** que decía, en su categoría,
+      con la imagen aportada y **sin blur** (es community, no legacy)
+- [ ] El `code` de la card nueva sigue la convención `ÁLBUM-MIEMBRO-CATEGORÍA`
+- [ ] Si el card set traía retailer/país/draw type, la card nueva los tiene
+- [ ] La atribución `@handle` es de **quien la propuso**, no de quien aprobó
+- [ ] **Rechazar** pide motivo (5 opciones) y la propuesta desaparece de la
+      bandeja sin crear nada
+- [ ] Aprobar dos veces la misma propuesta → *"already approved"*, **no** crea
+      una segunda card
 
 ### Moderación (solo admin)
 
