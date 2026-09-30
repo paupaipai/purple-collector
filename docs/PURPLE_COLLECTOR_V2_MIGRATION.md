@@ -560,8 +560,28 @@ incentivo que se busca.
 
 i18n: `imageSourceLegacy` y `imageSourceCommunity`, en ES y EN.
 
-**Cuándo encenderla:** cuando haya una masa real de imágenes comunitarias, o si
-hace falta diferenciar el contenido de terceros por otro motivo. Es una línea.
+**ENCENDIDA el 2026-09-30**, y calibrada mirando la grilla real en el simulador.
+
+El objetivo de esta etapa **no es ocultar** la legacy: es marcarla como contenido
+de terceros **dejando que se siga reconociendo qué photocard es**, para que el
+usuario pueda identificarla y decidir aportar una propia. Si no se distinguiera
+la card, el catálogo dejaría de servir para lo que sirve.
+
+| Valor | De | A | Por qué |
+|---|---|---|---|
+| `LEGACY_BLUR_RADIUS` | 6 | **3** | con 6 la photocard se volvía irreconocible |
+| `LEGACY_VEIL_COLOR` | `0.30` | **`0.16`** | se **apila** con el de las cards no adquiridas (opacidad 0.65 + velo 0.32); con 0.30 las legacy no adquiridas quedaban casi negras |
+
+La marca pasó de una pastilla en la esquina a **"Imagen Legacy" centrada** sobre
+la foto, con `textShadow` — sin la sombra se perdía sobre las fotos claras. Va
+centrada y no en una esquina porque las cuatro ya están ocupadas (rareza,
+duplicados, estado).
+
+El detalle de la card difumina igual, por coherencia.
+
+**Lo que el mockup de referencia incluye y esto no:** la pastilla de attribution
+(`@usuaria`) sobre las imágenes comunitarias. Sigue bloqueada por la falta de un
+handle público — ver los pendientes.
 
 **Lo que FASE F no incluye:** la attribution nominal ("Aportada por @usuario",
 tarea 32 del roadmap) está **bloqueada**: `user_profiles` no tiene columna

@@ -15,19 +15,28 @@ export const BIAS_ENABLED = false;
 // existe pero viene apagado (decision D1 de Purple V2, "V2 podra aplicar
 // blur/overlay/watermark").
 //
-// false = una legacy se ve igual que cualquier otra imagen. Es lo correcto
-//         mientras el catalogo sea 100% legacy: marcar las 4503 no distingue
-//         nada y degrada la app para todos los usuarios actuales.
-// true  = blur + velo + etiqueta sobre la imagen en la grilla, y etiqueta de
+// false = una legacy se ve igual que cualquier otra imagen.
+// true  = blur + velo + etiqueta "Imagen Legacy" sobre la imagen, y etiqueta de
 //         procedencia en el detalle.
 //
-// Encenderlo cuando exista una masa real de imagenes comunitarias con las que
-// contrastar, o si hace falta diferenciar el contenido de terceros.
-export const LEGACY_TREATMENT_ENABLED = false;
+// ENCENDIDO el 2026-09-30. El objetivo de esta etapa NO es ocultar la legacy:
+// es marcarla como contenido de terceros dejando que se siga reconociendo QUE
+// photocard es, para que el usuario pueda identificarla y decidir aportar una
+// propia. De ahi que el blur sea moderado y el velo suave: si no se distinguiera
+// la card, el catalogo dejaria de servir para lo que sirve.
+export const LEGACY_TREATMENT_ENABLED = true;
 
 // Solo aplican con LEGACY_TREATMENT_ENABLED = true.
+//
+// Calibrado mirando la grilla real en el simulador. Con radio 6 la photocard
+// se volvia irreconocible, que es justo lo que NO se busca: el usuario tiene que
+// poder identificar la card para decidir si aporta una propia.
+//
+// El velo es bajo a proposito porque se APILA con el de las cards no adquiridas
+// (NOT_OWNED_IMAGE_OPACITY 0.65 + NOT_OWNED_OVERLAY_OPACITY 0.32). Con 0.30 las
+// legacy no adquiridas quedaban casi negras.
 export const LEGACY_BLUR_RADIUS = 3;
-export const LEGACY_VEIL_COLOR = 'rgba(11,0,36,0.35)';
+export const LEGACY_VEIL_COLOR = 'rgba(11,0,36,0.16)';
 
 // Flujo de aporte de imagenes (FASE D).
 //

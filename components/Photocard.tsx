@@ -112,10 +112,14 @@ export default function Photocard({ card, onPress, onLongPress }: PhotocardProps
             style={styles.bottomGrad}
           />
 
-          {/* Legacy watermark — bottom-left, opposite the status icon */}
+          {/* Marca de legacy — centrada sobre la imagen. Va centrada y no en una
+              esquina porque las cuatro ya estan ocupadas (rareza, duplicados,
+              estado) y porque el objetivo es que se lea como una marca de agua
+              sobre la foto, no como un badge mas. */}
           {showLegacy && (
-            <View style={styles.legacyBadge}>
-              <Text style={styles.legacyBadgeText}>{t('imageSourceLegacy')}</Text>
+            <View style={styles.legacyOverlay} pointerEvents="none">
+              <Ionicons name="image-outline" size={15} color="rgba(255,255,255,0.8)" />
+              <Text style={styles.legacyOverlayText}>{t('imageLegacyBadge')}</Text>
             </View>
           )}
 
@@ -187,20 +191,23 @@ const styles = StyleSheet.create({
     ...StyleSheet.absoluteFillObject,
     backgroundColor: LEGACY_VEIL_COLOR,
   },
-  legacyBadge: {
-    position: 'absolute',
-    bottom: 6,
-    left: 6,
-    backgroundColor: 'rgba(0,0,0,0.55)',
-    borderRadius: 4,
-    paddingHorizontal: 4,
-    paddingVertical: 1,
+  legacyOverlay: {
+    ...StyleSheet.absoluteFillObject,
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 1,
   },
-  legacyBadgeText: {
-    fontSize: 8,
+  legacyOverlayText: {
+    fontSize: 9,
     fontWeight: '800',
-    color: 'rgba(255,255,255,0.8)',
+    color: 'rgba(255,255,255,0.85)',
     letterSpacing: 0.4,
+    textAlign: 'center',
+    lineHeight: 11,
+    // La sombra es lo que la hace legible sobre una foto borrosa de cualquier
+    // color; sin ella se pierde en las claras.
+    textShadowColor: 'rgba(0,0,0,0.65)',
+    textShadowRadius: 3,
   },
   placeholder: {
     width: '100%',

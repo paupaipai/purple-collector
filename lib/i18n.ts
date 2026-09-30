@@ -48,6 +48,8 @@ const en = {
   copiesMany: '{n} copies',
   imageSourceLegacy: 'Legacy',
   imageSourceCommunity: 'Community',
+  // Va sobre la imagen en la grilla: dos lineas, centrado.
+  imageLegacyBadge: 'Legacy\nimage',
 
   // Contributions (FASE D)
   contribute: 'Contribute an image',
@@ -280,6 +282,8 @@ const es: Translations = {
   copiesMany: '{n} copias',
   imageSourceLegacy: 'Legacy',
   imageSourceCommunity: 'Comunidad',
+  // Va sobre la imagen en la grilla: dos lineas, centrado.
+  imageLegacyBadge: 'Imagen\nLegacy',
 
   // Aportes (FASE D)
   contribute: 'Aportar imagen',

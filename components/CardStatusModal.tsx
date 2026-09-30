@@ -3,7 +3,7 @@ import { Image } from 'expo-image';
 import { Modal, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
 import {
   COLORS, STATUS_CONFIG, STATUS_LABEL_KEY, LEGACY_TREATMENT_ENABLED,
-  CONTRIBUTIONS_ENABLED,
+  CONTRIBUTIONS_ENABLED, LEGACY_BLUR_RADIUS,
 } from '../lib/constants';
 import { useI18n } from '../lib/I18nContext';
 import { getCardImageUrl } from '../lib/supabase';
@@ -55,6 +55,7 @@ export default function CardStatusModal({
                     style={styles.thumb}
                     contentFit="cover"
                     transition={150}
+                    blurRadius={imageSource === 'legacy' ? LEGACY_BLUR_RADIUS : 0}
                   />
                 ) : (
                   <View style={[styles.thumb, styles.placeholder, { backgroundColor: card.album_color + '33' }]}>
