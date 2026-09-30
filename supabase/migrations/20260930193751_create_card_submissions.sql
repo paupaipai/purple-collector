@@ -187,7 +187,7 @@ returns trigger
 language plpgsql
 security definer
 set search_path = ''
-as $$
+as $fn$
 declare
   v_era_id bigint;
   v_type_id bigint;
@@ -231,7 +231,7 @@ begin
 
   return new;
 end;
-$$;
+$fn$;
 
 drop trigger if exists card_submissions_derive_taxonomy_trg on public.card_submissions;
 create trigger card_submissions_derive_taxonomy_trg
@@ -249,7 +249,7 @@ returns trigger
 language plpgsql
 security definer
 set search_path = ''
-as $$
+as $fn$
 begin
   if new.username is distinct from old.username then
     update public.card_images
@@ -262,7 +262,7 @@ begin
   end if;
   return new;
 end;
-$$;
+$fn$;
 
 revoke execute on function public.user_profiles_sync_handle() from public;
 
@@ -300,7 +300,7 @@ create policy "card_submissions submitter creates own"
   );
 
 -- Para poder retirar una propuesta antes de que la revisen, y para que
--- submitContribution() pueda limpiar si la subida quedo a medias.
+-- submitNewCard() pueda limpiar si la subida quedo a medias.
 drop policy if exists "card_submissions submitter deletes own pending" on public.card_submissions;
 create policy "card_submissions submitter deletes own pending"
   on public.card_submissions for delete to authenticated

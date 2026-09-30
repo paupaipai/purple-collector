@@ -29,3 +29,12 @@ enabled = true
 verify_jwt = true
 import_map = "./functions/moderate-card-image/deno.json"
 entrypoint = "./functions/moderate-card-image/index.ts"
+
+[functions.moderate-card-submission]
+enabled = true
+# Igual que moderate-card-image: la verificacion de JWT de plataforma queda
+# encendida, y el withSupabase({ auth: ["user"] }) + el chequeo de is_admin del
+# handler van encima, no en su lugar.
+verify_jwt = true
+import_map = "./functions/moderate-card-submission/deno.json"
+entrypoint = "./functions/moderate-card-submission/index.ts"

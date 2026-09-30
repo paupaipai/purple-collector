@@ -825,12 +825,37 @@ nada y sí expondría el texto de `notes`.
 | `member_known` | Un miembro fuera de los 8 valores, que se vería sin color ni emoji |
 | `no_dup_pending` | Que una misma persona mande dos veces la misma card |
 
-#### Estado
+#### Estado (2026-09-30)
 
-`CARD_SUBMISSIONS_ENABLED = false`. Encenderla antes de probar la bandeja sólo
-acumularía propuestas que nadie puede aprobar —el error que ya se cometió con
-`CONTRIBUTIONS_ENABLED`—. Y acá el coste de equivocarse es mayor: aprobar
-publica una card en el catálogo.
+Migration `20260930193751_create_card_submissions` **aplicada**. Edge function
+`moderate-card-submission` **desplegada** (v1, `verify_jwt = true`).
+
+`CARD_SUBMISSIONS_ENABLED = false` todavía. Encenderla antes de probar la
+bandeja sólo acumularía propuestas que nadie puede aprobar —el error que ya se
+cometió con `CONTRIBUTIONS_ENABLED`—. Y acá el coste de equivocarse es mayor:
+aprobar publica una card en el catálogo.
+
+#### Verificación con rollback forzado
+
+Siete comprobaciones en una transacción revertida, como `authenticated` con el
+JWT de un usuario real. **0 filas residuales** en producción.
+
+| | Qué se probó | Resultado |
+|---|---|---|
+| A | Propuesta válida | insert ok, **era 8 y tipo 1 derivados por el trigger** desde el álbum 3 |
+| B | Autoaprobarse (`status='approved'` con los campos de revisión rellenos para que sólo pudiera rechazarlo la policy) | rechazado |
+| C | `version_id` de otro álbum | abortado por el trigger |
+| D | Pendiente apuntando al bucket público | rechazado por la constraint |
+| E | La misma card otra vez, con otro espaciado y capitalización | rechazado por el índice parcial |
+| F | `UPDATE` sobre su propia fila | rechazado (no hay grant) |
+| G | Otra persona consultando esa fila | invisible |
+
+Sin ambigüedad de embeds en la consulta de la bandeja: de las 8 tablas a las que
+apunta `card_submissions`, sólo `auth.users` recibe dos FK (`submitted_by` y
+`reviewed_by`), y esa no se embebe.
+
+**Sin probar todavía**: el camino de aprobación —crear la card, mover el objeto,
+registrar la imagen—. Necesita una propuesta real, o sea la bandera encendida.
 
 ## 4. Storage — policies de los buckets (creados 2026-09-28)
 
@@ -1063,6 +1088,47 @@ de seguridad pasa a **cero ERRORs**. Los WARN que quedan son todos preexistentes
 anónimo —intencionales— y protección de contraseñas filtradas).
 
 Reversible con `alter view public.cards_full set (security_invoker = false);`
+
+### SR-10 — la lección de SR-9, corregida (2026-09-30)
+
+SR-9 concluyó *"hay que quitarle `EXECUTE` a `public`, no a `anon`"*. Era cierto
+**para esas funciones**, pero como regla general está incompleta, y por creerla
+completa tres trigger functions se quedaron abiertas a `anon` y `authenticated`
+durante dos días: `card_images_fill_handle`, `user_profiles_sync_handle` y
+`card_submissions_derive_taxonomy`.
+
+La diferencia está en **cuándo** se creó la función. En las de SR-9 el privilegio
+venía del grant implícito a `PUBLIC` (`=X/postgres` en la ACL). En las nuevas,
+las *default privileges* de Supabase conceden `EXECUTE` a `anon`, `authenticated`
+y `service_role` de forma **explícita**:
+
+```
+{postgres=X/postgres,anon=X/postgres,authenticated=X/postgres,service_role=X/postgres}
+```
+
+`revoke ... from public` no toca nada de eso: no hay entrada de `PUBLIC` que
+quitar. Las migrations `contributor_handle` y `create_card_submissions` revocaban
+sólo de `public` y **afirmaban en un comentario** que con eso quedaba cerrado.
+No quedaba. Lo detectó el advisor (lints 0028 y 0029), no yo.
+
+**La regla correcta**: en una función hay que revocar de `public` **y** de cada
+grantee explícito. Arreglado en `20260930194142_revoke_trigger_function_execute`.
+
+Dos cosas que conviene no confundir:
+
+- **Era WARN, no ERROR, y no era explotable.** Las tres devuelven `trigger`, y
+  PostgREST no publica funciones de ese tipo: `/rest/v1/rpc/<nombre>` da 404. Se
+  cerró igual, porque depender de un detalle de PostgREST para que un
+  `SECURITY DEFINER` no sea llamable es apoyarse en la pieza equivocada.
+- **Revocar `EXECUTE` no rompe el trigger.** Postgres comprueba el privilegio al
+  **crear** el trigger, no al ejecutarlo. Verificado como `authenticated` con un
+  insert revertido en `card_images` (el flujo de aporte que ya está encendido) y
+  otro en `card_submissions`: los dos triggers dispararon.
+
+Resultado en el advisor: el lint 0028 desaparece (eran 3 hallazgos) y el 0029
+baja de 5 a 2. Los dos que quedan —`is_admin()` y `register_push_token()`— son
+intencionales: el primero lo usan las policies, el segundo es un RPC que la app
+llama.
 
 ### SR-9 — EXECUTE innecesario, y una lección (2026-09-28)
 
