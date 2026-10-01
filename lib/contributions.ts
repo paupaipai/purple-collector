@@ -1,7 +1,6 @@
 import * as Crypto from 'expo-crypto';
 import { ImageManipulator, SaveFormat } from 'expo-image-manipulator';
 import * as ImagePicker from 'expo-image-picker';
-import { Image as RNImage } from 'react-native';
 
 import {
   CONTRIBUTION_MAX_BYTES,
@@ -41,6 +40,22 @@ export type ContributionResult =
   | { ok: false; reason: ContributionFailure; detail?: string };
 
 /**
+ * Nada de esperar para siempre.
+ *
+ * Una promesa nativa que no resuelve NI rechaza deja el flujo colgado sin
+ * error, sin aviso y sin nada en pantalla: exactamente el sintoma mas dificil
+ * de diagnosticar, porque no deja rastro. Mejor fallar tarde que no fallar.
+ */
+function withTimeout<T>(promise: Promise<T>, ms: number, label: string): Promise<T> {
+  return Promise.race([
+    promise,
+    new Promise<T>((_, reject) =>
+      setTimeout(() => reject(new Error(`${label}: sin respuesta en ${ms} ms`)), ms),
+    ),
+  ]);
+}
+
+/**
  * Mide la imagen cuando el picker no sabe decir su tamano.
  *
  * El camino rapido del modulo lee el tamano de la cabecera del archivo
@@ -52,17 +67,26 @@ export type ContributionResult =
  *   - normalizeToPhotocard() devuelve null sin w/h, asi que el recorte se salta
  *     y se sube la foto original, sin proporcion de photocard.
  *
- * Image.getSize decodifica lo justo para saber el tamano. Es mas lento, pero
- * solo se llama cuando el picker ya fallo en decirlo.
+ * Se mide con expo-image-manipulator y NO con Image.getSize de React Native:
+ * getSize avisa por callbacks, y si el nativo no llama a ninguno la promesa se
+ * queda sin resolver para siempre. renderAsync() es una promesa de verdad, que
+ * rechaza cuando falla, y ademas es la misma pieza que hara el recorte despues:
+ * si no puede abrir la imagen, el recorte tampoco iba a poder.
  */
-function measureImage(uri: string): Promise<{ width: number; height: number } | null> {
-  return new Promise(resolve => {
-    RNImage.getSize(
-      uri,
-      (width, height) => resolve(width && height ? { width, height } : null),
-      () => resolve(null),
+async function measureImage(uri: string): Promise<{ width: number; height: number } | null> {
+  try {
+    const rendered = await withTimeout(
+      ImageManipulator.manipulate(uri).renderAsync(),
+      8000,
+      'medir la imagen',
     );
-  });
+    if (rendered.width && rendered.height) {
+      return { width: rendered.width, height: rendered.height };
+    }
+  } catch (err) {
+    console.error('[contributions] no se pudo medir la foto:', err);
+  }
+  return null;
 }
 
 /** Extension a partir del mime, para no confiar en el nombre del archivo. */
@@ -165,7 +189,7 @@ export async function pickContributionImage(): Promise<
 
   let result: ImagePicker.ImagePickerResult;
   try {
-    result = await ImagePicker.launchImageLibraryAsync({
+    result = await withTimeout(ImagePicker.launchImageLibraryAsync({
       mediaTypes: ['images'],
       // Sin el cropper nativo: se comporta distinto en cada plataforma. El
       // encuadre lo elige la persona en ImageCropper, que es igual en las tres.
@@ -187,7 +211,9 @@ export async function pickContributionImage(): Promise<
       // primero era comprimir dos veces y perder calidad para nada.
       quality: 1,
       exif: false,
-    });
+      // Sin tope, una galeria que no devuelve deja el flujo colgado sin error y
+      // sin nada en pantalla. 5 minutos es de sobra para elegir una foto.
+    }), 300000, 'elegir foto');
   } catch (err) {
     // Aca el modulo ya demostro que existe, asi que esto es la foto: puede ser
     // un asset que iOS no logra materializar, o uno que ya no esta.

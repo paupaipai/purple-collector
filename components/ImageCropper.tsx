@@ -1,5 +1,5 @@
 import { Image } from 'expo-image';
-import { useMemo, useRef, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import {
   Dimensions,
   Modal,
@@ -51,6 +51,34 @@ export default function ImageCropper({
   visible, uri, imageWidth, imageHeight, onCancel, onConfirm,
 }: Props) {
   const { t } = useI18n();
+
+  /**
+   * Esperar a que el selector de fotos termine de cerrarse.
+   *
+   * iOS rechaza presentar un modal mientras otro se esta cerrando, y lo hace en
+   * SILENCIO para JS: solo deja un rastro en el log del sistema,
+   *
+   *   "Attempt to present <RCTFabricModalHostViewController> ...
+   *    while a presentation is in progress."
+   *
+   * y en pantalla no pasa nada. Es justo lo que ocurria al elegir una foto: la
+   * galeria se cerraba y el recuadro de encuadre no llegaba a aparecer nunca.
+   *
+   * React Native no expone ningun evento de "el otro modal ya se cerro", asi
+   * que se espera un poco mas que la animacion de cierre (unos 300 ms). El
+   * retraso vive AQUI y no en quien llama, para que ninguna pantalla nueva
+   * tenga que acordarse.
+   */
+  const [readyToPresent, setReadyToPresent] = useState(false);
+
+  useEffect(() => {
+    if (!visible) {
+      setReadyToPresent(false);
+      return;
+    }
+    const timer = setTimeout(() => setReadyToPresent(true), 350);
+    return () => clearTimeout(timer);
+  }, [visible]);
 
   // El marco: lo mas ancho que quepa dejando aire, sin pasarse de alto.
   const frame = useMemo(() => {
@@ -175,7 +203,7 @@ export default function ImageCropper({
   const shownH = imageHeight * baseScale * zoom;
 
   return (
-    <Modal visible={visible && !!uri} transparent animationType="fade" onRequestClose={onCancel}>
+    <Modal visible={readyToPresent && !!uri} transparent animationType="fade" onRequestClose={onCancel}>
       <View style={styles.backdrop}>
         <Text style={styles.title}>{t('cropTitle')}</Text>
         <Text style={styles.hint}>{t('cropHint')}</Text>
