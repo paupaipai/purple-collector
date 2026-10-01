@@ -1421,11 +1421,40 @@ No se corrigen dentro de la migration de `card_images`.
 |---|---|---|---|
 | **BUG-1** | Filtra por `c.image_url`, que `cards_full` no expone (expone `image_path`). `Image.prefetch` del álbum **nunca corre**: el `filter` deja el array vacío. Código muerto + pérdida silenciosa de rendimiento en la pantalla más usada. | `hooks/useCards.ts:113-114` | `fix: prefetch de imágenes en la vista de álbum` |
 | ~~**BUG-2**~~ | ~~64 de los 140 `albums.cover_image_url` apuntan a objetos que no existen~~ — **HECHO 2026-09-29**: `20260929013629_null_broken_album_covers.sql`. Se descartó que fueran fallos cercanos (ninguna existe con otra extensión ni ignorando mayúsculas): son rutas `/cover.png` escritas por anticipado. Vaciadas → la app usa su placeholder y deja de pedir 64 URLs que dan 404. Las 64 rutas quedan en la migration para restaurarlas. 140 → 76 portadas, 0 rotas. | datos | hecho |
-| **BUG-3** | `cards.is_visible` default `false`: una card insertada por un futuro flujo de aprobación queda invisible salvo que se ponga explícitamente. | schema | `chore: revisar default de cards.is_visible` |
+| ~~**BUG-3**~~ | `cards.is_visible` default `false`. **Cerrado el 2026-10-01: se deja como está**, ver §7.1. | — | — |
 | ~~**BUG-4**~~ | ~~`card_status` tiene `pending` como DEFAULT~~ — **HECHO 2026-09-28**: `20260928223959_drop_user_cards_status_default.sql`. Estado fantasma: 0 filas sobre 7381. Ahora un insert sin `status` queda en NULL, que es como la app representa "sin marcar". `pending` sigue en el enum (quitarlo exigiría recrear el tipo). | schema | hecho |
 | ~~**BUG-5**~~ | ~~`cards_full` no expone `country` ni `draw_type`~~ — **HECHO 2026-09-28**: `20260928224041_cards_full_country_draw_sort.sql`. La vista gana `country`, `draw_type` y `category_sort_order` (32 columnas), y `useCards.ts` pasa de 4 consultas de catálogo a 2. | `hooks/useCards.ts` | hecho |
 
 ---
+
+### 7.1 BUG-3 — `cards.is_visible`, cerrado (2026-10-01)
+
+**Se deja el default en `false`.**
+
+Primero, lo que NO es: no tiene relación con las imágenes legacy, que es lo que
+parecía por el nombre. Los datos lo zanjan:
+
+| | |
+|---|---|
+| Cards totales | 4503 |
+| Visibles | **4503** |
+| Ocultas | **0** |
+| Visibles **sin** imagen | 2 |
+
+`is_visible` no ha ocultado nunca nada, y esas 2 cards sin imagen —las de los
+takedowns— siguen **visibles**: quedarse sin imagen no oculta una card, la deja
+en el estado *"Imagen retirada · disponible para reemplazo"*. Son dos cosas
+independientes.
+
+Lo que sí es: una bandera de publicación de la **card**, que permitiría
+insertarla como borrador y publicarla después. Ese flujo no existe hoy.
+
+**Por qué se deja en `false`.** El único sitio del código que inserta en `cards`
+es `moderate-card-submission`, y pone `is_visible: true` explícitamente. Con eso
+el default ya no hace daño, y mantenerlo en `false` conserva una red: una carga
+masiva a medias desde SQL o un script no se publica sola. Cambiarlo a `true`
+sólo ahorraría una línea en un script futuro, a cambio de que cualquier
+inserción accidental saliera publicada al instante.
 
 ## 8. Informe de objetos huérfanos en Storage
 
@@ -1590,12 +1619,6 @@ leería historial divergente e intentaría reaplicarlas.
    de paso el movimiento de bytes entre buckets.
 2. **Un cropper propio** para iOS y web: hoy el encuadre ahí es al centro y a
    ciegas (§3.0.1). Y la **cámara** (tarea 27).
-3. **BUG-3** — `cards.is_visible` tiene default `false`. **No lo cambié a
-   propósito**: podría ser deliberado (insertar como borrador y publicar
-   después), y con 4503/4503 visibles no hay evidencia de un flujo de borrador
-   en uso. Cambiarlo a `true` podría publicar cards a medio cargar. Lo que sí
-   importa: el flujo de aprobación de FASE G **debe** poner `is_visible`
-   explícitamente. Necesita que confirmes la intención.
 5. **Protección de contraseñas filtradas** desactivada — es un ajuste del
    dashboard de Auth, no SQL. Se activa en Authentication → Policies.
 4. **Los 7 reversos del Winter Package 2021** (§8, grupo C): ahora que
