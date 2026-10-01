@@ -1,9 +1,10 @@
 import { Image } from 'expo-image';
 import { useEffect, useMemo, useRef, useState } from 'react';
 import {
+  BackHandler,
   Dimensions,
-  Modal,
   PanResponder,
+  Platform,
   StyleSheet,
   Text,
   TouchableOpacity,
@@ -53,32 +54,16 @@ export default function ImageCropper({
   const { t } = useI18n();
 
   /**
-   * Esperar a que el selector de fotos termine de cerrarse.
-   *
-   * iOS rechaza presentar un modal mientras otro se esta cerrando, y lo hace en
-   * SILENCIO para JS: solo deja un rastro en el log del sistema,
-   *
-   *   "Attempt to present <RCTFabricModalHostViewController> ...
-   *    while a presentation is in progress."
-   *
-   * y en pantalla no pasa nada. Es justo lo que ocurria al elegir una foto: la
-   * galeria se cerraba y el recuadro de encuadre no llegaba a aparecer nunca.
-   *
-   * React Native no expone ningun evento de "el otro modal ya se cerro", asi
-   * que se espera un poco mas que la animacion de cierre (unos 300 ms). El
-   * retraso vive AQUI y no en quien llama, para que ninguna pantalla nueva
-   * tenga que acordarse.
+   * El boton atras de Android lo daba el Modal; aqui hay que atenderlo a mano.
    */
-  const [readyToPresent, setReadyToPresent] = useState(false);
-
   useEffect(() => {
-    if (!visible) {
-      setReadyToPresent(false);
-      return;
-    }
-    const timer = setTimeout(() => setReadyToPresent(true), 350);
-    return () => clearTimeout(timer);
-  }, [visible]);
+    if (!visible || Platform.OS !== 'android') return;
+    const sub = BackHandler.addEventListener('hardwareBackPress', () => {
+      onCancel();
+      return true;
+    });
+    return () => sub.remove();
+  }, [visible, onCancel]);
 
   // El marco: lo mas ancho que quepa dejando aire, sin pasarse de alto.
   const frame = useMemo(() => {
@@ -202,8 +187,22 @@ export default function ImageCropper({
   const shownW = imageWidth * baseScale * zoom;
   const shownH = imageHeight * baseScale * zoom;
 
+  // NO es un <Modal> a proposito.
+  //
+  // Un Modal de React Native es una presentacion de UIKit, y iOS la rechaza si
+  // hay otra en curso -- por ejemplo el selector de fotos cerrandose, que es
+  // justo el momento en que esto se abre. El rechazo es MUDO para JS: no hay
+  // error, el componente cree que esta visible, y queda una capa montada que se
+  // come los toques. Sintoma: la pantalla se queda pegada y no pasa nada.
+  //
+  // Una capa absoluta dentro del arbol que ya existe no presenta nada: no puede
+  // chocar, no depende de cuanto dure una animacion ajena, y se comporta igual
+  // en las tres plataformas. Se pierde el boton atras de Android, que se
+  // repone arriba a mano.
+  if (!visible || !uri) return null;
+
   return (
-    <Modal visible={readyToPresent && !!uri} transparent animationType="fade" onRequestClose={onCancel}>
+    <View style={StyleSheet.absoluteFill} pointerEvents="auto">
       <View style={styles.backdrop}>
         <Text style={styles.title}>{t('cropTitle')}</Text>
         <Text style={styles.hint}>{t('cropHint')}</Text>
@@ -235,7 +234,7 @@ export default function ImageCropper({
           </TouchableOpacity>
         </View>
       </View>
-    </Modal>
+    </View>
   );
 }
 
