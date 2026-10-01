@@ -60,7 +60,7 @@ export default function TabsLayout() {
         options={{
           title: t('tabContributions'),
           tabBarIcon: ({ focused }) => (
-            <TabIcon source={require('../../assets/images/icons/camera.png')} focused={focused} />
+            <TabIcon source={require('../../assets/images/menu/camera.png')} focused={focused} />
           ),
         }}
       />
