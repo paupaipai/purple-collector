@@ -28,6 +28,7 @@ import { useAlbumCards } from '../../hooks/useCards';
 import { CARD_SUBMISSIONS_ENABLED, COLORS, MEMBERS, STATUS_LABEL_KEY, CONTRIBUTIONS_ENABLED } from '../../lib/constants';
 import type { ImagePickerAsset } from 'expo-image-picker';
 import {
+  captureContributionImage,
   ContributionFailure, fetchMyPendingContributions, pickContributionImage, submitContribution,
 } from '../../lib/contributions';
 import { fetchMyReportedImages, submitImageReport } from '../../lib/reports';
@@ -161,6 +162,8 @@ export default function AlbumDetailScreen() {
   const contributionError = (reason: ContributionFailure) => {
     if (reason === 'unavailable') return t('contributeErrUnavailable');
     if (reason === 'read_failed') return t('contributeErrReadFailed');
+    if (reason === 'camera_permission') return t('contributeErrCameraPermission');
+    if (reason === 'no_camera') return t('contributeErrNoCamera');
     if (reason === 'permission') return t('contributeErrPermission');
     if (reason === 'too_large') return t('contributeErrTooLarge');
     if (reason === 'bad_type') return t('contributeErrBadType');
@@ -176,23 +179,27 @@ export default function AlbumDetailScreen() {
     // Igual que en handleReport: la ficha es un Modal nativo y taparia el aviso.
     setSelectedCard(null);
 
+    // La camara primero: quien aporta suele tener la photocard EN LA MANO. La
+    // galeria queda para fotos ya hechas.
+    const empezar = async (desde: 'camara' | 'galeria') => {
+      const picked = desde === 'camara'
+        ? await captureContributionImage()
+        : await pickContributionImage();
+      if (!picked.ok) {
+        if (picked.reason !== 'cancelled') {
+          alert(t('contributeTitle'), contributionError(picked.reason));
+        }
+        return;
+      }
+      // El envio no ocurre aca: primero se encuadra. Lo continua
+      // finishContribution().
+      setCropping({ asset: picked.asset, cardId: card.id });
+    };
+
     alert(t('contributeTitle'), t('contributeRights'), [
       { text: t('cancel'), style: 'cancel' },
-      {
-        text: t('contributeConfirm'),
-        onPress: async () => {
-          const picked = await pickContributionImage();
-          if (!picked.ok) {
-            if (picked.reason !== 'cancelled') {
-              alert(t('contributeTitle'), contributionError(picked.reason));
-            }
-            return;
-          }
-          // El envio no ocurre aca: primero se encuadra. Lo continua
-          // finishContribution().
-          setCropping({ asset: picked.asset, cardId: card.id });
-        },
-      },
+      { text: t('contributeFromLibrary'), onPress: () => empezar('galeria') },
+      { text: t('contributeTakePhoto'), onPress: () => empezar('camara') },
     ]);
   };
 

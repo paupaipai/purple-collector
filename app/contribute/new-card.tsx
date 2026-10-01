@@ -29,6 +29,7 @@ import {
 } from '../../hooks/useCatalogTaxonomy';
 import { CARD_SUBMISSIONS_ENABLED, COLORS, MEMBERS } from '../../lib/constants';
 import {
+  captureContributionImage,
   ContributionFailure,
   normalizeToPhotocard,
   pickContributionImage,
@@ -180,6 +181,8 @@ export default function NewCardScreen() {
   const failureText = (reason: SubmissionFailure | ContributionFailure) => {
     if (reason === 'unavailable') return t('contributeErrUnavailable');
     if (reason === 'read_failed') return t('contributeErrReadFailed');
+    if (reason === 'camera_permission') return t('contributeErrCameraPermission');
+    if (reason === 'no_camera') return t('contributeErrNoCamera');
     if (reason === 'permission') return t('contributeErrPermission');
     if (reason === 'too_large') return t('contributeErrTooLarge');
     if (reason === 'bad_type') return t('contributeErrBadType');
@@ -188,8 +191,10 @@ export default function NewCardScreen() {
     return t('contributeErrFailed');
   };
 
-  const pickPhoto = async () => {
-    const picked = await pickContributionImage();
+  const pickPhoto = async (desde: 'camara' | 'galeria') => {
+    const picked = desde === 'camara'
+      ? await captureContributionImage()
+      : await pickContributionImage();
     if (!picked.ok) {
       if (picked.reason !== 'cancelled') {
         alert(t('newCardTitle'), failureText(picked.reason));
@@ -311,7 +316,11 @@ export default function NewCardScreen() {
               <GlassCard style={styles.card}>
                 <Text style={styles.sectionTitle}>{t('newCardImage')}</Text>
                 <View style={styles.photoRow}>
-                  <TouchableOpacity onPress={pickPhoto} activeOpacity={0.8} style={styles.photoFrame}>
+                  <TouchableOpacity
+                    onPress={() => pickPhoto('camara')}
+                    activeOpacity={0.8}
+                    style={styles.photoFrame}
+                  >
                     {asset ? (
                       <Image
                         source={{ uri: previewUri ?? asset.uri }}
@@ -326,10 +335,24 @@ export default function NewCardScreen() {
                   </TouchableOpacity>
                   <View style={styles.photoSide}>
                     <Text style={styles.photoHint}>{t('newCardImageHint')}</Text>
-                    <TouchableOpacity onPress={pickPhoto} activeOpacity={0.7} style={styles.photoBtn}>
-                      <Ionicons name={asset ? 'swap-horizontal' : 'add'} size={15} color={COLORS.purple3} />
+                    {/* La camara primero: quien propone una card la tiene en
+                        la mano. La galeria queda para fotos ya hechas. */}
+                    <TouchableOpacity
+                      onPress={() => pickPhoto('camara')}
+                      activeOpacity={0.7}
+                      style={styles.photoBtn}
+                    >
+                      <Ionicons name="camera-outline" size={15} color={COLORS.purple3} />
+                      <Text style={styles.photoBtnText}>{t('contributeTakePhoto')}</Text>
+                    </TouchableOpacity>
+                    <TouchableOpacity
+                      onPress={() => pickPhoto('galeria')}
+                      activeOpacity={0.7}
+                      style={styles.photoBtn}
+                    >
+                      <Ionicons name={asset ? 'swap-horizontal' : 'images-outline'} size={15} color={COLORS.purple3} />
                       <Text style={styles.photoBtnText}>
-                        {t(asset ? 'newCardChangeImage' : 'newCardPickImage')}
+                        {t(asset ? 'newCardChangeImage' : 'contributeFromLibrary')}
                       </Text>
                     </TouchableOpacity>
                     {asset ? (

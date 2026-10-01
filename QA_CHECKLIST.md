@@ -64,7 +64,12 @@ Bloque nuevo. Nada de esto existe en la Android v1 publicada.
 - [ ] El buscador aparece en álbumes (159) y en sets, pero **no** en tipos (6)
 - [ ] **Enviar está apagado** hasta tener foto + álbum + categoría + miembro +
       nombre (≥2 caracteres)
-- [ ] Elegir foto → abre el **cropper 2:3**; la miniatura queda encuadrada
+- [ ] **Hacer foto** y **Elegir de la galería**, los dos llevan al cropper 2:3
+- [ ] En **simulador** (sin cámara): *"Este dispositivo no tiene cámara"*, no un
+      error opaco ni un cierre de la app
+- [ ] Denegar el permiso de cámara → mensaje propio, distinto al de fotos
+- [ ] ⚠️ La cámara **necesita build nuevo**: sin `NSCameraUsageDescription` en el
+      Info.plist, iOS mata el proceso al pedir el permiso
 - [ ] Enviar → pide confirmación de derechos → *"Propuesta enviada"*
 - [ ] Enviar **la misma card otra vez** → *"Ya enviaste esta misma card"*, no un
       error de base

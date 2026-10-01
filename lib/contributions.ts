@@ -28,6 +28,8 @@ export type ContributionFailure =
   | 'cancelled'      // el usuario cerro el selector
   | 'unavailable'    // el modulo nativo no esta en este build
   | 'read_failed'    // se eligio una foto pero no se pudo leer
+  | 'camera_permission' // no dio permiso de camara
+  | 'no_camera'      // no hay camara (p.ej. el simulador)
   | 'permission'     // no dio permiso de galeria
   | 'too_large'      // supera CONTRIBUTION_MAX_BYTES
   | 'bad_type'       // mime fuera de la whitelist
@@ -168,59 +170,44 @@ export async function normalizeToPhotocard(
  * del bucket. Se valida ANTES de subir para dar un error legible en vez de un
  * 400 del storage.
  */
-export async function pickContributionImage(): Promise<
-  { ok: true; asset: ImagePicker.ImagePickerAsset } | { ok: false; reason: ContributionFailure }
-> {
-  // expo-image-picker es un modulo nativo: en un dev client o un build anterior
-  // a su instalacion no existe, y llamarlo lanza. Sin este guard, tocar
-  // "Aportar imagen" reventaria la pantalla en vez de dar un aviso.
-  //
-  // Pedir el permiso sirve ademas para SABER si el modulo esta: si esta llamada
-  // pasa, el modulo existe, y cualquier fallo posterior es de la foto elegida,
-  // no del build. Sin esa distincion todo error acababa diciendo "actualiza la
-  // app", que manda a la persona a hacer algo que no arregla nada.
-  try {
-    const permission = await ImagePicker.requestMediaLibraryPermissionsAsync();
-    if (!permission.granted) return { ok: false, reason: 'permission' };
-  } catch (err) {
-    console.error('[contributions] image picker unavailable:', err);
-    return { ok: false, reason: 'unavailable' };
-  }
+export type PickedImage =
+  | { ok: true; asset: ImagePicker.ImagePickerAsset }
+  | { ok: false; reason: ContributionFailure };
 
-  let result: ImagePicker.ImagePickerResult;
-  try {
-    result = await withTimeout(ImagePicker.launchImageLibraryAsync({
-      mediaTypes: ['images'],
-      // Sin el cropper nativo: se comporta distinto en cada plataforma. El
-      // encuadre lo elige la persona en ImageCropper, que es igual en las tres.
-      allowsEditing: false,
-      // "Cannot load representation of type public.jpeg".
-      //
-      // El modulo tiene dos caminos para leer la foto. El RAPIDO copia el
-      // archivo original pidiendo el tipo generico `public.image`. El LENTO
-      // pide el primer tipo que el asset declara -- que suele ser
-      // `public.jpeg` -- y falla cuando el sistema no puede producir esos
-      // bytes, que es lo que pasa con varios assets del simulador.
-      //
-      // El camino rapido solo se toma si NO hay allowsEditing, si la calidad es
-      // 1 y si el modo de representacion es `current` (el de por defecto). De
-      // los tres, el que nos sacaba de ahi era `quality: 0.9`.
-      //
-      // Poner 1 no empeora nada: normalizeToPhotocard() recorta y reencoda
-      // despues con compress 0.85, asi que pedirle al picker que reencode
-      // primero era comprimir dos veces y perder calidad para nada.
-      quality: 1,
-      exif: false,
-      // Sin tope, una galeria que no devuelve deja el flujo colgado sin error y
-      // sin nada en pantalla. 5 minutos es de sobra para elegir una foto.
-    }), 300000, 'elegir foto');
-  } catch (err) {
-    // Aca el modulo ya demostro que existe, asi que esto es la foto: puede ser
-    // un asset que iOS no logra materializar, o uno que ya no esta.
-    console.error('[contributions] no se pudo leer la foto elegida:', err);
-    return { ok: false, reason: 'read_failed' };
-  }
+/**
+ * Opciones comunes de la galeria y de la camara.
+ *
+ * "Cannot load representation of type public.jpeg".
+ *
+ * El modulo tiene dos caminos para leer la foto. El RAPIDO copia el archivo
+ * original pidiendo el tipo generico `public.image`. El LENTO pide el primer
+ * tipo que el asset declara --que suele ser `public.jpeg`-- y falla cuando el
+ * sistema no puede producir esos bytes, que es lo que pasa con varios assets
+ * del simulador.
+ *
+ * El camino rapido solo se toma si NO hay allowsEditing, si la calidad es 1 y
+ * si el modo de representacion es `current` (el de por defecto). De los tres,
+ * el que nos sacaba de ahi era `quality: 0.9`.
+ *
+ * Poner 1 no empeora nada: normalizeToPhotocard() recorta y reencoda despues
+ * con compress 0.85, asi que pedirle al picker que reencode primero era
+ * comprimir dos veces y perder calidad para nada.
+ *
+ * Sin el cropper nativo: se comporta distinto en cada plataforma. El encuadre
+ * lo elige la persona en ImageCropper, que es igual en las tres.
+ */
+const PICKER_OPTIONS: ImagePicker.ImagePickerOptions = {
+  mediaTypes: ['images'],
+  allowsEditing: false,
+  quality: 1,
+  exif: false,
+};
 
+/**
+ * Lo que pasa DESPUES de que la persona elija o dispare, que es identico en los
+ * dos caminos.
+ */
+async function finishPick(result: ImagePicker.ImagePickerResult): Promise<PickedImage> {
   if (result.canceled || !result.assets || result.assets.length === 0) {
     return { ok: false, reason: 'cancelled' };
   }
@@ -247,14 +234,79 @@ export async function pickContributionImage(): Promise<
   return { ok: true, asset };
 }
 
+/** Elegir una foto de la galeria. */
+export async function pickContributionImage(): Promise<PickedImage> {
+  // expo-image-picker es un modulo nativo: en un dev client o un build anterior
+  // a su instalacion no existe, y llamarlo lanza. Sin este guard, tocar
+  // "Aportar imagen" reventaria la pantalla en vez de dar un aviso.
+  //
+  // Pedir el permiso sirve ademas para SABER si el modulo esta: si esta llamada
+  // pasa, el modulo existe, y cualquier fallo posterior es de la foto elegida,
+  // no del build. Sin esa distincion todo error acababa diciendo "actualiza la
+  // app", que manda a la persona a hacer algo que no arregla nada.
+  try {
+    const permission = await ImagePicker.requestMediaLibraryPermissionsAsync();
+    if (!permission.granted) return { ok: false, reason: 'permission' };
+  } catch (err) {
+    console.error('[contributions] image picker unavailable:', err);
+    return { ok: false, reason: 'unavailable' };
+  }
+
+  let result: ImagePicker.ImagePickerResult;
+  try {
+    // Sin tope, una galeria que no devuelve deja el flujo colgado sin error y
+    // sin nada en pantalla. 5 minutos es de sobra para elegir una foto.
+    result = await withTimeout(
+      ImagePicker.launchImageLibraryAsync({ ...PICKER_OPTIONS }),
+      300000,
+      'elegir foto',
+    );
+  } catch (err) {
+    // Aca el modulo ya demostro que existe, asi que esto es la foto: puede ser
+    // un asset que iOS no logra materializar, o uno que ya no esta.
+    console.error('[contributions] no se pudo leer la foto elegida:', err);
+    return { ok: false, reason: 'read_failed' };
+  }
+
+  return finishPick(result);
+}
+
 /**
- * Sube el asset y registra la aportacion.
+ * Hacer la foto con la camara.
  *
- * `acceptedTerms` no es decorativo: la constraint
- * card_images_community_has_terms rechaza la fila sin `terms_accepted_at` y
- * `terms_version`, asi que no hay forma de registrar un aporte sin dejar
- * constancia de que se aceptaron los terminos.
+ * Es el camino natural para aportar: tienes la photocard en la mano. La galeria
+ * sigue existiendo para fotos que ya tienes hechas.
+ *
+ * OJO: el simulador de iOS NO tiene camara. Alli esto devuelve 'no_camera' en
+ * vez de un error opaco, porque es lo primero que va a pasarle a quien lo
+ * pruebe sin un dispositivo.
  */
+export async function captureContributionImage(): Promise<PickedImage> {
+  try {
+    const permission = await ImagePicker.requestCameraPermissionsAsync();
+    if (!permission.granted) return { ok: false, reason: 'camera_permission' };
+  } catch (err) {
+    console.error('[contributions] camara no disponible en este build:', err);
+    return { ok: false, reason: 'unavailable' };
+  }
+
+  let result: ImagePicker.ImagePickerResult;
+  try {
+    result = await withTimeout(
+      ImagePicker.launchCameraAsync({ ...PICKER_OPTIONS }),
+      300000,
+      'hacer foto',
+    );
+  } catch (err) {
+    // En un simulador el modulo existe y el permiso pasa, pero no hay camara
+    // que abrir. Se distingue para poder decirlo con claridad.
+    console.error('[contributions] no se pudo abrir la camara:', err);
+    return { ok: false, reason: 'no_camera' };
+  }
+
+  return finishPick(result);
+}
+
 /**
  * Sube una imagen al bucket PRIVADO de revision y devuelve lo que hace falta
  * para registrarla.

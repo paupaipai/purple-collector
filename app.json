@@ -62,7 +62,8 @@
       [
         "expo-image-picker",
         {
-          "photosPermission": "Purple Collector necesita acceso a tus fotos para que puedas aportar la imagen de una photocard al catálogo."
+          "photosPermission": "Purple Collector necesita acceso a tus fotos para que puedas aportar la imagen de una photocard al catálogo.",
+          "cameraPermission": "Purple Collector necesita la cámara para que puedas fotografiar una photocard y aportarla al catálogo."
         }
       ],
       [
