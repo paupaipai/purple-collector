@@ -16,6 +16,8 @@ import { I18nProvider } from '../lib/I18nContext';
 import { PremiumProvider } from '../lib/PremiumContext';
 import { supabase } from '../lib/supabase';
 import { BIAS_ENABLED, COLORS } from '../lib/constants';
+import UsernameScreen from '../components/UsernameScreen';
+import { fetchUsername } from '../lib/username';
 import { BiasKey } from '../lib/types';
 import * as Sentry from '@sentry/react-native';
 
@@ -41,6 +43,9 @@ Sentry.init({
 SplashScreen.preventAutoHideAsync();
 
 const onboardedKey = (userId: string) => `@purplecollector/onboarded:${userId}`;
+// Se guarda que YA se pregunto, no la respuesta: quien lo salte no tiene que
+// volver a verlo en cada arranque.
+const usernameAskedKey = (userId: string) => `@purplecollector/username-asked:${userId}`;
 
 function LoadingScreen() {
   const pulse = useRef(new Animated.Value(0.85)).current;
@@ -127,6 +132,44 @@ function AppShell({ session, loading, authLoading, signInWithGoogle, signInWithA
     checkOnboarded();
   }, [session?.user?.id]);
 
+  // Nombre de usuario: se pregunta una sola vez, al entrar, y solo si la cuenta
+  // no tiene. Se recuerda que ya se pregunto para no insistir en cada arranque
+  // a quien decidio saltarlo -- lo tiene en su perfil cuando quiera.
+  const [askUsername, setAskUsername] = useState<boolean | null>(null);
+
+  useEffect(() => {
+    const uid = session?.user?.id;
+    if (!uid) { setAskUsername(false); return; }
+
+    let cancelled = false;
+    (async () => {
+      const asked = await AsyncStorage.getItem(usernameAskedKey(uid));
+      if (asked) { if (!cancelled) setAskUsername(false); return; }
+
+      try {
+        // Mismo motivo que el timeout de onboarding: justo despues del login la
+        // red puede estar aun asentandose, y sin tope esta consulta dejaria la
+        // app en la pantalla de carga. Ante la duda NO se pregunta: es mejor
+        // entrar sin nombre que no entrar.
+        const timeout = new Promise<never>((_, reject) =>
+          setTimeout(() => reject(new Error('username check timed out')), 8000),
+        );
+        const username = await Promise.race([fetchUsername(uid), timeout]);
+        if (!cancelled) setAskUsername(!username);
+      } catch {
+        if (!cancelled) setAskUsername(false);
+      }
+    })();
+
+    return () => { cancelled = true; };
+  }, [session?.user?.id]);
+
+  const finishUsername = async () => {
+    const uid = session?.user?.id;
+    if (uid) await AsyncStorage.setItem(usernameAskedKey(uid), 'true');
+    setAskUsername(false);
+  };
+
   const finishOnboarding = async (biases: BiasKey[]) => {
     await saveBiases(biases);
     if (session?.user?.id) await AsyncStorage.setItem(onboardedKey(session.user.id), 'true');
@@ -137,11 +180,17 @@ function AppShell({ session, loading, authLoading, signInWithGoogle, signInWithA
   // nada que preguntar, asi que ni se muestra ni se espera la consulta de
   // onboarding_completed (que ademas tiene su propio timeout de 8s).
   const showOnboarding = BIAS_ENABLED && !!session && !onboarded;
-  const isLoading = loading || (BIAS_ENABLED && !!session && onboarded === null);
+  const showUsername = !showOnboarding && !!session && askUsername === true;
+  const isLoading =
+    loading
+    || (BIAS_ENABLED && !!session && onboarded === null)
+    // Esperar la respuesta evita el parpadeo de ver la app y que encima aparezca
+    // la pantalla de nombre; el tope de 8 s impide que esto llegue a atascar.
+    || (!!session && askUsername === null);
   // Mirrors the exact condition that renders the authenticated <Stack> below
   // (with the album/[id] route) — anything looser lets navigation fire
   // before that route exists.
-  const stackReady = !isLoading && !!session && !showOnboarding;
+  const stackReady = !isLoading && !!session && !showOnboarding && !showUsername;
 
   usePushNotifications(session?.user?.id ?? null, stackReady);
 
@@ -166,6 +215,12 @@ function AppShell({ session, loading, authLoading, signInWithGoogle, signInWithA
         <LoginScreen onGoogleSignIn={signInWithGoogle} onAppleSignIn={signInWithApple} loading={authLoading} />
       ) : showOnboarding ? (
         <OnboardingScreen onFinish={finishOnboarding} />
+      ) : showUsername ? (
+        <UsernameScreen
+          userId={session?.user?.id ?? null}
+          suggestion={session?.user?.user_metadata?.full_name ?? session?.user?.email?.split('@')[0]}
+          onDone={finishUsername}
+        />
       ) : (
         <Stack
           screenOptions={{

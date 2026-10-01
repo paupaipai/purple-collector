@@ -18,6 +18,7 @@ import { useWishlist } from '../../hooks/useWishlist';
 import { useBias } from '../../lib/BiasContext';
 import { BIAS_ENABLED, COLORS, getMemberByKey, MEMBERS, PREMIUM_ENABLED, PRIVACY_URL, RARITIES, RARITY_LABEL_KEY } from '../../lib/constants';
 import { useI18n } from '../../lib/I18nContext';
+import { saveUsername, USERNAME_RE } from '../../lib/username';
 import { usePremium } from '../../lib/PremiumContext';
 import { fetchAllByIds, fetchAllPages, supabase } from '../../lib/supabase';
 import { BiasKey } from '../../lib/types';
@@ -58,7 +59,6 @@ function StatCard({ value, label, color, icon }: { value: number | string; label
 
 export default function ProfileScreen() {
   const router = useRouter();
-  const HANDLE_RE = /^[a-z0-9_]{3,20}$/;
   const { user, userId, userName, userAvatar, authProvider, signOut, deleteAccount } = useAuth();
   const params = useLocalSearchParams<{ handle?: string }>();
 
@@ -74,35 +74,30 @@ export default function ProfileScreen() {
     return () => { cancelled = true; };
   }, [userId]);
 
+  // La validacion y los codigos de error viven en lib/username.ts porque hay
+  // DOS sitios que guardan esto --aqui y la pantalla de alta-- y dos copias de
+  // la misma regla acabarian discrepando.
   const saveHandle = async () => {
-    const value = handleDraft.trim().toLowerCase();
-    if (!HANDLE_RE.test(value)) {
-      Alert.alert(t('handleTitle'), t('handleInvalid'));
-      return;
-    }
     setHandleSaving(true);
-    const { error } = await supabase
-      .from('user_profiles')
-      .update({ username: value })
-      .eq('id', userId!);
+    const result = await saveUsername(userId, handleDraft);
     setHandleSaving(false);
 
-    if (error) {
-      // El formato ya se valido arriba, asi que un check_violation aca solo
-      // puede venir de la lista de handles reservados.
-      const code = (error as any).code;
+    if (!result.ok) {
       Alert.alert(
         t('handleTitle'),
-        code === '23505' ? t('handleTaken')
-          : code === '23514' ? t('handleReserved')
+        result.reason === 'taken' ? t('handleTaken')
+          : result.reason === 'reserved' ? t('handleReserved')
+          : result.reason === 'invalid' ? t('handleInvalid')
           : t('handleFailed'),
       );
       return;
     }
-    setHandle(value);
+
+    setHandle(result.username);
     setHandleModal(false);
     Alert.alert(t('handleTitle'), t('handleSaved'));
   };
+
   const [deleteModal, setDeleteModal] = useState(false);
   // Handle publico para la attribution. Se lee de la propia fila, que es lo
   // unico que la RLS permite desde SR-2.
@@ -252,6 +247,20 @@ export default function ProfileScreen() {
           <Text style={styles.name}>{userName || 'ARMY'}</Text>
           <Text style={styles.email}>{user?.email || ''}</Text>
 
+          {/* El nombre de usuario va AQUI, bajo el correo, y no en una fila de
+              la tarjeta de cuenta: es identidad publica --firma lo que aportas--
+              y estaba escondido entre ajustes. Si no hay, la propia invitacion
+              a ponerlo ocupa su sitio. */}
+          <TouchableOpacity
+            onPress={() => { setHandleDraft(handle ?? ''); setHandleModal(true); }}
+            activeOpacity={0.7}
+            style={styles.usernameBtn}
+          >
+            <Text style={handle ? styles.username : styles.usernameEmpty}>
+              {handle ? `@${handle}` : t('usernameAdd')}
+            </Text>
+          </TouchableOpacity>
+
           {/* Premium badge or CTA */}
           {!PREMIUM_ENABLED ? null : isPremium ? (
             <View style={styles.premiumBadge}>
@@ -389,20 +398,6 @@ export default function ProfileScreen() {
             <Text style={styles.infoValue} numberOfLines={1}>{user?.email || '—'}</Text>
           </View>
           <View style={styles.rowSep} />
-          <TouchableOpacity
-            style={styles.infoRow}
-            activeOpacity={0.7}
-            onPress={() => { setHandleDraft(handle ?? ''); setHandleModal(true); }}
-          >
-            <Text style={styles.infoLabel}>{t('handleLabel')}</Text>
-            <View style={styles.handleValue}>
-              <Text style={styles.infoValue} numberOfLines={1}>
-                {handle ? `@${handle}` : t('handleNone')}
-              </Text>
-              <Ionicons name="pencil" size={12} color={COLORS.purple3} />
-            </View>
-          </TouchableOpacity>
-          <View style={styles.rowSep} />
           <View style={styles.infoRow}>
             <Text style={styles.infoLabel}>{t('labelProvider')}</Text>
             <View style={styles.providerBadge}>
@@ -520,9 +515,9 @@ export default function ProfileScreen() {
                 <Text style={styles.handleCancelText}>{t('cancel')}</Text>
               </TouchableOpacity>
               <TouchableOpacity
-                style={[styles.handleSave, !HANDLE_RE.test(handleDraft) && styles.handleSaveOff]}
+                style={[styles.handleSave, !USERNAME_RE.test(handleDraft.trim().toLowerCase()) && styles.handleSaveOff]}
                 activeOpacity={0.7}
-                disabled={handleSaving || !HANDLE_RE.test(handleDraft)}
+                disabled={handleSaving || !USERNAME_RE.test(handleDraft.trim().toLowerCase())}
                 onPress={saveHandle}
               >
                 {handleSaving
@@ -598,6 +593,9 @@ const styles = StyleSheet.create({
   container: { flex: 1, backgroundColor: 'transparent' },
   scroll: { paddingHorizontal: 16, paddingBottom: 120 },
 
+  usernameBtn: { marginTop: 6, paddingVertical: 4, paddingHorizontal: 12 },
+  username: { fontSize: 14, fontWeight: '800', color: COLORS.purple3 },
+  usernameEmpty: { fontSize: 12, fontWeight: '700', color: COLORS.textMuted },
   avatarSection: { alignItems: 'center', marginTop: 8, marginBottom: 20, paddingBottom: 24, overflow: 'hidden' },
   avatarGlow: { position: 'absolute', top: 0, left: -40, right: -40, height: 180 },
   avatarWrap: {

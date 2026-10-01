@@ -71,9 +71,20 @@ Bloque nuevo. Nada de esto existe en la Android v1 publicada.
 - [ ] Sin conexión al enviar → error legible, y **no** queda una imagen huérfana
       en el bucket
 
-### Handle y atribución
+### Nombre de usuario y atribución
 
-- [ ] Perfil → **Handle** → ponerse uno: 3-20 caracteres, minúsculas, números y `_`
+- [ ] **Cuenta nueva**: tras entrar aparece *"Elige tu nombre de usuario"*, con
+      una sugerencia sacada del nombre del proveedor, ya limpia (sin tildes,
+      espacios ni mayúsculas)
+- [ ] **Ahora no** → entra a la app igual, y **no vuelve a preguntarlo** al
+      reabrir
+- [ ] Quien lo saltó lo tiene en **Perfil, bajo el correo**: *"+ añade un nombre
+      de usuario"*
+- [ ] Con nombre puesto, el perfil muestra **@nombre** bajo el correo, y toca
+      para cambiarlo
+- [ ] Ya no hay una fila *Handle* en la tarjeta de Cuenta (era un segundo camino
+      a lo mismo)
+- [ ] Nombre de usuario: 3-20 caracteres, minúsculas, números y `_`
 - [ ] Formato inválido (`ab`, `Pau`, `pau pau`) → aviso, no se guarda
 - [ ] Un handle reservado (`admin`, `soporte`…) → *"está reservado"*
 - [ ] Un handle que ya tiene otra cuenta → *"ya está en uso"*
