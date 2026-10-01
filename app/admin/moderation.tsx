@@ -68,6 +68,11 @@ export default function ModerationScreen() {
   const submissions = useSubmissionsQueue(isAdmin);
   const [tab, setTab] = useState<'pending' | 'cards' | 'reports'>('pending');
 
+  // Los hooks dicen que hay algo en curso ('working'), pero no CUAL de los dos
+  // botones se pulso, y la ruedita salia siempre en Aprobar aunque hubieras
+  // rechazado. Esto guarda el boton pulsado para dibujarla donde toca.
+  const [pressed, setPressed] = useState<'approve' | 'reject' | null>(null);
+
   // Cada bandeja tiene su carga y su error; se mira la de la pestana activa
   // para no mostrar el spinner de otra.
   const active = tab === 'pending'
@@ -81,7 +86,9 @@ export default function ModerationScreen() {
     action: 'approve' | 'reject',
     reason?: RejectReason,
   ) => {
+    setPressed(action);
     const result = await moderate(submission.id, action, reason);
+    setPressed(null);
     if (!result.ok) {
       alert(t('moderation'), `${t('moderationError')}\n\n${result.error}`);
       return;
@@ -93,7 +100,9 @@ export default function ModerationScreen() {
   };
 
   const resolveReport = async (report: OpenReport, action: ResolveAction) => {
+    setPressed('approve');
     const result = await reports.resolve(report.id, action);
+    setPressed(null);
     if (!result.ok) {
       alert(t('reports'), `${t('moderationError')}\n\n${result.error}`);
       return;
@@ -110,7 +119,9 @@ export default function ModerationScreen() {
         text: t('takedownConfirm'),
         style: 'destructive',
         onPress: async () => {
+          setPressed('reject');
           const result = await reports.takedown(report.id, report.cardImageId, report.reason);
+          setPressed(null);
           if (!result.ok) {
             alert(t('reports'), `${t('moderationError')}\n\n${result.error}`);
             return;
@@ -126,7 +137,9 @@ export default function ModerationScreen() {
     action: 'approve' | 'reject',
     reason?: SubmissionRejectReason,
   ) => {
+    setPressed(action);
     const result = await submissions.moderate(item.id, action, reason);
+    setPressed(null);
     if (!result.ok) {
       alert(t('moderation'), `${t('moderationError')}\n\n${result.error}`);
       return;
@@ -277,8 +290,14 @@ export default function ModerationScreen() {
                       activeOpacity={0.7}
                       style={[styles.btn, styles.rejectBtn, busy && styles.btnDisabled]}
                     >
-                      <Ionicons name="trash-outline" size={15} color={COLORS.pink} />
-                      <Text style={[styles.btnText, { color: COLORS.pink }]}>{t('reportRemove')}</Text>
+                      {busy && pressed === 'reject' ? (
+                        <ActivityIndicator size="small" color={COLORS.pink} />
+                      ) : (
+                        <>
+                          <Ionicons name="trash-outline" size={15} color={COLORS.pink} />
+                          <Text style={[styles.btnText, { color: COLORS.pink }]}>{t('reportRemove')}</Text>
+                        </>
+                      )}
                     </TouchableOpacity>
                     <TouchableOpacity
                       onPress={() => resolveReport(report, 'resolved_kept')}
@@ -286,7 +305,7 @@ export default function ModerationScreen() {
                       activeOpacity={0.7}
                       style={[styles.btn, styles.approveBtn, busy && styles.btnDisabled]}
                     >
-                      {busy ? (
+                      {busy && pressed === 'approve' ? (
                         <ActivityIndicator size="small" color={COLORS.green} />
                       ) : (
                         <Text style={[styles.btnText, { color: COLORS.green }]}>{t('reportKeep')}</Text>
@@ -362,8 +381,14 @@ export default function ModerationScreen() {
                       activeOpacity={0.7}
                       style={[styles.btn, styles.rejectBtn, busy && styles.btnDisabled]}
                     >
-                      <Ionicons name="close" size={16} color={COLORS.pink} />
-                      <Text style={[styles.btnText, { color: COLORS.pink }]}>{t('reject')}</Text>
+                      {busy && pressed === 'reject' ? (
+                        <ActivityIndicator size="small" color={COLORS.pink} />
+                      ) : (
+                        <>
+                          <Ionicons name="close" size={16} color={COLORS.pink} />
+                          <Text style={[styles.btnText, { color: COLORS.pink }]}>{t('reject')}</Text>
+                        </>
+                      )}
                     </TouchableOpacity>
                     <TouchableOpacity
                       onPress={() => askApproveCard(item)}
@@ -371,7 +396,7 @@ export default function ModerationScreen() {
                       activeOpacity={0.7}
                       style={[styles.btn, styles.approveBtn, busy && styles.btnDisabled]}
                     >
-                      {busy ? (
+                      {busy && pressed === 'approve' ? (
                         <ActivityIndicator size="small" color={COLORS.green} />
                       ) : (
                         <>
@@ -443,8 +468,14 @@ export default function ModerationScreen() {
                       activeOpacity={0.7}
                       style={[styles.btn, styles.rejectBtn, busy && styles.btnDisabled]}
                     >
-                      <Ionicons name="close" size={16} color={COLORS.pink} />
-                      <Text style={[styles.btnText, { color: COLORS.pink }]}>{t('reject')}</Text>
+                      {busy && pressed === 'reject' ? (
+                        <ActivityIndicator size="small" color={COLORS.pink} />
+                      ) : (
+                        <>
+                          <Ionicons name="close" size={16} color={COLORS.pink} />
+                          <Text style={[styles.btnText, { color: COLORS.pink }]}>{t('reject')}</Text>
+                        </>
+                      )}
                     </TouchableOpacity>
                     <TouchableOpacity
                       onPress={() => run(item, 'approve')}
@@ -452,7 +483,7 @@ export default function ModerationScreen() {
                       activeOpacity={0.7}
                       style={[styles.btn, styles.approveBtn, busy && styles.btnDisabled]}
                     >
-                      {busy ? (
+                      {busy && pressed === 'approve' ? (
                         <ActivityIndicator size="small" color={COLORS.green} />
                       ) : (
                         <>

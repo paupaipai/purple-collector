@@ -76,6 +76,15 @@ export default function AppDialog({ request, onPress }: Props) {
   // Dos caben en una fila; tres o mas se apilan, igual que hace el nativo.
   const stacked = buttons.length > 2;
 
+  // Se destaca un boton SOLO cuando hay una accion y una salida ("Aportar" /
+  // "Cancelar"). En una lista de motivos no hay accion preferida, y destacar el
+  // ultimo hacia que "Duplicada" pareciera ya elegida.
+  const actionable = buttons.filter(b => b.style !== 'cancel');
+  const primaryIndex =
+    actionable.length === 1 && actionable[0].style !== 'destructive'
+      ? buttons.indexOf(actionable[0])
+      : -1;
+
   const colorFor = (button: DialogButton) =>
     button.style === 'destructive' ? COLORS.pink
       : button.style === 'cancel' ? COLORS.textSecondary
@@ -104,10 +113,7 @@ export default function AppDialog({ request, onPress }: Props) {
 
           <View style={[styles.actions, stacked && styles.actionsStacked]}>
             {buttons.map((button, index) => {
-              // El principal es el ultimo que no sea cancelar, como en iOS.
-              const isPrimary =
-                button.style !== 'cancel'
-                && index === buttons.map(b => b.style !== 'cancel').lastIndexOf(true);
+              const isPrimary = index === primaryIndex;
               return (
                 <TouchableOpacity
                   key={`${button.text}-${index}`}
@@ -116,13 +122,13 @@ export default function AppDialog({ request, onPress }: Props) {
                   style={[
                     styles.button,
                     stacked && styles.buttonStacked,
-                    isPrimary && button.style !== 'destructive' && styles.buttonPrimary,
+                    isPrimary && styles.buttonPrimary,
                   ]}
                 >
                   <Text
                     style={[
                       styles.buttonText,
-                      { color: isPrimary && button.style !== 'destructive' ? '#fff' : colorFor(button) },
+                      { color: isPrimary ? '#fff' : colorFor(button) },
                     ]}
                     numberOfLines={1}
                   >
