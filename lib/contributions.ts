@@ -1,6 +1,7 @@
 import * as Crypto from 'expo-crypto';
 import { ImageManipulator, SaveFormat } from 'expo-image-manipulator';
 import * as ImagePicker from 'expo-image-picker';
+import { Image as RNImage } from 'react-native';
 
 import {
   CONTRIBUTION_MAX_BYTES,
@@ -38,6 +39,31 @@ export type ContributionFailure =
 export type ContributionResult =
   | { ok: true; storagePath: string }
   | { ok: false; reason: ContributionFailure; detail?: string };
+
+/**
+ * Mide la imagen cuando el picker no sabe decir su tamano.
+ *
+ * El camino rapido del modulo lee el tamano de la cabecera del archivo
+ * (`readVisualSizeFrom`), y cuando no lo consigue el llamante hace `?? .zero`:
+ * el asset llega con ancho y alto 0. Las consecuencias no son obvias:
+ *
+ *   - ImageCropper dibuja la imagen a tamano cero, asi que el recuadro abre
+ *     vacio y no hay nada que encuadrar;
+ *   - normalizeToPhotocard() devuelve null sin w/h, asi que el recorte se salta
+ *     y se sube la foto original, sin proporcion de photocard.
+ *
+ * Image.getSize decodifica lo justo para saber el tamano. Es mas lento, pero
+ * solo se llama cuando el picker ya fallo en decirlo.
+ */
+function measureImage(uri: string): Promise<{ width: number; height: number } | null> {
+  return new Promise(resolve => {
+    RNImage.getSize(
+      uri,
+      (width, height) => resolve(width && height ? { width, height } : null),
+      () => resolve(null),
+    );
+  });
+}
 
 /** Extension a partir del mime, para no confiar en el nombre del archivo. */
 function extensionFor(mimeType: string): string {
@@ -173,11 +199,26 @@ export async function pickContributionImage(): Promise<
     return { ok: false, reason: 'cancelled' };
   }
 
+  const asset = result.assets[0];
+
+  // Sin dimensiones no se puede encuadrar ni recortar, y el fallo seria MUDO:
+  // el cropper abriria vacio. Se miden aqui, una sola vez, en vez de que cada
+  // pantalla tenga que acordarse.
+  if (!asset.width || !asset.height) {
+    const measured = await measureImage(asset.uri);
+    if (!measured) {
+      console.error('[contributions] no se pudo medir la foto:', asset.uri);
+      return { ok: false, reason: 'read_failed' };
+    }
+    console.warn('[contributions] el picker no dio tamano; medido:', measured);
+    return { ok: true, asset: { ...asset, ...measured } };
+  }
+
   // Ni el tamano ni el mime del original se validan aca: normalizeToPhotocard()
   // recorta, reescala y reencoda, asi que lo que importa es el archivo
   // RESULTANTE. Validar el original rechazaria una foto de movil de 8 MP que
   // normalizada pesa 200 kB.
-  return { ok: true, asset: result.assets[0] };
+  return { ok: true, asset };
 }
 
 /**
