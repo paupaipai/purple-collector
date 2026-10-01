@@ -17,12 +17,10 @@ import ErrorView from '../../components/ErrorView';
 import GalaxyBackground from '../../components/GalaxyBackground';
 import GlassCard from '../../components/GlassCard';
 import { useAuth } from '../../hooks/useAuth';
-import { useIsAdmin } from '../../hooks/useIsAdmin';
 import {
   MyContribution,
   useMyContributions,
   useMyHandle,
-  usePendingModerationCount,
 } from '../../hooks/useMyContributions';
 import { CARD_SUBMISSIONS_ENABLED, COLORS } from '../../lib/constants';
 import { rejectionReasonKey } from '../../lib/submissions';
@@ -54,9 +52,7 @@ export default function ContributionsScreen() {
   const router = useRouter();
   const { t } = useI18n();
   const { userId } = useAuth();
-  const { isAdmin } = useIsAdmin(userId);
   const { items, loading, error, refetch, silentRefetch } = useMyContributions(userId);
-  const moderation = usePendingModerationCount(isAdmin);
   const { handle, refetch: refetchHandle } = useMyHandle(userId);
 
   // Volver de la bandeja de moderacion es justo cuando esta lista cambia: lo
@@ -64,15 +60,13 @@ export default function ContributionsScreen() {
   // con lo que hubiera al montar la tab, que es la primera vez que entras.
   useFocusEffect(useCallback(() => {
     silentRefetch();
-    moderation.refetch();
-    // Al volver de ponerse el handle, para que el aviso desaparezca solo.
+    // Al volver de ponerse el nombre de usuario, para que el aviso se vaya solo.
     refetchHandle();
-  }, [silentRefetch, moderation, refetchHandle]));
+  }, [silentRefetch, refetchHandle]));
 
   const refreshAll = useCallback(() => {
     refetch();
-    moderation.refetch();
-  }, [refetch, moderation]);
+  }, [refetch]);
 
   /**
    * El motivo, legible. `rejection_reason` guarda el token del enum
@@ -120,22 +114,6 @@ export default function ContributionsScreen() {
                 <Text style={styles.ctaDesc}>{t('newCardEntryDesc')}</Text>
               </View>
               <Ionicons name="chevron-forward" size={18} color="rgba(255,255,255,0.7)" />
-            </TouchableOpacity>
-          )}
-
-          {isAdmin && (
-            <TouchableOpacity
-              onPress={() => router.push('/admin/moderation')}
-              activeOpacity={0.8}
-            >
-              <GlassCard style={styles.adminCard}>
-                <Ionicons name="shield-checkmark-outline" size={18} color={COLORS.purple3} />
-                <Text style={styles.adminText}>{t('moderation')}</Text>
-                {moderation.count > 0 && (
-                  <Text style={styles.badge}>{moderation.count}</Text>
-                )}
-                <Ionicons name="chevron-forward" size={16} color={COLORS.textMuted} />
-              </GlassCard>
             </TouchableOpacity>
           )}
 
@@ -247,13 +225,6 @@ const styles = StyleSheet.create({
   ctaTitle: { fontSize: 14, fontWeight: '800', color: '#fff' },
   ctaDesc: { fontSize: 11, color: 'rgba(255,255,255,0.75)', marginTop: 2 },
 
-  adminCard: { flexDirection: 'row', alignItems: 'center', gap: 9 },
-  adminText: { flex: 1, fontSize: 13, fontWeight: '800', color: COLORS.textPrimary },
-  badge: {
-    fontSize: 11, fontWeight: '800', color: COLORS.purple3,
-    backgroundColor: 'rgba(168,85,247,0.15)',
-    paddingHorizontal: 8, paddingVertical: 3, borderRadius: 10, overflow: 'hidden',
-  },
 
   handleCard: {
     flexDirection: 'row', alignItems: 'center', gap: 10,

@@ -155,8 +155,10 @@ Bloque nuevo. Nada de esto existe en la Android v1 publicada.
 
 ### Moderación (solo admin)
 
-- [ ] Con cuenta **no admin**: la entrada *Moderación* **no** aparece en Perfil
-- [ ] Con cuenta admin: aparece debajo de la tarjeta de *Cuenta*
+- [ ] Con cuenta **no admin**: el banner de *Moderación* **no** aparece
+- [ ] Con cuenta admin: sale como **banner en la cabecera de Perfil**, bajo el
+      nombre de usuario, con el número de cosas esperando
+- [ ] Al volver de moderar, ese número se actualiza solo
 - [ ] ⚠️ Tras cambiar el rol hay que **cerrar y abrir sesión**: el perfil se lee
       una sola vez al montar
 - [ ] Pestaña **Pendientes**: muestra la imagen aportada **al lado** de la que se

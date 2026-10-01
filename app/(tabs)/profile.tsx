@@ -19,6 +19,8 @@ import { useBias } from '../../lib/BiasContext';
 import { BIAS_ENABLED, COLORS, getMemberByKey, MEMBERS, PREMIUM_ENABLED, PRIVACY_URL, RARITIES, RARITY_LABEL_KEY } from '../../lib/constants';
 import { useDialog } from '../../lib/DialogContext';
 import { useI18n } from '../../lib/I18nContext';
+import { usePendingModerationCount } from '../../hooks/useMyContributions';
+import { useIsAdmin } from '../../hooks/useIsAdmin';
 import { saveUsername, USERNAME_RE } from '../../lib/username';
 import { usePremium } from '../../lib/PremiumContext';
 import { fetchAllByIds, fetchAllPages, supabase } from '../../lib/supabase';
@@ -125,6 +127,8 @@ export default function ProfileScreen() {
   const [showBiasEdit, setShowBiasEdit] = useState(false);
   const { lang, setLang, t } = useI18n();
   const { alert } = useDialog();
+  const { isAdmin } = useIsAdmin(userId);
+  const moderation = usePendingModerationCount(isAdmin);
   const { isPremium } = usePremium();
   const { biases, saveBiases } = useBias();
   const { cards: ownedCards, silentRefetch: silentRefetchCollection } = useCollection(userId);
@@ -209,10 +213,11 @@ export default function ProfileScreen() {
   useEffect(() => { fetchMemberTotals(); }, [fetchMemberTotals]);
 
   useFocusEffect(useCallback(() => {
+    moderation.refetch();
     silentRefetchCollection();
     silentRefetchAlbums();
     fetchMemberTotals();
-  }, [silentRefetchCollection, silentRefetchAlbums, fetchMemberTotals]));
+  }, [silentRefetchCollection, silentRefetchAlbums, fetchMemberTotals, moderation]));
 
   const rarityCounts = useMemo(() => {
     const c: Record<string, number> = { Common: 0, Rare: 0, 'Ultra Rare': 0, Limited: 0 };
@@ -265,6 +270,25 @@ export default function ProfileScreen() {
               {handle ? `@${handle}` : t('usernameAdd')}
             </Text>
           </TouchableOpacity>
+
+          {/* Moderacion. Va en la cabecera, pegada a quien eres, porque es un
+              ROL, no un ajuste: lo primero que quiere ver un mantenedor al
+              entrar es si hay algo esperando. El gate real esta en la RLS y en
+              la edge function; esto solo decide si se muestra. */}
+          {isAdmin && (
+            <TouchableOpacity
+              onPress={() => router.push('/admin/moderation')}
+              activeOpacity={0.85}
+              style={styles.modBanner}
+            >
+              <Ionicons name="shield-checkmark" size={16} color={COLORS.purple3} />
+              <Text style={styles.modBannerText}>{t('moderation')}</Text>
+              {moderation.count > 0 && (
+                <Text style={styles.modBannerCount}>{moderation.count}</Text>
+              )}
+              <Ionicons name="chevron-forward" size={14} color={COLORS.textMuted} />
+            </TouchableOpacity>
+          )}
 
           {/* Premium badge or CTA */}
           {!PREMIUM_ENABLED ? null : isPremium ? (
@@ -601,6 +625,19 @@ const styles = StyleSheet.create({
   scroll: { paddingHorizontal: 16, paddingBottom: 120 },
 
   usernameBtn: { marginTop: 6, paddingVertical: 4, paddingHorizontal: 12 },
+  modBanner: {
+    flexDirection: 'row', alignItems: 'center', gap: 7,
+    marginTop: 10, paddingVertical: 8, paddingHorizontal: 14,
+    borderRadius: 999,
+    borderWidth: 1, borderColor: COLORS.borderActive,
+    backgroundColor: 'rgba(168,85,247,0.12)',
+  },
+  modBannerText: { fontSize: 12, fontWeight: '800', color: COLORS.purple3 },
+  modBannerCount: {
+    fontSize: 11, fontWeight: '800', color: '#fff',
+    backgroundColor: COLORS.purple1,
+    paddingHorizontal: 7, paddingVertical: 2, borderRadius: 9, overflow: 'hidden',
+  },
   username: { fontSize: 14, fontWeight: '800', color: COLORS.purple3 },
   usernameEmpty: { fontSize: 12, fontWeight: '700', color: COLORS.textMuted },
   avatarSection: { alignItems: 'center', marginTop: 8, marginBottom: 20, paddingBottom: 24, overflow: 'hidden' },
