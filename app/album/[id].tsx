@@ -1,7 +1,7 @@
 import { Ionicons } from '@expo/vector-icons';
 import { LinearGradient } from 'expo-linear-gradient';
-import { useLocalSearchParams, useRouter } from 'expo-router';
-import { useEffect, useMemo, useRef, useState } from 'react';
+import { useFocusEffect, useLocalSearchParams, useRouter } from 'expo-router';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { Image } from 'expo-image';
 import {
   ActivityIndicator,
@@ -40,7 +40,15 @@ export default function AlbumDetailScreen() {
   const { id } = useLocalSearchParams<{ id: string }>();
   const router = useRouter();
   const { userId } = useAuth();
-  const { cards, album, loading, error, setCardStatus, clearCardStatus, setDuplicateCount, refetch } = useAlbumCards(Number(id), userId);
+  const {
+    cards, album, loading, error,
+    setCardStatus, clearCardStatus, setDuplicateCount, refetch, silentRefetch,
+  } = useAlbumCards(Number(id), userId);
+
+  // Al volver de moderar: aprobar una imagen o una card nueva cambia lo que
+  // esta grilla tiene que mostrar, y sin esto el album se quedaba con lo que
+  // habia cargado al abrirlo. Silencioso para que no parpadee.
+  useFocusEffect(useCallback(() => { silentRefetch(); }, [silentRefetch]));
   const { t } = useI18n();
 
   const [memberFilter, setMemberFilter] = useState('All');

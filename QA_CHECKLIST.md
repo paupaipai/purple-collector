@@ -71,6 +71,18 @@ Bloque nuevo. Nada de esto existe en la Android v1 publicada.
 - [ ] Sin conexión al enviar → error legible, y **no** queda una imagen huérfana
       en el bucket
 
+### Aportes (tab) y refresco
+
+- [ ] Tab **Aportes**: el botón de aportar, Moderación (solo admin, con el
+      contador) y la lista de lo que has aportado
+- [ ] Una propuesta aprobada aparece **una sola vez**, como *Card nueva*, y con
+      la foto de la card que creó
+- [ ] Un rechazo muestra el motivo **en castellano**, no el token (`wrong_card`)
+- [ ] **Al volver de moderar**, el álbum y la lista de aportes se actualizan
+      solos, sin reabrir la app
+- [ ] Dejar la app quieta en Colección **no genera tráfico**: antes refrescaba
+      en bucle (~3,5 consultas/segundo)
+
 ### Moderación de propuestas (solo admin)
 
 - [ ] Pestaña **Cards** en Moderación, con el contador

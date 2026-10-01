@@ -72,11 +72,21 @@ export function useAlbums(userId: string | null) {
     fetchAlbums();
   }, [fetchAlbums]);
 
+  // Memoizadas, y esto NO es cosmetico: las pantallas hacen
+  //   useFocusEffect(useCallback(() => silentRefetch(), [silentRefetch]))
+  // y useFocusEffect depende de la identidad del callback. Si estas funciones
+  // se recrearan en cada render, el efecto se volveria a disparar despues de
+  // cada setState que el propio fetch provoca: refrescar -> render -> nueva
+  // identidad -> refrescar. Medido antes de arreglarlo: 87 consultas en 25
+  // segundos con la app QUIETA.
+  const refetchNow = useCallback(() => fetchAlbums(false), [fetchAlbums]);
+  const refetchSilently = useCallback(() => fetchAlbums(true), [fetchAlbums]);
+
   return {
     albums,
     loading,
     error,
-    refetch: () => fetchAlbums(false),
-    silentRefetch: () => fetchAlbums(true),
+    refetch: refetchNow,
+    silentRefetch: refetchSilently,
   };
 }

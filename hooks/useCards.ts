@@ -11,9 +11,12 @@ export function useAlbumCards(albumId: number | null, userId: string | null) {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
-  const fetchCards = useCallback(async () => {
+  // `silent` evita el spinner cuando la pantalla ya tiene datos en pantalla:
+  // es lo que permite refrescar al volver al album sin que parpadee la grilla.
+  // Mismo patron que useCollection, useWishlist y useEraAlbums.
+  const fetchCards = useCallback(async (silent = false) => {
     if (!albumId) return;
-    setLoading(true);
+    if (!silent) setLoading(true);
     setError(null);
 
     let results;
@@ -153,5 +156,20 @@ export function useAlbumCards(albumId: number | null, userId: string | null) {
       .upsert({ user_id: userId, card_id: cardId, duplicate_count: clamped }, { onConflict: 'user_id,card_id' });
   }, [userId]);
 
-  return { cards, album, loading, error, setCardStatus, clearCardStatus, setDuplicateCount, refetch: fetchCards };
+  // Memoizadas, y esto NO es cosmetico: las pantallas hacen
+  //   useFocusEffect(useCallback(() => silentRefetch(), [silentRefetch]))
+  // y useFocusEffect depende de la identidad del callback. Si estas funciones
+  // se recrearan en cada render, el efecto se volveria a disparar despues de
+  // cada setState que el propio fetch provoca: refrescar -> render -> nueva
+  // identidad -> refrescar. Medido antes de arreglarlo: 87 consultas en 25
+  // segundos con la app QUIETA.
+  const refetchNow = useCallback(() => fetchCards(false), [fetchCards]);
+  const refetchSilently = useCallback(() => fetchCards(true), [fetchCards]);
+
+  return {
+    cards, album, loading, error,
+    setCardStatus, clearCardStatus, setDuplicateCount,
+    refetch: refetchNow,
+    silentRefetch: refetchSilently,
+  };
 }

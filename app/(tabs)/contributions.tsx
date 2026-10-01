@@ -1,6 +1,6 @@
 import { Ionicons } from '@expo/vector-icons';
 import { Image } from 'expo-image';
-import { useRouter } from 'expo-router';
+import { useFocusEffect, useRouter } from 'expo-router';
 import { useCallback } from 'react';
 import {
   ActivityIndicator,
@@ -50,8 +50,16 @@ export default function ContributionsScreen() {
   const { t } = useI18n();
   const { userId } = useAuth();
   const { isAdmin } = useIsAdmin(userId);
-  const { items, loading, error, refetch } = useMyContributions(userId);
+  const { items, loading, error, refetch, silentRefetch } = useMyContributions(userId);
   const moderation = usePendingModerationCount(isAdmin);
+
+  // Volver de la bandeja de moderacion es justo cuando esta lista cambia: lo
+  // que estaba "en revision" pasa a aprobado o rechazado. Sin esto se quedaba
+  // con lo que hubiera al montar la tab, que es la primera vez que entras.
+  useFocusEffect(useCallback(() => {
+    silentRefetch();
+    moderation.refetch();
+  }, [silentRefetch, moderation]));
 
   const refreshAll = useCallback(() => {
     refetch();

@@ -49,13 +49,13 @@ export function useMyContributions(userId: string | null) {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
-  const fetchAll = useCallback(async () => {
+  const fetchAll = useCallback(async (silent = false) => {
     if (!userId) {
       setItems([]);
       setLoading(false);
       return;
     }
-    setLoading(true);
+    if (!silent) setLoading(true);
     setError(null);
 
     // Las dos policies de lectura ("contributor reads own" y "submitter reads
@@ -72,7 +72,7 @@ export function useMyContributions(userId: string | null) {
         .from('card_submissions')
         .select(`
           id, status, rejection_reason, created_at, bucket_id, storage_path,
-          member, card_name, album_id,
+          member, card_name, album_id, created_card_id,
           albums ( name )
         `)
         .eq('submitted_by', userId)
@@ -85,13 +85,18 @@ export function useMyContributions(userId: string | null) {
       return;
     }
 
-    // Las imagenes aportadas no llevan el nombre de la card encima: hay que
-    // preguntarlo. Una sola consulta para todas.
-    const cardIds = Array.from(new Set((images.data ?? []).map((r: any) => r.card_id as number)));
+    // Dos motivos para mirar cards_full: las imagenes aportadas no llevan el
+    // nombre de la card encima, y una propuesta APROBADA necesita la imagen de
+    // la card que creo -- su propio storage_path apunta al bucket de revision,
+    // de donde la edge function ya borro el objeto al publicarlo.
+    const cardIds = Array.from(new Set([
+      ...(images.data ?? []).map((r: any) => r.card_id as number),
+      ...(subs.data ?? []).map((r: any) => r.created_card_id as number | null).filter(Boolean),
+    ])) as number[];
     const { data: cards } = cardIds.length > 0
       ? await supabase
           .from('cards_full')
-          .select('id, card_name, member, album_id, album_name')
+          .select('id, card_name, member, album_id, album_name, primary_image_path, primary_image_bucket')
           .in('id', cardIds)
       : { data: [] as any[] };
 
@@ -127,7 +132,23 @@ export function useMyContributions(userId: string | null) {
             primary_image_bucket: row.bucket_id,
           });
 
-    const fromImages: MyContribution[] = (images.data ?? []).map((row: any) => {
+    // Aprobar una propuesta crea ADEMAS una fila en card_images, porque asi es
+    // como la imagen queda publicada. Pero para quien aporto es UNA sola cosa:
+    // sin esto su propuesta aparecia dos veces, como "Card nueva" y como
+    // "Imagen para una card existente".
+    //
+    // Se identifica por la ruta exacta que escribio la edge function,
+    // `<cardId>/<mismo nombre de archivo>`, en vez de por card_id: asi, si mas
+    // adelante aporta OTRA imagen a esa misma card, esa si se ve.
+    const publicadaPorPropuesta = new Set(
+      (subs.data ?? [])
+        .filter((r: any) => r.status === 'approved' && r.created_card_id)
+        .map((r: any) => `${r.created_card_id}/${String(r.storage_path).split('/').pop()}`),
+    );
+
+    const fromImages: MyContribution[] = (images.data ?? [])
+      .filter((row: any) => !publicadaPorPropuesta.has(row.storage_path))
+      .map((row: any) => {
       const card = cardById.get(row.card_id);
       return {
         key: `img-${row.id}`,
@@ -142,17 +163,30 @@ export function useMyContributions(userId: string | null) {
       };
     });
 
-    const fromSubs: MyContribution[] = (subs.data ?? []).map((row: any) => ({
-      key: `sub-${row.id}`,
-      kind: 'card' as const,
-      status: row.status as ImageStatus,
-      title: row.card_name,
-      subtitle: [row.albums?.name, row.member].filter(Boolean).join(' · '),
-      createdAt: row.created_at,
-      thumbUrl: thumbFor(row),
-      rejectionReason: row.rejection_reason,
-      albumId: row.album_id ?? null,
-    }));
+    const fromSubs: MyContribution[] = (subs.data ?? []).map((row: any) => {
+      // Una propuesta aprobada ya no tiene imagen propia: su storage_path
+      // apunta al bucket de revision y ese objeto se borro al publicarla. La
+      // que hay que enseñar es la de la card que creo.
+      const creada = row.created_card_id ? cardById.get(row.created_card_id) : null;
+      const thumb = creada?.primary_image_path
+        ? getCardImageUrl({
+            primary_image_path: creada.primary_image_path,
+            primary_image_bucket: creada.primary_image_bucket,
+          })
+        : thumbFor(row);
+
+      return {
+        key: `sub-${row.id}`,
+        kind: 'card' as const,
+        status: row.status as ImageStatus,
+        title: row.card_name,
+        subtitle: [row.albums?.name, row.member].filter(Boolean).join(' · '),
+        createdAt: row.created_at,
+        thumbUrl: thumb,
+        rejectionReason: row.rejection_reason,
+        albumId: row.album_id ?? null,
+      };
+    });
 
     // Las dos listas vienen ordenadas por separado; se mezclan por fecha para
     // que lo ultimo que mandaste este arriba, sea del tipo que sea.
@@ -164,7 +198,21 @@ export function useMyContributions(userId: string | null) {
 
   useEffect(() => { fetchAll(); }, [fetchAll]);
 
-  return { items, loading, error, refetch: fetchAll };
+  // Memoizadas, y esto NO es cosmetico: las pantallas hacen
+  //   useFocusEffect(useCallback(() => silentRefetch(), [silentRefetch]))
+  // y useFocusEffect depende de la identidad del callback. Si estas funciones
+  // se recrearan en cada render, el efecto se volveria a disparar despues de
+  // cada setState que el propio fetch provoca: refrescar -> render -> nueva
+  // identidad -> refrescar. Medido antes de arreglarlo: 87 consultas en 25
+  // segundos con la app QUIETA.
+  const refetchNow = useCallback(() => fetchAll(false), [fetchAll]);
+  const refetchSilently = useCallback(() => fetchAll(true), [fetchAll]);
+
+  return {
+    items, loading, error,
+    refetch: refetchNow,
+    silentRefetch: refetchSilently,
+  };
 }
 
 /**

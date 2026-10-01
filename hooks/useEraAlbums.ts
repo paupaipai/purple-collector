@@ -119,6 +119,16 @@ export function useEraAlbums(collectionTypeId: number | null, userId: string | n
 
   useEffect(() => { fetchEraAlbums(); }, [fetchEraAlbums]);
 
+  // Memoizadas, y esto NO es cosmetico: las pantallas hacen
+  //   useFocusEffect(useCallback(() => silentRefetch(), [silentRefetch]))
+  // y useFocusEffect depende de la identidad del callback. Si estas funciones
+  // se recrearan en cada render, el efecto se volveria a disparar despues de
+  // cada setState que el propio fetch provoca: refrescar -> render -> nueva
+  // identidad -> refrescar. Medido antes de arreglarlo: 87 consultas en 25
+  // segundos con la app QUIETA.
+  const refetchNow = useCallback(() => fetchEraAlbums(false), [fetchEraAlbums]);
+  const refetchSilently = useCallback(() => fetchEraAlbums(true), [fetchEraAlbums]);
+
   return {
     eras,
     typeName,
@@ -127,7 +137,7 @@ export function useEraAlbums(collectionTypeId: number | null, userId: string | n
     typeIcon,
     loading,
     error,
-    refetch: () => fetchEraAlbums(false),
-    silentRefetch: () => fetchEraAlbums(true),
+    refetch: refetchNow,
+    silentRefetch: refetchSilently,
   };
 }

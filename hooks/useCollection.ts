@@ -70,11 +70,21 @@ export function useCollection(userId: string | null) {
     fetchCollection();
   }, [fetchCollection]);
 
+  // Memoizadas, y esto NO es cosmetico: las pantallas hacen
+  //   useFocusEffect(useCallback(() => silentRefetch(), [silentRefetch]))
+  // y useFocusEffect depende de la identidad del callback. Si estas funciones
+  // se recrearan en cada render, el efecto se volveria a disparar despues de
+  // cada setState que el propio fetch provoca: refrescar -> render -> nueva
+  // identidad -> refrescar. Medido antes de arreglarlo: 87 consultas en 25
+  // segundos con la app QUIETA.
+  const refetchNow = useCallback(() => fetchCollection(false), [fetchCollection]);
+  const refetchSilently = useCallback(() => fetchCollection(true), [fetchCollection]);
+
   return {
     cards,
     loading,
     error,
-    refetch: () => fetchCollection(false),
-    silentRefetch: () => fetchCollection(true),
+    refetch: refetchNow,
+    silentRefetch: refetchSilently,
   };
 }

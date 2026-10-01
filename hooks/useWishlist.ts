@@ -95,12 +95,22 @@ export function useWishlist(userId: string | null) {
     }
   }, [userId, fetchWishlist]);
 
+  // Memoizadas, y esto NO es cosmetico: las pantallas hacen
+  //   useFocusEffect(useCallback(() => silentRefetch(), [silentRefetch]))
+  // y useFocusEffect depende de la identidad del callback. Si estas funciones
+  // se recrearan en cada render, el efecto se volveria a disparar despues de
+  // cada setState que el propio fetch provoca: refrescar -> render -> nueva
+  // identidad -> refrescar. Medido antes de arreglarlo: 87 consultas en 25
+  // segundos con la app QUIETA.
+  const refetchNow = useCallback(() => fetchWishlist(false), [fetchWishlist]);
+  const refetchSilently = useCallback(() => fetchWishlist(true), [fetchWishlist]);
+
   return {
     cards,
     loading,
     error,
     setCardStatus,
-    refetch: () => fetchWishlist(false),
-    silentRefetch: () => fetchWishlist(true),
+    refetch: refetchNow,
+    silentRefetch: refetchSilently,
   };
 }
