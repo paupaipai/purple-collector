@@ -1,7 +1,7 @@
 import { FontAwesome, Ionicons } from '@expo/vector-icons';
 import * as Application from 'expo-application';
 import { LinearGradient } from 'expo-linear-gradient';
-import { useFocusEffect, useRouter } from 'expo-router';
+import { useFocusEffect, useLocalSearchParams, useRouter } from 'expo-router';
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { ActivityIndicator, Alert, Animated, Image, Modal, ScrollView, StyleSheet, Text, TextInput, TouchableOpacity, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
@@ -60,6 +60,7 @@ export default function ProfileScreen() {
   const router = useRouter();
   const HANDLE_RE = /^[a-z0-9_]{3,20}$/;
   const { user, userId, userName, userAvatar, authProvider, signOut, deleteAccount } = useAuth();
+  const params = useLocalSearchParams<{ handle?: string }>();
 
   useEffect(() => {
     if (!userId) { setHandle(null); return; }
@@ -108,6 +109,17 @@ export default function ProfileScreen() {
   const [handle, setHandle] = useState<string | null>(null);
   const [handleModal, setHandleModal] = useState(false);
   const [handleDraft, setHandleDraft] = useState('');
+
+  // Se llega aqui desde el aviso de Aportes, que es donde se nota que falta el
+  // handle. Abrir el editor directamente evita decir "ahora busca una fila en
+  // tu perfil" a quien ya dijo que si.
+  useEffect(() => {
+    if (params.handle === '1' && userId) {
+      setHandleDraft(handle ?? '');
+      setHandleModal(true);
+    }
+  }, [params.handle, userId, handle]);
+
   const [handleSaving, setHandleSaving] = useState(false);
   const [confirmText, setConfirmText] = useState('');
   const [deleting, setDeleting] = useState(false);

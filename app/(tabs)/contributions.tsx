@@ -18,7 +18,12 @@ import GalaxyBackground from '../../components/GalaxyBackground';
 import GlassCard from '../../components/GlassCard';
 import { useAuth } from '../../hooks/useAuth';
 import { useIsAdmin } from '../../hooks/useIsAdmin';
-import { MyContribution, useMyContributions, usePendingModerationCount } from '../../hooks/useMyContributions';
+import {
+  MyContribution,
+  useMyContributions,
+  useMyHandle,
+  usePendingModerationCount,
+} from '../../hooks/useMyContributions';
 import { CARD_SUBMISSIONS_ENABLED, COLORS } from '../../lib/constants';
 import { rejectionReasonKey } from '../../lib/submissions';
 import { useI18n } from '../../lib/I18nContext';
@@ -52,6 +57,7 @@ export default function ContributionsScreen() {
   const { isAdmin } = useIsAdmin(userId);
   const { items, loading, error, refetch, silentRefetch } = useMyContributions(userId);
   const moderation = usePendingModerationCount(isAdmin);
+  const { handle, refetch: refetchHandle } = useMyHandle(userId);
 
   // Volver de la bandeja de moderacion es justo cuando esta lista cambia: lo
   // que estaba "en revision" pasa a aprobado o rechazado. Sin esto se quedaba
@@ -59,7 +65,9 @@ export default function ContributionsScreen() {
   useFocusEffect(useCallback(() => {
     silentRefetch();
     moderation.refetch();
-  }, [silentRefetch, moderation]));
+    // Al volver de ponerse el handle, para que el aviso desaparezca solo.
+    refetchHandle();
+  }, [silentRefetch, moderation, refetchHandle]));
 
   const refreshAll = useCallback(() => {
     refetch();
@@ -126,6 +134,24 @@ export default function ContributionsScreen() {
                 {moderation.count > 0 && (
                   <Text style={styles.badge}>{moderation.count}</Text>
                 )}
+                <Ionicons name="chevron-forward" size={16} color={COLORS.textMuted} />
+              </GlassCard>
+            </TouchableOpacity>
+          )}
+
+          {/* Solo si YA aporto algo: antes de aportar, pedir un handle es
+              pedir un dato porque si. */}
+          {!handle && items.length > 0 && (
+            <TouchableOpacity
+              onPress={() => router.push('/profile?handle=1')}
+              activeOpacity={0.8}
+            >
+              <GlassCard style={styles.handleCard}>
+                <Ionicons name="at" size={18} color={COLORS.gold} />
+                <View style={styles.flex}>
+                  <Text style={styles.handleTitle}>{t('handleNudgeTitle')}</Text>
+                  <Text style={styles.handleDesc}>{t('handleNudgeDesc')}</Text>
+                </View>
                 <Ionicons name="chevron-forward" size={16} color={COLORS.textMuted} />
               </GlassCard>
             </TouchableOpacity>
@@ -228,6 +254,13 @@ const styles = StyleSheet.create({
     backgroundColor: 'rgba(168,85,247,0.15)',
     paddingHorizontal: 8, paddingVertical: 3, borderRadius: 10, overflow: 'hidden',
   },
+
+  handleCard: {
+    flexDirection: 'row', alignItems: 'center', gap: 10,
+    borderColor: COLORS.gold + '44',
+  },
+  handleTitle: { fontSize: 13, fontWeight: '800', color: COLORS.textPrimary },
+  handleDesc: { fontSize: 11, lineHeight: 15, color: COLORS.textMuted, marginTop: 2 },
 
   sectionTitle: {
     fontSize: 11, fontWeight: '800', color: COLORS.textMuted,

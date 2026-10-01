@@ -71,6 +71,19 @@ Bloque nuevo. Nada de esto existe en la Android v1 publicada.
 - [ ] Sin conexión al enviar → error legible, y **no** queda una imagen huérfana
       en el bucket
 
+### Handle y atribución
+
+- [ ] Perfil → **Handle** → ponerse uno: 3-20 caracteres, minúsculas, números y `_`
+- [ ] Formato inválido (`ab`, `Pau`, `pau pau`) → aviso, no se guarda
+- [ ] Un handle reservado (`admin`, `soporte`…) → *"está reservado"*
+- [ ] Un handle que ya tiene otra cuenta → *"ya está en uso"*
+- [ ] Tras ponerlo, las cards que ya aportaste muestran **@handle** sin volver a
+      subir nada (lo propaga un trigger)
+- [ ] Cambiarlo → el `@` de la grilla cambia también
+- [ ] Sin handle y con aportes: en **Aportes** sale *"Tus aportes salen sin
+      firmar"*, y toca llevar directo al editor
+- [ ] Con handle puesto, ese aviso desaparece al volver a la tab
+
 ### Aportes (tab) y refresco
 
 - [ ] Tab **Aportes**: el botón de aportar, Moderación (solo admin, con el

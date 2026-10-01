@@ -44,6 +44,34 @@ export interface MyContribution {
 // 10 minutos: lo que dura mirar la lista, sin dejar URLs vivas de mas.
 const SIGNED_URL_TTL_SECONDS = 600;
 
+/**
+ * Si esta persona tiene handle publico.
+ *
+ * Sin handle, lo que aporta sale SIN FIRMAR: la pastilla `@` de la grilla solo
+ * aparece si card_images.contributor_handle tiene algo. Nada se lo decia, asi
+ * que se aportaba y la atribucion no salia nunca sin explicacion.
+ */
+export function useMyHandle(userId: string | null) {
+  const [handle, setHandle] = useState<string | null>(null);
+
+  const fetchHandle = useCallback(async () => {
+    if (!userId) {
+      setHandle(null);
+      return;
+    }
+    const { data } = await supabase
+      .from('user_profiles')
+      .select('username')
+      .eq('id', userId)
+      .single();
+    setHandle(data?.username ?? null);
+  }, [userId]);
+
+  useEffect(() => { fetchHandle(); }, [fetchHandle]);
+
+  return { handle, refetch: fetchHandle };
+}
+
 export function useMyContributions(userId: string | null) {
   const [items, setItems] = useState<MyContribution[]>([]);
   const [loading, setLoading] = useState(true);
@@ -137,17 +165,22 @@ export function useMyContributions(userId: string | null) {
     // sin esto su propuesta aparecia dos veces, como "Card nueva" y como
     // "Imagen para una card existente".
     //
-    // Se identifica por la ruta exacta que escribio la edge function,
-    // `<cardId>/<mismo nombre de archivo>`, en vez de por card_id: asi, si mas
-    // adelante aporta OTRA imagen a esa misma card, esa si se ve.
+    // Se identifica por el NOMBRE DE ARCHIVO, que es el uuid que genero la
+    // subida y viaja con la imagen pase lo que pase. Antes se comparaba la ruta
+    // entera (`<cardId>/<archivo>`) y bastaba mover la imagen de card para que
+    // dejara de emparejar y el aporte volviera a salir dos veces.
+    //
+    // Sigue sin usarse card_id, que seria lo obvio: asi, si mas adelante aporta
+    // OTRA imagen a esa misma card, esa si se ve -- otro envio, otro uuid.
+    const nombreArchivo = (ruta: string) => String(ruta).split('/').pop();
     const publicadaPorPropuesta = new Set(
       (subs.data ?? [])
         .filter((r: any) => r.status === 'approved' && r.created_card_id)
-        .map((r: any) => `${r.created_card_id}/${String(r.storage_path).split('/').pop()}`),
+        .map((r: any) => nombreArchivo(r.storage_path)),
     );
 
     const fromImages: MyContribution[] = (images.data ?? [])
-      .filter((row: any) => !publicadaPorPropuesta.has(row.storage_path))
+      .filter((row: any) => !publicadaPorPropuesta.has(nombreArchivo(row.storage_path)))
       .map((row: any) => {
       const card = cardById.get(row.card_id);
       return {
