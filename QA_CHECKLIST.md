@@ -79,6 +79,10 @@ Bloque nuevo. Nada de esto existe en la Android v1 publicada.
 - [ ] Tres o más botones se **apilan**; dos van en fila
 - [ ] En Android, el botón atrás cierra por *Cancelar* y **no** se salta una
       confirmación
+- [ ] Desde una card: **Aportar imagen** y **Reportar** cierran la ficha y el
+      aviso se ve entero (no detrás del oscurecido)
+- [ ] Un nombre de usuario repetido o reservado muestra el motivo **dentro del
+      editor**, en rosa, sin perder lo escrito
 - [ ] *"Enviada a revisión"* sale bien **justo después** de cerrarse la galería
       (antes esa combinación podía no aparecer)
 - [ ] `userInterfaceStyle = dark`: con el móvil en modo claro, la app y

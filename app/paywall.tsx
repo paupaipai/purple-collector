@@ -72,6 +72,10 @@ export default function PaywallScreen() {
       router.back();
     } catch (error: any) {
       if (!error?.userCancelled) {
+        // OJO si se enciende PREMIUM_ENABLED: el paywall se abre con
+        // `presentation: 'modal'`, o sea una capa de UIKit por encima del
+        // arbol, y este aviso quedaria DETRAS (ver AppDialog). Habra que
+        // enseñarlo dentro de la pantalla, no como aviso encima.
         alert(t('premiumPurchaseErrorTitle'), t('premiumPurchaseErrorBody'));
         console.error('[Purchases] purchase failed:', error);
       }

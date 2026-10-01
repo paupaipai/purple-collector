@@ -84,8 +84,7 @@ export default function ProfileScreen() {
     setHandleSaving(false);
 
     if (!result.ok) {
-      alert(
-        t('handleTitle'),
+      setHandleError(
         result.reason === 'taken' ? t('handleTaken')
           : result.reason === 'reserved' ? t('handleReserved')
           : result.reason === 'invalid' ? t('handleInvalid')
@@ -96,7 +95,7 @@ export default function ProfileScreen() {
 
     setHandle(result.username);
     setHandleModal(false);
-    alert(t('handleTitle'), t('handleSaved'));
+    setHandleError(null);
   };
 
   const [deleteModal, setDeleteModal] = useState(false);
@@ -105,6 +104,10 @@ export default function ProfileScreen() {
   const [handle, setHandle] = useState<string | null>(null);
   const [handleModal, setHandleModal] = useState(false);
   const [handleDraft, setHandleDraft] = useState('');
+  // El error se enseña DENTRO del editor, no como aviso encima: el editor es un
+  // Modal nativo y un aviso del arbol quedaria detras. Y de paso se ve junto al
+  // campo que hay que corregir, sin tapar lo que escribiste.
+  const [handleError, setHandleError] = useState<string | null>(null);
 
   // Se llega aqui desde el aviso de Aportes, que es donde se nota que falta el
   // handle. Abrir el editor directamente evita decir "ahora busca una fila en
@@ -254,7 +257,7 @@ export default function ProfileScreen() {
               y estaba escondido entre ajustes. Si no hay, la propia invitacion
               a ponerlo ocupa su sitio. */}
           <TouchableOpacity
-            onPress={() => { setHandleDraft(handle ?? ''); setHandleModal(true); }}
+            onPress={() => { setHandleDraft(handle ?? ''); setHandleError(null); setHandleModal(true); }}
             activeOpacity={0.7}
             style={styles.usernameBtn}
           >
@@ -497,7 +500,7 @@ export default function ProfileScreen() {
               <Text style={styles.handleAt}>@</Text>
               <TextInput
                 value={handleDraft}
-                onChangeText={text => setHandleDraft(text.toLowerCase())}
+                onChangeText={text => { setHandleDraft(text.toLowerCase()); setHandleError(null); }}
                 placeholder="paupau"
                 placeholderTextColor={COLORS.textMuted}
                 autoCapitalize="none"
@@ -506,7 +509,9 @@ export default function ProfileScreen() {
                 style={styles.handleInput}
               />
             </View>
-            <Text style={styles.handleHint}>{t('handleRules')}</Text>
+            <Text style={[styles.handleHint, handleError ? styles.handleHintError : null]}>
+              {handleError ?? t('handleRules')}
+            </Text>
 
             <View style={styles.handleActions}>
               <TouchableOpacity
@@ -669,6 +674,7 @@ const styles = StyleSheet.create({
   handleAt: { fontSize: 15, fontWeight: '800', color: COLORS.textMuted },
   handleInput: { flex: 1, color: COLORS.textPrimary, fontSize: 15, fontWeight: '700', paddingVertical: 11 },
   handleHint: { fontSize: 11, color: COLORS.textMuted, marginTop: 7 },
+  handleHintError: { color: COLORS.pink },
   handleActions: { flexDirection: 'row', gap: 10, marginTop: 18 },
   handleCancel: {
     flex: 1, alignItems: 'center', paddingVertical: 12, borderRadius: 12,

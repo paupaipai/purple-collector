@@ -115,6 +115,12 @@ export default function AlbumDetailScreen() {
     if (!card || card.primary_image_id == null) return;
     const imageId = card.primary_image_id;
 
+    // La ficha se cierra ANTES de preguntar. Es un <Modal> de React Native, o
+    // sea una presentacion de UIKit que se dibuja por encima de todo el arbol,
+    // y el dialogo vive DENTRO del arbol: con la ficha abierta, el aviso queda
+    // detras y solo se ve el oscurecido.
+    setSelectedCard(null);
+
     alert(t('reportTitle'), t('reportDesc'), [
       ...REPORT_REASONS.map(r => ({
         text: t(r.key as any),
@@ -167,6 +173,9 @@ export default function AlbumDetailScreen() {
     // El aviso ES la aceptacion explicita de terminos: submitContribution
     // guarda terms_accepted_at y terms_version, y la constraint
     // card_images_community_has_terms no deja registrar el aporte sin ellos.
+    // Igual que en handleReport: la ficha es un Modal nativo y taparia el aviso.
+    setSelectedCard(null);
+
     alert(t('contributeTitle'), t('contributeRights'), [
       { text: t('cancel'), style: 'cancel' },
       {
@@ -181,7 +190,6 @@ export default function AlbumDetailScreen() {
           }
           // El envio no ocurre aca: primero se encuadra. Lo continua
           // finishContribution().
-          setSelectedCard(null);
           setCropping({ asset: picked.asset, cardId: card.id });
         },
       },

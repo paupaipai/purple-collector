@@ -21,7 +21,21 @@ import { COLORS } from '../lib/constants';
  * Como capa absoluta dentro del arbol no presenta nada y no puede chocar.
  *
  * Vive al final del DialogProvider, que envuelve a toda la app, asi que se
- * dibuja por encima de cualquier pantalla.
+ * dibuja por encima de cualquier PANTALLA.
+ *
+ * LO QUE NO PUEDE TAPAR
+ *
+ * La contrapartida de no presentar nada: no puede quedar por encima de algo que
+ * SI presenta. Un <Modal> de React Native o una pantalla con
+ * `presentation: 'modal'` se dibujan en su propia capa de UIKit, encima de todo
+ * el arbol, y el aviso quedaria detras -- solo se veria el oscurecido.
+ *
+ * Asi que un aviso disparado desde dentro de un modal necesita una de dos:
+ *
+ *   - cerrar el modal antes (lo que hace el album al tocar "Aportar imagen"), o
+ *   - enseñar el mensaje DENTRO del propio modal (lo que hace el editor de
+ *     nombre de usuario con sus errores, que ademas es mejor: se lee junto al
+ *     campo que hay que corregir).
  */
 interface Props {
   request: DialogRequest | null;
