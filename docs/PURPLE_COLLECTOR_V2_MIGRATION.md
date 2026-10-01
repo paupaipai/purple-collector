@@ -825,6 +825,42 @@ nada y sí expondría el texto de `notes`.
 | `member_known` | Un miembro fuera de los 8 valores, que se vería sin color ni emoji |
 | `no_dup_pending` | Que una misma persona mande dos veces la misma card |
 
+#### El primer duplicado real (2026-10-01)
+
+La primera propuesta de verdad creó un **duplicado**, y conviene dejar escrito
+por qué, porque el fallo no fue técnico.
+
+La card 1434 —*Jimin Album PC*, versión Rooted in Music— se había quedado sin
+imagen al probar el takedown el día anterior. En la grilla salía como *"Imagen
+retirada · Disponible para reemplazo"*. En vez de usar **+ Reemplazar**, se
+propuso una card nueva desde el formulario, y el flujo la aceptó sin más: nació
+la 5420, `ARIRANG-RIM-JIMIN-ALBUMPC`, misma photocard que la 1434.
+
+Lo que faltaba era la **imagen**, no la card.
+
+**Reparación.** La imagen se movió a la 1434, que es la canónica —tenía 12
+`user_cards` frente a 0 de la 5420— y la 5420 se borró. La constraint
+`card_submissions_approved_has_card` **impidió el primer intento**: la FK es
+`on delete set null`, así que borrar la card habría dejado una propuesta
+"aprobada" apuntando a nada. Hubo que repuntar también `created_card_id`, que
+además es lo cierto: ese aporte acabó siendo la imagen de la 1434.
+
+El objeto de Storage se quedó en `photocard-community/5420/<archivo>`. El
+prefijo con el id de card es sólo organizativo —nada lo interpreta, todo pasa
+por `card_images.storage_path`— y moverlo exigiría tocar `storage.objects` a
+mano, que es justo lo que Supabase desaconseja.
+
+**Prevención: avisar, no bloquear.** El formulario ahora consulta qué cards
+existen ya en ese hueco en cuanto hay álbum + categoría + miembro, las muestra
+con su foto y ofrece **mandar la foto que ya eligió a esa card** en vez de crear
+una nueva. No la manda al álbum a buscarla: la foto y el encuadre ya están
+hechos, y perderlos sería castigar a quien hizo lo correcto.
+
+No puede ser un impedimento: **610 combinaciones de álbum + versión + categoría
++ miembro tienen más de una card** en el catálogo actual, porque una misma
+versión trae cards distintas según el set, el retailer o el draw type. Una regla
+dura haría imposible aportar las legítimas.
+
 #### Estado (2026-09-30)
 
 Migration `20260930193751_create_card_submissions` **aplicada**. Edge function

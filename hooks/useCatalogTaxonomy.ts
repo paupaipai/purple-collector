@@ -6,6 +6,7 @@ import {
   AlbumEra,
   AlbumVersion,
   CardCategory,
+  CardFull,
   CardSet,
   CollectionType,
 } from '../lib/types';
@@ -165,4 +166,62 @@ export function useFilteredCardSets(
   );
 
   return { sets: filtered, allSets: sets, loading };
+}
+
+/**
+ * Las cards que YA existen en el hueco que describe el formulario.
+ *
+ * Existe por un caso real: se propuso una card nueva para un hueco que ya
+ * tenia card --la suya se habia quedado sin imagen tras un takedown-- y se creo
+ * un duplicado. Lo que faltaba era la IMAGEN, no la card.
+ *
+ * Avisa, no bloquea. Album + version + categoria + miembro NO identifica una
+ * card de forma unica: 610 combinaciones del catalogo tienen mas de una, porque
+ * una misma version puede traer cards distintas segun el set, el retailer o el
+ * draw type. Convertir esto en un impedimento haria imposible aportar las
+ * legitimas.
+ *
+ * Si no se eligio version se buscan todas las del album: es el caso en que mas
+ * probable es que la persona no sepa a cual pertenece la suya, o sea cuando el
+ * aviso mas falta hace.
+ */
+export function useExistingCards(params: {
+  albumId: number | null;
+  versionId: number | null;
+  categoryId: number | null;
+  member: string | null;
+}) {
+  const { albumId, versionId, categoryId, member } = params;
+  const [cards, setCards] = useState<CardFull[]>([]);
+  const [loading, setLoading] = useState(false);
+
+  useEffect(() => {
+    if (albumId == null || categoryId == null || !member) {
+      setCards([]);
+      return;
+    }
+    let cancelled = false;
+    setLoading(true);
+
+    let query = supabase
+      .from('cards_full')
+      .select('*')
+      .eq('album_id', albumId)
+      .eq('category_id', categoryId)
+      .eq('member', member);
+
+    if (versionId != null) query = query.eq('version_id', versionId);
+
+    query.order('card_name').then(({ data, error }) => {
+      if (cancelled) return;
+      // Un fallo aca no bloquea el envio: el aviso es una ayuda, no un permiso.
+      if (error) console.error('[taxonomy] cards existentes:', error.message);
+      setCards((data ?? []) as CardFull[]);
+      setLoading(false);
+    });
+
+    return () => { cancelled = true; };
+  }, [albumId, versionId, categoryId, member]);
+
+  return { cards, loading };
 }

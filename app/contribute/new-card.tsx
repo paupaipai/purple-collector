@@ -23,14 +23,21 @@ import GlassCard from '../../components/GlassCard';
 import ImageCropper, { CropRect } from '../../components/ImageCropper';
 import PickerField, { PickerOption } from '../../components/PickerField';
 import { useAuth } from '../../hooks/useAuth';
-import { useCatalogTaxonomy, useFilteredCardSets } from '../../hooks/useCatalogTaxonomy';
+import {
+  useCatalogTaxonomy,
+  useExistingCards,
+  useFilteredCardSets,
+} from '../../hooks/useCatalogTaxonomy';
 import { CARD_SUBMISSIONS_ENABLED, COLORS, MEMBERS } from '../../lib/constants';
 import {
   ContributionFailure,
   normalizeToPhotocard,
   pickContributionImage,
+  submitContribution,
 } from '../../lib/contributions';
 import { useI18n } from '../../lib/I18nContext';
+import { getCardImageUrl } from '../../lib/supabase';
+import { CardFull } from '../../lib/types';
 import { isDraftComplete, NewCardDraft, submitNewCard, SubmissionFailure } from '../../lib/submissions';
 
 /**
@@ -86,6 +93,10 @@ export default function NewCardScreen() {
   const [previewUri, setPreviewUri] = useState<string | null>(null);
 
   const { sets } = useFilteredCardSets(albumId, versionId, categoryId);
+
+  // Las cards que ya existen en este hueco. Avisar llega tarde si se hace al
+  // enviar: para entonces la persona ya respondio todo el formulario.
+  const { cards: existentes } = useExistingCards({ albumId, versionId, categoryId, member });
 
   // Llegada desde un album: se rellenan los dos niveles de arriba a partir de
   // el, porque pedirlos de nuevo seria hacer repetir algo ya dicho.
@@ -185,6 +196,44 @@ export default function NewCardScreen() {
       return;
     }
     setCropping(picked.asset);
+  };
+
+  /**
+   * Redirige la foto que ya eligio a una card que YA existe.
+   *
+   * No la manda al album a buscarla: la foto y el encuadre ya estan hechos, y
+   * perderlos para repetirlos alli seria castigar a quien hizo lo correcto.
+   * Esto es exactamente lo que habria pasado de no haber creado un duplicado.
+   */
+  const contributeToExisting = (card: CardFull) => {
+    if (!asset) {
+      Alert.alert(t('newCardTitle'), t('newCardNeedImage'));
+      return;
+    }
+    Alert.alert(t('contributeTitle'), t('contributeRights'), [
+      { text: t('cancel'), style: 'cancel' },
+      {
+        text: t('contributeConfirm'),
+        onPress: async () => {
+          setSending(true);
+          const sent = await submitContribution({
+            cardId: card.id,
+            userId,
+            asset,
+            crop: crop ?? undefined,
+          });
+          setSending(false);
+
+          if (!sent.ok) {
+            Alert.alert(t('contributeTitle'), failureText(sent.reason));
+            return;
+          }
+          Alert.alert(t('contributeSent'), t('contributeSentDesc'), [
+            { text: 'OK', onPress: () => router.back() },
+          ]);
+        },
+      },
+    ]);
   };
 
   const send = () => {
@@ -382,6 +431,50 @@ export default function NewCardScreen() {
                 />
               </GlassCard>
 
+              {existentes.length > 0 && (
+                <GlassCard style={styles.warn}>
+                  <View style={styles.warnHead}>
+                    <Ionicons name="alert-circle" size={17} color={COLORS.gold} />
+                    <Text style={styles.warnTitle}>
+                      {t('duplicateWarnTitle', { n: existentes.length })}
+                    </Text>
+                  </View>
+                  <Text style={styles.warnDesc}>{t('duplicateWarnDesc')}</Text>
+
+                  {existentes.map(card => {
+                    const url = getCardImageUrl(card);
+                    return (
+                      <View key={card.id} style={styles.warnRow}>
+                        {url ? (
+                          <Image source={{ uri: url }} style={styles.warnThumb} contentFit="cover" />
+                        ) : (
+                          <View style={[styles.warnThumb, styles.warnThumbEmpty]}>
+                            <Ionicons name="image-outline" size={14} color={COLORS.textMuted} />
+                          </View>
+                        )}
+                        <View style={styles.flex}>
+                          <Text style={styles.warnName} numberOfLines={2}>{card.card_name}</Text>
+                          <Text style={styles.warnMeta} numberOfLines={1}>
+                            {[card.version_name, url ? t('duplicateHasImage') : t('duplicateNoImage')]
+                              .filter(Boolean).join(' \u00b7 ')}
+                          </Text>
+                        </View>
+                        <TouchableOpacity
+                          onPress={() => contributeToExisting(card)}
+                          disabled={sending}
+                          activeOpacity={0.7}
+                          style={styles.warnBtn}
+                        >
+                          <Text style={styles.warnBtnText}>{t('duplicateUseThis')}</Text>
+                        </TouchableOpacity>
+                      </View>
+                    );
+                  })}
+
+                  <Text style={styles.warnFoot}>{t('duplicateWarnFoot')}</Text>
+                </GlassCard>
+              )}
+
               <TouchableOpacity
                 onPress={send}
                 disabled={!ready}
@@ -484,6 +577,30 @@ const styles = StyleSheet.create({
   chipActive: { borderColor: COLORS.borderActive, backgroundColor: 'rgba(168,85,247,0.18)' },
   chipText: { fontSize: 11, fontWeight: '700', color: COLORS.textSecondary },
   chipTextActive: { color: COLORS.purple3, fontWeight: '800' },
+
+  warn: { gap: 8, borderColor: COLORS.gold + '55' },
+  warnHead: { flexDirection: 'row', alignItems: 'center', gap: 7 },
+  warnTitle: { flex: 1, fontSize: 13, fontWeight: '800', color: COLORS.gold },
+  warnDesc: { fontSize: 11, lineHeight: 15, color: COLORS.textSecondary },
+  warnRow: {
+    flexDirection: 'row', alignItems: 'center', gap: 9,
+    paddingTop: 8, borderTopWidth: 1, borderTopColor: 'rgba(255,255,255,0.06)',
+  },
+  warnThumb: {
+    width: 38, aspectRatio: 2 / 3, borderRadius: 6,
+    backgroundColor: '#0d0520',
+    borderWidth: 1, borderColor: 'rgba(168,85,247,0.2)',
+  },
+  warnThumbEmpty: { alignItems: 'center', justifyContent: 'center' },
+  warnName: { fontSize: 12, fontWeight: '700', color: COLORS.textPrimary },
+  warnMeta: { fontSize: 10, color: COLORS.textMuted, marginTop: 1 },
+  warnBtn: {
+    paddingHorizontal: 10, paddingVertical: 8, borderRadius: 9,
+    borderWidth: 1, borderColor: COLORS.borderActive,
+    backgroundColor: 'rgba(168,85,247,0.14)',
+  },
+  warnBtnText: { fontSize: 10, fontWeight: '800', color: COLORS.purple3 },
+  warnFoot: { fontSize: 10, lineHeight: 14, color: COLORS.textMuted, fontStyle: 'italic' },
 
   send: {
     alignItems: 'center', justifyContent: 'center',

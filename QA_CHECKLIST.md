@@ -83,6 +83,18 @@ Bloque nuevo. Nada de esto existe en la Android v1 publicada.
 - [ ] Dejar la app quieta en Colección **no genera tráfico**: antes refrescaba
       en bucle (~3,5 consultas/segundo)
 
+### Aviso de duplicado en el formulario
+
+- [ ] Elegir álbum + categoría + miembro de un hueco que **ya tiene card** →
+      aparece el aviso en ámbar con esa card y su foto
+- [ ] Dice **con foto** / **sin foto** según corresponda
+- [ ] **Usar la mía acá** con una foto ya elegida → la manda como aportación de
+      imagen a esa card, sin repetir el encuadre
+- [ ] **Usar la mía acá** sin foto elegida → avisa de que falta la foto
+- [ ] El aviso **no bloquea**: se puede seguir y enviar la card nueva igual
+      (hay 610 combinaciones con duplicados legítimos)
+- [ ] Sin versión elegida, el aviso busca en **todas** las versiones del álbum
+
 ### Moderación de propuestas (solo admin)
 
 - [ ] Pestaña **Cards** en Moderación, con el contador

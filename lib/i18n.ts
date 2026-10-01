@@ -263,6 +263,12 @@ const en = {
   statusPendingReview: 'Under review',
   statusApproved: 'Approved',
   statusRejected: 'Rejected',
+  duplicateWarnTitle: '{n} already here',
+  duplicateWarnDesc: 'Check whether yours is one of these. If what is missing is the photo and not the card, contribute it to the existing one and it will fill that gap.',
+  duplicateHasImage: 'has a photo',
+  duplicateNoImage: 'no photo',
+  duplicateUseThis: 'Use mine here',
+  duplicateWarnFoot: 'If yours is a different card (another set, retailer or draw), carry on with the form.',
 
   // Aportar una card que no esta en el catalogo
   newCardEntry: 'Contribute a missing card',
@@ -579,6 +585,12 @@ const es: Translations = {
   statusPendingReview: 'En revisión',
   statusApproved: 'Aprobada',
   statusRejected: 'Rechazada',
+  duplicateWarnTitle: 'Ya hay {n} acá',
+  duplicateWarnDesc: 'Mira si la tuya es una de estas. Si lo que falta es la foto y no la card, apórtala a la que ya existe y ese hueco queda lleno.',
+  duplicateHasImage: 'con foto',
+  duplicateNoImage: 'sin foto',
+  duplicateUseThis: 'Usar la mía acá',
+  duplicateWarnFoot: 'Si la tuya es otra card (otro set, retailer o draw), sigue con el formulario.',
 
   // Aportar una card que no esta en el catalogo
   newCardEntry: 'Aportar una card que falta',
