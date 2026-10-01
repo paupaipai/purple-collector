@@ -56,17 +56,18 @@ export default function TabsLayout() {
           ),
         }}
       />
-      {/* Aportes. El icono es un Ionicon PROVISIONAL: los otros cuatro son PNG
-          propios en assets/images/menu/, y hasta que exista el quinto este va a
-          desentonar un poco. Se cambia por <TabIcon source={...} /> en cuanto
-          lo haya. */}
+      {/* Scan. El icono es un Ionicon PROVISIONAL: los otros cuatro son PNG
+          propios en assets/images/menu/ --ilustracion 3D lila con contorno
+          morado-- y hasta que exista scan.png este va a desentonar. Cuando
+          llegue, esto se cambia por:
+              <TabIcon source={require('../../assets/images/menu/scan.png')} ... /> */}
       <Tabs.Screen
         name="contributions"
         options={{
           title: t('tabContributions'),
           tabBarIcon: ({ focused }) => (
             <Ionicons
-              name="add-circle"
+              name="camera"
               size={28}
               color={focused ? COLORS.purple2 : COLORS.textMuted}
               style={{ opacity: focused ? 1 : 0.7 }}
