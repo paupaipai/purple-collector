@@ -12,6 +12,7 @@ import OnboardingScreen from '../components/OnboardingScreen';
 import { useAuth } from '../hooks/useAuth';
 import { usePushNotifications } from '../hooks/usePushNotifications';
 import { BiasProvider, useBias } from '../lib/BiasContext';
+import { DialogProvider } from '../lib/DialogContext';
 import { I18nProvider } from '../lib/I18nContext';
 import { PremiumProvider } from '../lib/PremiumContext';
 import { supabase } from '../lib/supabase';
@@ -252,6 +253,10 @@ export default Sentry.wrap(function RootLayout() {
     <I18nProvider>
       <PremiumProvider userId={userId}>
         <BiasProvider userId={userId}>
+          {/* El mas externo que puede: el aviso se dibuja al final del
+              provider, asi que queda por encima de cualquier pantalla. Dentro
+              de I18nProvider porque los textos vienen traducidos de fuera. */}
+          <DialogProvider>
           <AppShell
             session={session}
             loading={loading}
@@ -259,6 +264,7 @@ export default Sentry.wrap(function RootLayout() {
             signInWithGoogle={signInWithGoogle}
             signInWithApple={signInWithApple}
           />
+          </DialogProvider>
         </BiasProvider>
       </PremiumProvider>
     </I18nProvider>

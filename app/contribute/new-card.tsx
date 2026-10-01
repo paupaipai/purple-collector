@@ -5,7 +5,6 @@ import { useLocalSearchParams, useRouter } from 'expo-router';
 import { useEffect, useMemo, useState } from 'react';
 import {
   ActivityIndicator,
-  Alert,
   KeyboardAvoidingView,
   Platform,
   ScrollView,
@@ -35,6 +34,7 @@ import {
   pickContributionImage,
   submitContribution,
 } from '../../lib/contributions';
+import { useDialog } from '../../lib/DialogContext';
 import { useI18n } from '../../lib/I18nContext';
 import { getCardImageUrl } from '../../lib/supabase';
 import { CardFull } from '../../lib/types';
@@ -67,6 +67,7 @@ import { isDraftComplete, NewCardDraft, submitNewCard, SubmissionFailure } from 
 export default function NewCardScreen() {
   const router = useRouter();
   const { t } = useI18n();
+  const { alert } = useDialog();
   const { userId } = useAuth();
   const params = useLocalSearchParams<{ albumId?: string }>();
 
@@ -191,7 +192,7 @@ export default function NewCardScreen() {
     const picked = await pickContributionImage();
     if (!picked.ok) {
       if (picked.reason !== 'cancelled') {
-        Alert.alert(t('newCardTitle'), failureText(picked.reason));
+        alert(t('newCardTitle'), failureText(picked.reason));
       }
       return;
     }
@@ -207,10 +208,10 @@ export default function NewCardScreen() {
    */
   const contributeToExisting = (card: CardFull) => {
     if (!asset) {
-      Alert.alert(t('newCardTitle'), t('newCardNeedImage'));
+      alert(t('newCardTitle'), t('newCardNeedImage'));
       return;
     }
-    Alert.alert(t('contributeTitle'), t('contributeRights'), [
+    alert(t('contributeTitle'), t('contributeRights'), [
       { text: t('cancel'), style: 'cancel' },
       {
         text: t('contributeConfirm'),
@@ -225,10 +226,10 @@ export default function NewCardScreen() {
           setSending(false);
 
           if (!sent.ok) {
-            Alert.alert(t('contributeTitle'), failureText(sent.reason));
+            alert(t('contributeTitle'), failureText(sent.reason));
             return;
           }
-          Alert.alert(t('contributeSent'), t('contributeSentDesc'), [
+          alert(t('contributeSent'), t('contributeSentDesc'), [
             { text: 'OK', onPress: () => router.back() },
           ]);
         },
@@ -238,13 +239,13 @@ export default function NewCardScreen() {
 
   const send = () => {
     if (!asset) {
-      Alert.alert(t('newCardTitle'), t('newCardNeedImage'));
+      alert(t('newCardTitle'), t('newCardNeedImage'));
       return;
     }
-    // Este Alert ES la aceptacion de terminos: submitNewCard() graba
+    // Este aviso ES la aceptacion de terminos: submitNewCard() graba
     // terms_accepted_at y terms_version, y la constraint
     // card_submissions_has_terms no deja registrar la propuesta sin ellos.
-    Alert.alert(t('newCardTitle'), t('contributeRights'), [
+    alert(t('newCardTitle'), t('contributeRights'), [
       { text: t('cancel'), style: 'cancel' },
       {
         text: t('newCardSend'),
@@ -259,10 +260,10 @@ export default function NewCardScreen() {
           setSending(false);
 
           if (!sent.ok) {
-            Alert.alert(t('newCardTitle'), failureText(sent.reason));
+            alert(t('newCardTitle'), failureText(sent.reason));
             return;
           }
-          Alert.alert(t('newCardSent'), t('newCardSentDesc'), [
+          alert(t('newCardSent'), t('newCardSentDesc'), [
             { text: 'OK', onPress: () => router.back() },
           ]);
         },

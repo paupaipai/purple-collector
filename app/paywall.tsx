@@ -2,9 +2,10 @@ import { Ionicons } from '@expo/vector-icons';
 import { LinearGradient } from 'expo-linear-gradient';
 import { Redirect, useRouter } from 'expo-router';
 import { useState } from 'react';
-import { Alert, SafeAreaView, ScrollView, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
+import { SafeAreaView, ScrollView, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
 import GalaxyBackground from '../components/GalaxyBackground';
 import GlassCard from '../components/GlassCard';
+import { useDialog } from '../lib/DialogContext';
 import { useI18n } from '../lib/I18nContext';
 import { COLORS, PREMIUM_ENABLED } from '../lib/constants';
 import { usePremium } from '../lib/PremiumContext';
@@ -45,6 +46,7 @@ export default function PaywallScreen() {
   const router = useRouter();
   const { unlock, isPremium, revoke } = usePremium();
   const { t } = useI18n();
+  const { alert } = useDialog();
   const [purchasing, setPurchasing] = useState<string | null>(null);
 
   // v1 launch: paywall route is inaccessible while everything is unlocked.
@@ -70,7 +72,7 @@ export default function PaywallScreen() {
       router.back();
     } catch (error: any) {
       if (!error?.userCancelled) {
-        Alert.alert(t('premiumPurchaseErrorTitle'), t('premiumPurchaseErrorBody'));
+        alert(t('premiumPurchaseErrorTitle'), t('premiumPurchaseErrorBody'));
         console.error('[Purchases] purchase failed:', error);
       }
     } finally {

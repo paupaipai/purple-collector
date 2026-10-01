@@ -71,6 +71,19 @@ Bloque nuevo. Nada de esto existe en la Android v1 publicada.
 - [ ] Sin conexión al enviar → error legible, y **no** queda una imagen huérfana
       en el bucket
 
+### Avisos y confirmaciones
+
+- [ ] Todos los avisos salen con el **cristal morado** de la app, no con el
+      alert blanco del sistema
+- [ ] Botón principal en morado, **destructivo en rosa**, cancelar apagado
+- [ ] Tres o más botones se **apilan**; dos van en fila
+- [ ] En Android, el botón atrás cierra por *Cancelar* y **no** se salta una
+      confirmación
+- [ ] *"Enviada a revisión"* sale bien **justo después** de cerrarse la galería
+      (antes esa combinación podía no aparecer)
+- [ ] `userInterfaceStyle = dark`: con el móvil en modo claro, la app y
+      cualquier UI nativa que quede siguen oscuras
+
 ### Nombre de usuario y atribución
 
 - [ ] **Cuenta nueva**: tras entrar aparece *"Elige tu nombre de usuario"*, con

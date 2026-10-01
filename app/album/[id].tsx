@@ -5,7 +5,6 @@ import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { Image } from 'expo-image';
 import {
   ActivityIndicator,
-  Alert,
   Animated,
   Modal,
   ScrollView,
@@ -32,6 +31,7 @@ import {
   ContributionFailure, fetchMyPendingContributions, pickContributionImage, submitContribution,
 } from '../../lib/contributions';
 import { fetchMyReportedImages, submitImageReport } from '../../lib/reports';
+import { useDialog } from '../../lib/DialogContext';
 import { useI18n } from '../../lib/I18nContext';
 import { getPhotocardUrl } from '../../lib/supabase';
 import { CardStatus, CardWithStatus, ReportReason } from '../../lib/types';
@@ -50,6 +50,7 @@ export default function AlbumDetailScreen() {
   // habia cargado al abrirlo. Silencioso para que no parpadee.
   useFocusEffect(useCallback(() => { silentRefetch(); }, [silentRefetch]));
   const { t } = useI18n();
+  const { alert } = useDialog();
 
   const [memberFilter, setMemberFilter] = useState('All');
   const [categoryFilter, setCategoryFilter] = useState('All');
@@ -114,13 +115,13 @@ export default function AlbumDetailScreen() {
     if (!card || card.primary_image_id == null) return;
     const imageId = card.primary_image_id;
 
-    Alert.alert(t('reportTitle'), t('reportDesc'), [
+    alert(t('reportTitle'), t('reportDesc'), [
       ...REPORT_REASONS.map(r => ({
         text: t(r.key as any),
         onPress: async () => {
           const sent = await submitImageReport({ cardImageId: imageId, userId, reason: r.value });
           if (!sent.ok) {
-            Alert.alert(
+            alert(
               t('reportTitle'),
               sent.reason === 'already' ? t('reportErrAlready') : t('reportErrFailed'),
             );
@@ -130,7 +131,7 @@ export default function AlbumDetailScreen() {
             return;
           }
           setReported(prev => new Set(prev).add(imageId));
-          Alert.alert(t('reportSent'), t('reportSentDesc'));
+          alert(t('reportSent'), t('reportSentDesc'));
         },
       })),
       { text: t('cancel'), style: 'cancel' as const },
@@ -144,11 +145,11 @@ export default function AlbumDetailScreen() {
 
     const sent = await submitContribution({ cardId, userId, asset, crop });
     if (!sent.ok) {
-      Alert.alert(t('contributeTitle'), contributionError(sent.reason));
+      alert(t('contributeTitle'), contributionError(sent.reason));
       return;
     }
     setPendingContrib(prev => new Set(prev).add(cardId));
-    Alert.alert(t('contributeSent'), t('contributeSentDesc'));
+    alert(t('contributeSent'), t('contributeSentDesc'));
   };
 
   const contributionError = (reason: ContributionFailure) => {
@@ -163,10 +164,10 @@ export default function AlbumDetailScreen() {
   const handleContribute = () => {
     const card = selectedCard;
     if (!card) return;
-    // El Alert ES la aceptacion explicita de terminos: submitContribution
+    // El aviso ES la aceptacion explicita de terminos: submitContribution
     // guarda terms_accepted_at y terms_version, y la constraint
     // card_images_community_has_terms no deja registrar el aporte sin ellos.
-    Alert.alert(t('contributeTitle'), t('contributeRights'), [
+    alert(t('contributeTitle'), t('contributeRights'), [
       { text: t('cancel'), style: 'cancel' },
       {
         text: t('contributeConfirm'),
@@ -174,7 +175,7 @@ export default function AlbumDetailScreen() {
           const picked = await pickContributionImage();
           if (!picked.ok) {
             if (picked.reason !== 'cancelled') {
-              Alert.alert(t('contributeTitle'), contributionError(picked.reason));
+              alert(t('contributeTitle'), contributionError(picked.reason));
             }
             return;
           }

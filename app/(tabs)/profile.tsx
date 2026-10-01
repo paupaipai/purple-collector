@@ -3,7 +3,7 @@ import * as Application from 'expo-application';
 import { LinearGradient } from 'expo-linear-gradient';
 import { useFocusEffect, useLocalSearchParams, useRouter } from 'expo-router';
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import { ActivityIndicator, Alert, Animated, Image, Modal, ScrollView, StyleSheet, Text, TextInput, TouchableOpacity, View } from 'react-native';
+import { ActivityIndicator, Animated, Image, Modal, ScrollView, StyleSheet, Text, TextInput, TouchableOpacity, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import * as WebBrowser from 'expo-web-browser';
 import GalaxyBackground from '../../components/GalaxyBackground';
@@ -17,6 +17,7 @@ import { useCollection } from '../../hooks/useCollection';
 import { useWishlist } from '../../hooks/useWishlist';
 import { useBias } from '../../lib/BiasContext';
 import { BIAS_ENABLED, COLORS, getMemberByKey, MEMBERS, PREMIUM_ENABLED, PRIVACY_URL, RARITIES, RARITY_LABEL_KEY } from '../../lib/constants';
+import { useDialog } from '../../lib/DialogContext';
 import { useI18n } from '../../lib/I18nContext';
 import { saveUsername, USERNAME_RE } from '../../lib/username';
 import { usePremium } from '../../lib/PremiumContext';
@@ -83,7 +84,7 @@ export default function ProfileScreen() {
     setHandleSaving(false);
 
     if (!result.ok) {
-      Alert.alert(
+      alert(
         t('handleTitle'),
         result.reason === 'taken' ? t('handleTaken')
           : result.reason === 'reserved' ? t('handleReserved')
@@ -95,7 +96,7 @@ export default function ProfileScreen() {
 
     setHandle(result.username);
     setHandleModal(false);
-    Alert.alert(t('handleTitle'), t('handleSaved'));
+    alert(t('handleTitle'), t('handleSaved'));
   };
 
   const [deleteModal, setDeleteModal] = useState(false);
@@ -120,6 +121,7 @@ export default function ProfileScreen() {
   const [deleting, setDeleting] = useState(false);
   const [showBiasEdit, setShowBiasEdit] = useState(false);
   const { lang, setLang, t } = useI18n();
+  const { alert } = useDialog();
   const { isPremium } = usePremium();
   const { biases, saveBiases } = useBias();
   const { cards: ownedCards, silentRefetch: silentRefetchCollection } = useCollection(userId);
@@ -473,7 +475,7 @@ export default function ProfileScreen() {
               const result = await saveBiases(newBiases);
               setShowBiasEdit(false);
               if (result.error) {
-                Alert.alert('Error de sincronización', result.error);
+                alert('Error de sincronización', result.error);
               }
             }}
           />
@@ -564,7 +566,7 @@ export default function ProfileScreen() {
                   const result = await deleteAccount();
                   setDeleting(false);
                   if (result.error) {
-                    Alert.alert(t('deleteAccountErrorTitle'), t('deleteAccountErrorBody'));
+                    alert(t('deleteAccountErrorTitle'), t('deleteAccountErrorBody'));
                     return;
                   }
                   setDeleteModal(false);

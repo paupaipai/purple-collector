@@ -4,7 +4,6 @@ import { useRouter } from 'expo-router';
 import { useState } from 'react';
 import {
   ActivityIndicator,
-  Alert,
   RefreshControl,
   ScrollView,
   StyleSheet,
@@ -23,6 +22,7 @@ import { PendingSubmission, RejectReason, useModerationQueue } from '../../hooks
 import { OpenReport, ResolveAction, useReportsQueue } from '../../hooks/useReportsQueue';
 import { PendingCardSubmission, useSubmissionsQueue } from '../../hooks/useSubmissionsQueue';
 import { COLORS } from '../../lib/constants';
+import { useDialog } from '../../lib/DialogContext';
 import { useI18n } from '../../lib/I18nContext';
 import { SubmissionRejectReason } from '../../lib/submissions';
 import { ReportReason } from '../../lib/types';
@@ -60,6 +60,7 @@ const REJECT_REASONS: { value: RejectReason; key: string }[] = [
 export default function ModerationScreen() {
   const router = useRouter();
   const { t } = useI18n();
+  const { alert } = useDialog();
   const { userId } = useAuth();
   const { isAdmin, loading: adminLoading } = useIsAdmin(userId);
   const { items, loading, error, working, refetch, moderate } = useModerationQueue(isAdmin);
@@ -82,10 +83,10 @@ export default function ModerationScreen() {
   ) => {
     const result = await moderate(submission.id, action, reason);
     if (!result.ok) {
-      Alert.alert(t('moderation'), `${t('moderationError')}\n\n${result.error}`);
+      alert(t('moderation'), `${t('moderationError')}\n\n${result.error}`);
       return;
     }
-    Alert.alert(
+    alert(
       t('moderation'),
       action === 'approve' ? t('moderationApproved') : t('moderationRejected'),
     );
@@ -94,16 +95,16 @@ export default function ModerationScreen() {
   const resolveReport = async (report: OpenReport, action: ResolveAction) => {
     const result = await reports.resolve(report.id, action);
     if (!result.ok) {
-      Alert.alert(t('reports'), `${t('moderationError')}\n\n${result.error}`);
+      alert(t('reports'), `${t('moderationError')}\n\n${result.error}`);
       return;
     }
-    Alert.alert(t('reports'), t('reportResolved'));
+    alert(t('reports'), t('reportResolved'));
   };
 
   // Retirar es destructivo e irreversible: borra el objeto de Storage y, si es
   // legacy, vacia cards.image_path. Por eso pide confirmacion explicita.
   const askTakedown = (report: OpenReport) => {
-    Alert.alert(t('takedownTitle'), t('takedownDesc'), [
+    alert(t('takedownTitle'), t('takedownDesc'), [
       { text: t('cancel'), style: 'cancel' },
       {
         text: t('takedownConfirm'),
@@ -111,10 +112,10 @@ export default function ModerationScreen() {
         onPress: async () => {
           const result = await reports.takedown(report.id, report.cardImageId, report.reason);
           if (!result.ok) {
-            Alert.alert(t('reports'), `${t('moderationError')}\n\n${result.error}`);
+            alert(t('reports'), `${t('moderationError')}\n\n${result.error}`);
             return;
           }
-          Alert.alert(t('reports'), t('takedownDone'));
+          alert(t('reports'), t('takedownDone'));
         },
       },
     ]);
@@ -127,10 +128,10 @@ export default function ModerationScreen() {
   ) => {
     const result = await submissions.moderate(item.id, action, reason);
     if (!result.ok) {
-      Alert.alert(t('moderation'), `${t('moderationError')}\n\n${result.error}`);
+      alert(t('moderation'), `${t('moderationError')}\n\n${result.error}`);
       return;
     }
-    Alert.alert(
+    alert(
       t('moderation'),
       action === 'approve' ? t('submissionApproved') : t('submissionRejected'),
     );
@@ -140,14 +141,14 @@ export default function ModerationScreen() {
   // todo el mundo en cuanto se guarda. Por eso pide confirmacion y rechazar no:
   // rechazar no publica nada.
   const askApproveCard = (item: PendingCardSubmission) => {
-    Alert.alert(t('newCardTitle'), `${item.cardName}\n${item.albumName} \u00b7 ${item.member}`, [
+    alert(t('newCardTitle'), `${item.cardName}\n${item.albumName} \u00b7 ${item.member}`, [
       { text: t('cancel'), style: 'cancel' },
       { text: t('approve'), onPress: () => runSubmission(item, 'approve') },
     ]);
   };
 
   const askSubmissionReason = (item: PendingCardSubmission) => {
-    Alert.alert(t('submissionRejectTitle'), t('submissionRejectDesc'), [
+    alert(t('submissionRejectTitle'), t('submissionRejectDesc'), [
       ...SUBMISSION_REJECT_REASONS.map(r => ({
         text: t(r.key as any),
         onPress: () => runSubmission(item, 'reject', r.value),
@@ -157,7 +158,7 @@ export default function ModerationScreen() {
   };
 
   const askReason = (submission: PendingSubmission) => {
-    Alert.alert(t('rejectTitle'), t('rejectDesc'), [
+    alert(t('rejectTitle'), t('rejectDesc'), [
       ...REJECT_REASONS.map(r => ({
         text: t(r.key as any),
         onPress: () => run(submission, 'reject', r.value),
