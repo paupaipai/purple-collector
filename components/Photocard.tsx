@@ -35,7 +35,7 @@ export default function Photocard({ card, onPress, onLongPress }: PhotocardProps
 
   return (
     <View style={styles.container}>
-      <View>
+      <View style={styles.cardWrap}>
         <TouchableOpacity
           onPress={onPress}
           onLongPress={onLongPress}
@@ -142,6 +142,11 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     gap: 5,
     marginBottom: 8,
+  },
+  // Without an explicit width, web shrinks this to its content and the
+  // card's width: '100%' collapses to 0.
+  cardWrap: {
+    width: '100%',
   },
   card: {
     width: '100%',
