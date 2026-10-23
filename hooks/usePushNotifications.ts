@@ -94,7 +94,8 @@ export function usePushNotifications(userId: string | null, ready: boolean) {
   }, [userId]);
 
   useEffect(() => {
-    const handleData = (data: NotificationData | undefined) => {
+    if (Platform.OS === 'web') return;
+    const handleData =(data: NotificationData | undefined) => {
       if (!data) return;
       if (readyRef.current) {
         navigateFromNotificationData(data);

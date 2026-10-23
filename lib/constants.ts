@@ -24,7 +24,7 @@ export const BIAS_ENABLED = false;
 // photocard es, para que el usuario pueda identificarla y decidir aportar una
 // propia. De ahi que el blur sea moderado y el velo suave: si no se distinguiera
 // la card, el catalogo dejaria de servir para lo que sirve.
-export const LEGACY_TREATMENT_ENABLED = true;
+export const LEGACY_TREATMENT_ENABLED = false;
 
 // Solo aplican con LEGACY_TREATMENT_ENABLED = true.
 //
