@@ -76,7 +76,7 @@ export function useAlbums(userId: string | null) {
     albums,
     loading,
     error,
-    refetch: () => fetchAlbums(false),
-    silentRefetch: () => fetchAlbums(true),
+    refetch: useCallback(() => fetchAlbums(false), [fetchAlbums]),
+    silentRefetch: useCallback(() => fetchAlbums(true), [fetchAlbums]),
   };
 }

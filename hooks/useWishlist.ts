@@ -100,7 +100,7 @@ export function useWishlist(userId: string | null) {
     loading,
     error,
     setCardStatus,
-    refetch: () => fetchWishlist(false),
-    silentRefetch: () => fetchWishlist(true),
+    refetch: useCallback(() => fetchWishlist(false), [fetchWishlist]),
+    silentRefetch: useCallback(() => fetchWishlist(true), [fetchWishlist]),
   };
 }

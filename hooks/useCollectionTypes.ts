@@ -63,7 +63,7 @@ export function useCollectionTypes() {
     types,
     loading,
     error,
-    refetch: () => fetchTypes(false),
-    silentRefetch: () => fetchTypes(true),
+    refetch: useCallback(() => fetchTypes(false), [fetchTypes]),
+    silentRefetch: useCallback(() => fetchTypes(true), [fetchTypes]),
   };
 }

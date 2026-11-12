@@ -74,7 +74,7 @@ export function useCollection(userId: string | null) {
     cards,
     loading,
     error,
-    refetch: () => fetchCollection(false),
-    silentRefetch: () => fetchCollection(true),
+    refetch: useCallback(() => fetchCollection(false), [fetchCollection]),
+    silentRefetch: useCallback(() => fetchCollection(true), [fetchCollection]),
   };
 }

@@ -127,7 +127,7 @@ export function useEraAlbums(collectionTypeId: number | null, userId: string | n
     typeIcon,
     loading,
     error,
-    refetch: () => fetchEraAlbums(false),
-    silentRefetch: () => fetchEraAlbums(true),
+    refetch: useCallback(() => fetchEraAlbums(false), [fetchEraAlbums]),
+    silentRefetch: useCallback(() => fetchEraAlbums(true), [fetchEraAlbums]),
   };
 }
