@@ -63,14 +63,14 @@ export function useAlbumCards(albumId: number | null, userId: string | null) {
       const cardIds = cardsData.map((c: any) => c.id);
       const { data: ucData } = await supabase
         .from('user_cards')
-        .select('card_id, status')
+        .select('card_id, status, duplicate_count')
         .eq('user_id', userId)
         .in('card_id', cardIds);
 
       if (ucData) {
         ucData.forEach((uc: any) => {
           statusMap[uc.card_id] = uc.status;
-          dupMap[uc.card_id] = 0;
+          dupMap[uc.card_id] = uc.duplicate_count ?? 0;
         });
       }
     }

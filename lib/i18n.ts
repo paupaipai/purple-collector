@@ -43,9 +43,13 @@ const en = {
   filtersLabel: 'Filters',
   cardWordSingular: 'card',
   cardWordPlural: 'cards',
-  duplicates: 'Duplicates',
-  copiesOne: '1 copy',
-  copiesMany: '{n} copies',
+  copies: 'Copies',
+  dupNone: 'No duplicates',
+  dupOne: '1 duplicate',
+  dupMany: '{n} duplicates',
+  filterDuplicates: 'Duplicates',
+  filterWithDuplicates: 'With duplicates',
+  filterWithoutDuplicates: 'No duplicates',
 
   // Album detail
   photocardsOf: '{owned} of {total} Photocards',
@@ -215,9 +219,13 @@ const es: Translations = {
   filtersLabel: 'Filtros',
   cardWordSingular: 'carta',
   cardWordPlural: 'cartas',
-  duplicates: 'Duplicados',
-  copiesOne: '1 copia',
-  copiesMany: '{n} copias',
+  copies: 'Copias',
+  dupNone: 'Sin repetidas',
+  dupOne: '1 repetida',
+  dupMany: '{n} repetidas',
+  filterDuplicates: 'Repetidas',
+  filterWithDuplicates: 'Con repetidas',
+  filterWithoutDuplicates: 'Sin repetidas',
 
   // Album detail
   photocardsOf: '{owned} de {total} Photocards',

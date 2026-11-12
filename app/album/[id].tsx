@@ -39,6 +39,7 @@ export default function AlbumDetailScreen() {
   const [memberFilter, setMemberFilter] = useState('All');
   const [categoryFilter, setCategoryFilter] = useState('All');
   const [statusFilter, setStatusFilter] = useState('All');
+  const [dupFilter, setDupFilter] = useState('All');
   const [searchQuery, setSearchQuery] = useState('');
   const [selectedCard, setSelectedCard] = useState<CardWithStatus | null>(null);
   const [showCelebration, setShowCelebration] = useState(false);
@@ -64,6 +65,8 @@ export default function AlbumDetailScreen() {
     if (categoryFilter !== 'All') result = result.filter(c => c.category_name === categoryFilter);
     if (statusFilter === 'none') result = result.filter(c => c.status === null);
     else if (statusFilter !== 'All') result = result.filter(c => c.status === statusFilter);
+    if (dupFilter === 'with') result = result.filter(c => c.status === 'have' && c.duplicate_count > 0);
+    else if (dupFilter === 'without') result = result.filter(c => c.status === 'have' && c.duplicate_count === 0);
     const query = searchQuery.trim().toLowerCase();
     if (query) {
       result = result.filter(c =>
@@ -73,7 +76,7 @@ export default function AlbumDetailScreen() {
       );
     }
     return result;
-  }, [cards, memberFilter, categoryFilter, statusFilter, searchQuery]);
+  }, [cards, memberFilter, categoryFilter, statusFilter, dupFilter, searchQuery]);
 
   const groupedEntries = useMemo(() => {
     const groups: Record<string, CardWithStatus[]> = {};
@@ -86,7 +89,7 @@ export default function AlbumDetailScreen() {
     );
   }, [filtered]);
 
-  const activeFilterCount = (categoryFilter !== 'All' ? 1 : 0) + (statusFilter !== 'All' ? 1 : 0) + (memberFilter !== 'All' ? 1 : 0);
+  const activeFilterCount = (categoryFilter !== 'All' ? 1 : 0) + (statusFilter !== 'All' ? 1 : 0) + (memberFilter !== 'All' ? 1 : 0) + (dupFilter !== 'All' ? 1 : 0);
 
   const filterSections = useMemo<FilterSection[]>(() => [
     {
@@ -128,7 +131,18 @@ export default function AlbumDetailScreen() {
       value: memberFilter,
       onChange: setMemberFilter,
     },
-  ], [categories, categoryFilter, statusFilter, memberFilter, t]);
+    {
+      key: 'duplicates',
+      label: t('filterDuplicates'),
+      options: [
+        { value: 'All', label: t('filterAll') },
+        { value: 'with', label: t('filterWithDuplicates') },
+        { value: 'without', label: t('filterWithoutDuplicates') },
+      ],
+      value: dupFilter,
+      onChange: setDupFilter,
+    },
+  ], [categories, categoryFilter, statusFilter, memberFilter, dupFilter, t]);
 
   const albumName = cards[0]?.album_name || album?.name || 'Album';
   const albumShort = cards[0]?.album_short || album?.short_name || '';
@@ -299,6 +313,14 @@ export default function AlbumDetailScreen() {
                   <Ionicons name="close" size={11} color={albumColor} />
                 </TouchableOpacity>
               )}
+              {dupFilter !== 'All' && (
+                <TouchableOpacity onPress={() => setDupFilter('All')} activeOpacity={0.7} style={[styles.activeChip, { borderColor: albumColor + '55', backgroundColor: albumColor + '18' }]}>
+                  <Text style={[styles.activeChipText, { color: albumColor }]}>
+                    {dupFilter === 'with' ? t('filterWithDuplicates') : t('filterWithoutDuplicates')}
+                  </Text>
+                  <Ionicons name="close" size={11} color={albumColor} />
+                </TouchableOpacity>
+              )}
             </ScrollView>
           )}
         </View>
@@ -359,7 +381,7 @@ export default function AlbumDetailScreen() {
         onClose={() => setShowFilters(false)}
         sections={filterSections}
         accentColor={albumColor}
-        onReset={() => { setCategoryFilter('All'); setStatusFilter('All'); setMemberFilter('All'); }}
+        onReset={() => { setCategoryFilter('All'); setStatusFilter('All'); setMemberFilter('All'); setDupFilter('All'); }}
         resultCount={filtered.length}
       />
 

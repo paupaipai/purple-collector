@@ -19,10 +19,10 @@ export function useCollection(userId: string | null) {
 
     // Paginado: un usuario con mas de 1000 cards en 'have' veia su coleccion
     // cortada en exactamente 1000 (el cap por defecto de PostgREST).
-    const { data: ucData, error: ucError } = await fetchAllPages<{ card_id: number; status: 'have' }>(
+    const { data: ucData, error: ucError } = await fetchAllPages<{ card_id: number; status: 'have'; duplicate_count: number | null }>(
       () => supabase
         .from('user_cards')
-        .select('card_id, status')
+        .select('card_id, status, duplicate_count')
         .eq('user_id', userId)
         .eq('status', 'have'),
     );
@@ -54,12 +54,16 @@ export function useCollection(userId: string | null) {
     }
 
     const statusMap: Record<number, 'have'> = {};
-    ucData.forEach((uc: any) => { statusMap[uc.card_id] = 'have'; });
+    const dupMap: Record<number, number> = {};
+    ucData.forEach((uc: any) => {
+      statusMap[uc.card_id] = 'have';
+      dupMap[uc.card_id] = uc.duplicate_count ?? 0;
+    });
 
     const combined: CardWithStatus[] = cardsData.map((card: any) => ({
       ...card,
       status: statusMap[card.id] || null,
-      duplicate_count: 0,
+      duplicate_count: dupMap[card.id] ?? 0,
     }));
 
     setCards(combined);

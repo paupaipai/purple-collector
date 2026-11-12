@@ -101,9 +101,9 @@ export default function CardStatusModal({
               {onSetDuplicates && status === 'have' && (
                 <View style={styles.dupRow}>
                   <View style={{ flex: 1 }}>
-                    <Text style={styles.dupLabel}>{t('duplicates')}</Text>
+                    <Text style={styles.dupLabel}>{t('copies')}</Text>
                     <Text style={styles.dupSub}>
-                      {dupCount === 0 ? t('copiesOne') : t('copiesMany', { n: dupCount + 1 })}
+                      {dupCount === 0 ? t('dupNone') : dupCount === 1 ? t('dupOne') : t('dupMany', { n: dupCount })}
                     </Text>
                   </View>
                   <View style={styles.dupStepper}>
@@ -115,7 +115,7 @@ export default function CardStatusModal({
                     >
                       <Text style={styles.dupBtnText}>−</Text>
                     </TouchableOpacity>
-                    <Text style={styles.dupCount}>{dupCount}</Text>
+                    <Text style={styles.dupCount}>{dupCount + 1}</Text>
                     <TouchableOpacity
                       style={styles.dupBtn}
                       onPress={() => onSetDuplicates(dupCount + 1)}
