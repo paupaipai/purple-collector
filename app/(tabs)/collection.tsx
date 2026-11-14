@@ -42,6 +42,7 @@ export default function CollectionScreen() {
 
   const [albumFilter, setAlbumFilter] = useState('All');
   const [memberFilter, setMemberFilter] = useState('All');
+  const [dupFilter, setDupFilter] = useState('All');
   const [showFilters, setShowFilters] = useState(false);
   const [searchQuery, setSearchQuery] = useState('');
 
@@ -74,6 +75,8 @@ export default function CollectionScreen() {
       if (memberFilter === 'Group') result = result.filter(c => c.is_group);
       else result = result.filter(c => c.member === memberFilter);
     }
+    if (dupFilter === 'with') result = result.filter(c => c.status === 'have' && c.duplicate_count > 0);
+    else if (dupFilter === 'without') result = result.filter(c => c.status === 'have' && c.duplicate_count === 0);
     const query = searchQuery.trim().toLowerCase();
     if (query) {
       result = result.filter(c =>
@@ -83,7 +86,7 @@ export default function CollectionScreen() {
       );
     }
     return result;
-  }, [cards, albumFilter, memberFilter, searchQuery]);
+  }, [cards, albumFilter, memberFilter, dupFilter, searchQuery]);
 
   const rarityCount = useMemo(() => {
     const counts: Record<string, number> = { Common: 0, Rare: 0, 'Ultra Rare': 0, Limited: 0 };
@@ -97,7 +100,7 @@ export default function CollectionScreen() {
     return seen.size;
   }, [cards]);
 
-  const activeFilterCount = (albumFilter !== 'All' ? 1 : 0) + (memberFilter !== 'All' ? 1 : 0);
+  const activeFilterCount = (albumFilter !== 'All' ? 1 : 0) + (memberFilter !== 'All' ? 1 : 0) + (dupFilter !== 'All' ? 1 : 0);
 
   const filterSections = useMemo<FilterSection[]>(() => [
     {
@@ -121,7 +124,18 @@ export default function CollectionScreen() {
       value: memberFilter,
       onChange: setMemberFilter,
     },
-  ], [albums, albumFilter, memberFilter, t]);
+    {
+      key: 'duplicates',
+      label: t('filterDuplicates'),
+      options: [
+        { value: 'All', label: t('filterAll') },
+        { value: 'with', label: t('filterWithDuplicates') },
+        { value: 'without', label: t('filterWithoutDuplicates') },
+      ],
+      value: dupFilter,
+      onChange: setDupFilter,
+    },
+  ], [albums, albumFilter, memberFilter, dupFilter, t]);
 
   return (
     <SafeAreaView style={styles.container}>
@@ -262,6 +276,14 @@ export default function CollectionScreen() {
                     <Ionicons name="close" size={11} color={COLORS.purple3} />
                   </TouchableOpacity>
                 )}
+                {dupFilter !== 'All' && (
+                  <TouchableOpacity onPress={() => setDupFilter('All')} activeOpacity={0.7} style={styles.activeChip}>
+                    <Text style={styles.activeChipText}>
+                      {dupFilter === 'with' ? t('filterWithDuplicates') : t('filterWithoutDuplicates')}
+                    </Text>
+                    <Ionicons name="close" size={11} color={COLORS.purple3} />
+                  </TouchableOpacity>
+                )}
               </ScrollView>
             )}
           </View>
@@ -320,7 +342,7 @@ export default function CollectionScreen() {
         visible={showFilters}
         onClose={() => setShowFilters(false)}
         sections={filterSections}
-        onReset={() => { setAlbumFilter('All'); setMemberFilter('All'); }}
+        onReset={() => { setAlbumFilter('All'); setMemberFilter('All'); setDupFilter('All'); }}
         resultCount={filtered.length}
       />
     </SafeAreaView>

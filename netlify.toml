@@ -1,0 +1,9 @@
+[build]
+  command = "npx expo export --platform web"
+  publish = "dist"
+
+# La app es una SPA (output "single"): todas las rutas cargan index.html.
+[[redirects]]
+  from = "/*"
+  to = "/index.html"
+  status = 200
