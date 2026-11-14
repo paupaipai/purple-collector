@@ -16,6 +16,7 @@ import { COLORS } from '../lib/constants';
 import { useI18n } from '../lib/I18nContext';
 import { saveUsername, USERNAME_RE, UsernameFailure } from '../lib/username';
 import GalaxyBackground from './GalaxyBackground';
+import UsernameSuggestions from './UsernameSuggestions';
 
 /**
  * Elegir nombre de usuario al crear la cuenta.
@@ -50,6 +51,7 @@ export default function UsernameScreen({ userId, suggestion, onDone }: Props) {
   );
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [suggestions, setSuggestions] = useState<string[]>([]);
 
   const valid = USERNAME_RE.test(value);
 
@@ -63,11 +65,13 @@ export default function UsernameScreen({ userId, suggestion, onDone }: Props) {
   const submit = async () => {
     setSaving(true);
     setError(null);
+    setSuggestions([]);
     const result = await saveUsername(userId, value);
     setSaving(false);
 
     if (!result.ok) {
       setError(errorText(result.reason));
+      setSuggestions(result.suggestions ?? []);
       return;
     }
     onDone(result.username);
@@ -95,6 +99,7 @@ export default function UsernameScreen({ userId, suggestion, onDone }: Props) {
               onChangeText={text => {
                 setValue(text.toLowerCase().replace(/[^a-z0-9_]/g, '').slice(0, 20));
                 setError(null);
+                setSuggestions([]);
               }}
               placeholder={t('usernamePlaceholder')}
               placeholderTextColor={COLORS.textMuted}
@@ -110,6 +115,10 @@ export default function UsernameScreen({ userId, suggestion, onDone }: Props) {
           <Text style={[styles.rules, error ? styles.rulesError : null]}>
             {error ?? t('handleRules')}
           </Text>
+          <UsernameSuggestions
+            suggestions={suggestions}
+            onPick={u => { setValue(u); setError(null); setSuggestions([]); }}
+          />
 
           <TouchableOpacity
             onPress={submit}

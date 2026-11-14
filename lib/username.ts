@@ -25,7 +25,9 @@ export type UsernameFailure =
 
 export type UsernameResult =
   | { ok: true; username: string }
-  | { ok: false; reason: UsernameFailure };
+  // `suggestions` solo viene con 'taken' o 'reserved': nombres libres para
+  // ofrecer en vez de dejar a la persona adivinando.
+  | { ok: false; reason: UsernameFailure; suggestions?: string[] };
 
 /** Codigos de Postgres que llegan via PostgREST. */
 const UNIQUE_VIOLATION = '23505';
@@ -56,8 +58,12 @@ export async function saveUsername(
     const code = (error as any).code;
     // El formato ya se comprobo arriba, asi que un check_violation aqui solo
     // puede venir de la lista de nombres reservados.
-    if (code === UNIQUE_VIOLATION) return { ok: false, reason: 'taken' };
-    if (code === CHECK_VIOLATION) return { ok: false, reason: 'reserved' };
+    if (code === UNIQUE_VIOLATION) {
+      return { ok: false, reason: 'taken', suggestions: await suggestUsernames(username) };
+    }
+    if (code === CHECK_VIOLATION) {
+      return { ok: false, reason: 'reserved', suggestions: await suggestUsernames(username) };
+    }
     return { ok: false, reason: 'failed' };
   }
 
@@ -73,4 +79,18 @@ export async function fetchUsername(userId: string | null): Promise<string | nul
     .eq('id', userId)
     .single();
   return data?.username ?? null;
+}
+
+/**
+ * Nombres libres parecidos a `base`, para ofrecer cuando el elegido esta ocupado.
+ *
+ * Lo resuelve la base (`suggest_usernames`, SECURITY DEFINER) porque la RLS no
+ * deja al cliente leer los perfiles de otros, asi que desde aqui no se puede
+ * saber que nombres estan libres. Devuelve solo nombres, nunca filas.
+ * Si falla, devuelve [] y la pantalla se queda con el mensaje de "ocupado".
+ */
+export async function suggestUsernames(base: string, howMany = 3): Promise<string[]> {
+  const { data, error } = await supabase.rpc('suggest_usernames', { base, how_many: howMany });
+  if (error || !Array.isArray(data)) return [];
+  return (data as string[]).filter(u => USERNAME_RE.test(u));
 }

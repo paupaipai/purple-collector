@@ -22,6 +22,7 @@ import { useI18n } from '../../lib/I18nContext';
 import { usePendingModerationCount } from '../../hooks/useMyContributions';
 import { useIsAdmin } from '../../hooks/useIsAdmin';
 import { saveUsername, USERNAME_RE } from '../../lib/username';
+import UsernameSuggestions from '../../components/UsernameSuggestions';
 import { usePremium } from '../../lib/PremiumContext';
 import { fetchAllByIds, fetchAllPages, supabase } from '../../lib/supabase';
 import { BiasKey } from '../../lib/types';
@@ -82,10 +83,12 @@ export default function ProfileScreen() {
   // la misma regla acabarian discrepando.
   const saveHandle = async () => {
     setHandleSaving(true);
+    setHandleSuggestions([]);
     const result = await saveUsername(userId, handleDraft);
     setHandleSaving(false);
 
     if (!result.ok) {
+      setHandleSuggestions(result.suggestions ?? []);
       setHandleError(
         result.reason === 'taken' ? t('handleTaken')
           : result.reason === 'reserved' ? t('handleReserved')
@@ -110,6 +113,7 @@ export default function ProfileScreen() {
   // Modal nativo y un aviso del arbol quedaria detras. Y de paso se ve junto al
   // campo que hay que corregir, sin tapar lo que escribiste.
   const [handleError, setHandleError] = useState<string | null>(null);
+  const [handleSuggestions, setHandleSuggestions] = useState<string[]>([]);
 
   // Se llega aqui desde el aviso de Aportes, que es donde se nota que falta el
   // handle. Abrir el editor directamente evita decir "ahora busca una fila en
@@ -262,7 +266,7 @@ export default function ProfileScreen() {
               y estaba escondido entre ajustes. Si no hay, la propia invitacion
               a ponerlo ocupa su sitio. */}
           <TouchableOpacity
-            onPress={() => { setHandleDraft(handle ?? ''); setHandleError(null); setHandleModal(true); }}
+            onPress={() => { setHandleDraft(handle ?? ''); setHandleError(null); setHandleSuggestions([]); setHandleModal(true); }}
             activeOpacity={0.7}
             style={styles.usernameBtn}
           >
@@ -524,7 +528,7 @@ export default function ProfileScreen() {
               <Text style={styles.handleAt}>@</Text>
               <TextInput
                 value={handleDraft}
-                onChangeText={text => { setHandleDraft(text.toLowerCase()); setHandleError(null); }}
+                onChangeText={text => { setHandleDraft(text.toLowerCase()); setHandleError(null); setHandleSuggestions([]); }}
                 placeholder="paupau"
                 placeholderTextColor={COLORS.textMuted}
                 autoCapitalize="none"
@@ -536,6 +540,10 @@ export default function ProfileScreen() {
             <Text style={[styles.handleHint, handleError ? styles.handleHintError : null]}>
               {handleError ?? t('handleRules')}
             </Text>
+            <UsernameSuggestions
+              suggestions={handleSuggestions}
+              onPick={u => { setHandleDraft(u); setHandleError(null); setHandleSuggestions([]); }}
+            />
 
             <View style={styles.handleActions}>
               <TouchableOpacity
