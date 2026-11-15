@@ -2,6 +2,7 @@ import { useCallback, useEffect, useState } from 'react';
 
 import { COMMUNITY_REVIEW_BUCKET } from '../lib/constants';
 import { getCardImageUrl, supabase } from '../lib/supabase';
+import { t } from '../lib/i18n';
 import { ImageStatus } from '../lib/types';
 
 /**
@@ -100,7 +101,7 @@ export function useMyContributions(userId: string | null) {
         .from('card_submissions')
         .select(`
           id, status, rejection_reason, created_at, bucket_id, storage_path,
-          member, card_name, album_id, created_card_id,
+          member, card_name, album_id, created_card_id, album_unlisted, notes,
           albums ( name )
         `)
         .eq('submitted_by', userId)
@@ -212,8 +213,10 @@ export function useMyContributions(userId: string | null) {
         key: `sub-${row.id}`,
         kind: 'card' as const,
         status: row.status as ImageStatus,
-        title: row.card_name,
-        subtitle: [row.albums?.name, row.member].filter(Boolean).join(' · '),
+        // Sin album no hay nombre de card: se muestra la descripcion que dio.
+        title: row.album_unlisted ? (row.notes ?? '') : row.card_name,
+        subtitle: [row.album_unlisted ? t('albumUnlistedTag') : row.albums?.name, row.member]
+          .filter(Boolean).join(' · '),
         createdAt: row.created_at,
         thumbUrl: thumb,
         rejectionReason: row.rejection_reason,

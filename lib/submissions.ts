@@ -48,7 +48,16 @@ export interface NewCardDraft {
   member: string | null;
   cardName: string;
   notes: string;
+  /**
+   * El album no esta en el catalogo. Entonces solo se piden foto, miembro y una
+   * descripcion (en `notes`); la taxonomia y el nombre se ignoran. El moderador
+   * la revisa a mano.
+   */
+  albumUnlisted?: boolean;
 }
+
+/** Largo minimo de la descripcion de un album no listado. Igual que la base. */
+export const UNLISTED_DESCRIPTION_MIN = 10;
 
 /**
  * Motivo de rechazo -> clave de i18n.
@@ -91,6 +100,9 @@ const UNIQUE_VIOLATION = '23505';
  * proposito: hay albums que no tienen ninguna de las dos cosas.
  */
 export function isDraftComplete(draft: NewCardDraft): boolean {
+  if (draft.albumUnlisted) {
+    return !!draft.member && draft.notes.trim().length >= UNLISTED_DESCRIPTION_MIN;
+  }
   return (
     draft.albumId != null &&
     draft.categoryId != null &&
@@ -133,12 +145,14 @@ export async function submitNewCard(params: {
     .from('card_submissions')
     .insert({
       submitted_by: userId,
-      album_id: draft.albumId,
-      version_id: draft.versionId,
-      category_id: draft.categoryId,
-      card_set_id: draft.cardSetId,
+      // Sin album no hay taxonomia ni nombre: la base exige que vengan vacios.
+      album_unlisted: !!draft.albumUnlisted,
+      album_id: draft.albumUnlisted ? null : draft.albumId,
+      version_id: draft.albumUnlisted ? null : draft.versionId,
+      category_id: draft.albumUnlisted ? null : draft.categoryId,
+      card_set_id: draft.albumUnlisted ? null : draft.cardSetId,
       member: draft.member,
-      card_name: draft.cardName.trim(),
+      card_name: draft.albumUnlisted ? null : draft.cardName.trim(),
       notes: draft.notes.trim() || null,
       bucket_id: COMMUNITY_REVIEW_BUCKET,
       storage_path: uploaded.storagePath,

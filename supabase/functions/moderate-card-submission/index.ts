@@ -41,12 +41,13 @@ type SubmissionRow = {
   id: number;
   submitted_by: string | null;
   status: string;
-  album_id: number;
+  album_id: number | null;
+  album_unlisted: boolean;
   version_id: number | null;
-  category_id: number;
+  category_id: number | null;
   card_set_id: number | null;
   member: string;
-  card_name: string;
+  card_name: string | null;
   bucket_id: string;
   storage_path: string;
   width: number | null;
@@ -156,7 +157,7 @@ const protectedHandler = withSupabase({ auth: ["user"] }, async (req, ctx) => {
       "id, submitted_by, status, album_id, version_id, category_id, card_set_id, " +
       "member, card_name, bucket_id, storage_path, width, height, byte_size, " +
       "terms_accepted_at, terms_version, " +
-      "back_storage_path, back_width, back_height, back_byte_size",
+      "back_storage_path, back_width, back_height, back_byte_size, album_unlisted",
     )
     .eq("id", submissionId)
     .maybeSingle<SubmissionRow>();
@@ -209,6 +210,27 @@ const protectedHandler = withSupabase({ auth: ["user"] }, async (req, ctx) => {
   // retailer, país y draw type: es el nivel que describe CÓMO se distribuyó la
   // card, y copiarlos evita que la card nueva salga sin esa información
   // mientras sus hermanas del mismo set sí la tienen.
+  // Album no listado: es una solicitud que se revisa a mano. "Aprobar" solo la
+  // marca como resuelta; no se crea card ni se mueven imagenes (siguen en el
+  // bucket privado, por si el moderador las usa al crear el album y la card).
+  if (row.album_unlisted || row.album_id == null || row.category_id == null || !row.card_name) {
+    const { error: resolveError } = await ctx.supabaseAdmin
+      .from("card_submissions")
+      .update({
+        status: "approved",
+        reviewed_by: userId,
+        reviewed_at: reviewedAt,
+        rejection_reason: null,
+      })
+      .eq("id", row.id)
+      .eq("status", "pending");
+    if (resolveError) {
+      console.error("[moderate-card-submission] resolve unlisted failed:", resolveError);
+      return Response.json({ success: false, error: "Could not resolve the submission" }, { status: 500 });
+    }
+    return Response.json({ success: true, action: "resolve", submissionId: row.id });
+  }
+
   const [album, category, version, cardSet] = await Promise.all([
     ctx.supabaseAdmin.from("albums").select("short_name, release_date").eq("id", row.album_id).maybeSingle(),
     ctx.supabaseAdmin.from("card_categories").select("short_name").eq("id", row.category_id).maybeSingle(),

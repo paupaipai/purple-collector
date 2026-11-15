@@ -78,15 +78,20 @@ export interface CardSubmission {
   submitted_by: string | null;
   contributor_handle: string | null;
   status: ImageStatus;
-  album_id: number;
+  /** Null si `album_unlisted`: el album no esta en el catalogo. */
+  album_id: number | null;
   version_id: number | null;
-  category_id: number;
+  category_id: number | null;
   card_set_id: number | null;
   era_id: number | null;
   collection_type_id: number | null;
   member: string;
-  card_name: string;
+  /** Null si `album_unlisted`. */
+  card_name: string | null;
+  /** En una de album no listado es la descripcion, obligatoria. */
   notes: string | null;
+  /** El album no esta en el catalogo: solicitud que se revisa a mano. */
+  album_unlisted: boolean;
   bucket_id: string;
   storage_path: string;
   width: number | null;

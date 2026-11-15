@@ -41,7 +41,9 @@ import { useDialog } from '../../lib/DialogContext';
 import { useI18n } from '../../lib/I18nContext';
 import { getCardImageUrl } from '../../lib/supabase';
 import { CardFull } from '../../lib/types';
-import { isDraftComplete, NewCardDraft, submitNewCard, SubmissionFailure } from '../../lib/submissions';
+import {
+  isDraftComplete, NewCardDraft, submitNewCard, SubmissionFailure, UNLISTED_DESCRIPTION_MIN,
+} from '../../lib/submissions';
 
 /**
  * Proponer una card que no esta en el catalogo.
@@ -85,6 +87,9 @@ export default function NewCardScreen() {
   const [member, setMember] = useState<string | null>(null);
   const [cardName, setCardName] = useState('');
   const [notes, setNotes] = useState('');
+  // El album no esta en el catalogo: se ocultan taxonomia y nombre, y el
+  // comentario pasa a ser una descripcion obligatoria.
+  const [albumUnlisted, setAlbumUnlisted] = useState(false);
 
   // Frente (obligatorio) y reverso (opcional). Cada uno guarda la foto, el
   // encuadre y la miniatura. La miniatura tiene que ser el ENCUADRE elegido, no
@@ -197,7 +202,7 @@ export default function NewCardScreen() {
   };
 
   const draft: NewCardDraft = {
-    albumId, versionId, categoryId, cardSetId, member, cardName, notes,
+    albumId, versionId, categoryId, cardSetId, member, cardName, notes, albumUnlisted,
   };
   const ready = isDraftComplete(draft) && !!asset && !sending;
 
@@ -378,6 +383,28 @@ export default function NewCardScreen() {
               <GlassCard style={styles.card}>
                 <Text style={styles.sectionTitle}>{t('newCardWhere')}</Text>
 
+                {/* Si el album no esta, se ofrece salir de la cascada: no tiene
+                    sentido obligar a elegir de una lista que no lo tiene. */}
+                <TouchableOpacity
+                  onPress={() => setAlbumUnlisted(v => !v)}
+                  activeOpacity={0.7}
+                  style={[styles.unlistedToggle, albumUnlisted && styles.unlistedToggleOn]}
+                >
+                  <Ionicons
+                    name={albumUnlisted ? 'checkbox' : 'square-outline'}
+                    size={16}
+                    color={albumUnlisted ? COLORS.purple3 : COLORS.textMuted}
+                  />
+                  <Text style={[styles.unlistedText, albumUnlisted && styles.unlistedTextOn]}>
+                    {t('albumUnlistedToggle')}
+                  </Text>
+                </TouchableOpacity>
+
+                {albumUnlisted ? (
+                  <Text style={styles.unlistedHint}>{t('albumUnlistedHint')}</Text>
+                ) : (
+                <>
+
                 <PickerField
                   label={t('fieldType')} required
                   options={typeOptions} value={typeId} onChange={chooseType}
@@ -409,6 +436,8 @@ export default function NewCardScreen() {
                   onChange={v => setCardSetId(v as number | null)}
                   placeholder={t('pickerOptional')} disabled={albumId == null}
                 />
+                </>
+                )}
               </GlassCard>
 
               {/* La card en si. */}
@@ -436,6 +465,8 @@ export default function NewCardScreen() {
                   })}
                 </View>
 
+                {!albumUnlisted && (
+                <>
                 <Text style={styles.fieldLabel}>
                   {t('fieldCardName')}<Text style={styles.required}> *</Text>
                 </Text>
@@ -462,19 +493,30 @@ export default function NewCardScreen() {
                   </TouchableOpacity>
                 ) : null}
 
-                <Text style={styles.fieldLabel}>{t('fieldNotes')}</Text>
+                </>
+                )}
+
+                <Text style={styles.fieldLabel}>
+                  {albumUnlisted ? t('fieldDescription') : t('fieldNotes')}
+                  {albumUnlisted ? <Text style={styles.required}> *</Text> : null}
+                </Text>
                 <TextInput
                   value={notes}
                   onChangeText={setNotes}
-                  placeholder={t('newCardNotesPlaceholder')}
+                  placeholder={albumUnlisted ? t('albumUnlistedPlaceholder') : t('newCardNotesPlaceholder')}
                   placeholderTextColor={COLORS.textMuted}
                   style={[styles.input, styles.inputMulti]}
                   multiline
                   maxLength={500}
                 />
+                {albumUnlisted && notes.trim().length < UNLISTED_DESCRIPTION_MIN ? (
+                  <Text style={styles.nameHint}>
+                    {t('albumUnlistedMin', { n: UNLISTED_DESCRIPTION_MIN })}
+                  </Text>
+                ) : null}
               </GlassCard>
 
-              {existentes.length > 0 && (
+              {!albumUnlisted && existentes.length > 0 && (
                 <GlassCard style={styles.warn}>
                   <View style={styles.warnHead}>
                     <Ionicons name="alert-circle" size={17} color={COLORS.gold} />
@@ -677,6 +719,15 @@ const styles = StyleSheet.create({
   },
   inputMulti: { minHeight: 68, textAlignVertical: 'top' },
   nameHint: { fontSize: 10, lineHeight: 14, color: COLORS.textMuted, marginTop: -4 },
+  unlistedToggle: {
+    flexDirection: 'row', alignItems: 'center', gap: 8,
+    paddingHorizontal: 12, paddingVertical: 10, borderRadius: 12,
+    borderWidth: 1, borderColor: COLORS.border, backgroundColor: COLORS.surfaceGlass,
+  },
+  unlistedToggleOn: { borderColor: COLORS.borderActive, backgroundColor: 'rgba(168,85,247,0.14)' },
+  unlistedText: { flex: 1, fontSize: 12, fontWeight: '700', color: COLORS.textSecondary },
+  unlistedTextOn: { color: COLORS.purple3 },
+  unlistedHint: { fontSize: 11, lineHeight: 16, color: COLORS.textMuted },
   nameSuggestion: {
     flexDirection: 'row', alignItems: 'center', gap: 5, alignSelf: 'flex-start',
     marginTop: -4, paddingHorizontal: 10, paddingVertical: 6, borderRadius: 999,

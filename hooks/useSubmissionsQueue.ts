@@ -33,6 +33,8 @@ export interface PendingCardSubmission {
   cardSetName: string | null;
   /** Lo que el set aporta y la card heredara: retailer, pais, draw type. */
   cardSetDetail: string | null;
+  /** El album no esta en el catalogo: solo se puede resolver a mano o rechazar. */
+  albumUnlisted: boolean;
 }
 
 // 10 minutos alcanza para revisar una tanda y evita dejar URLs vivas de mas.
@@ -61,7 +63,7 @@ export function useSubmissionsQueue(enabled: boolean) {
     const { data, error: queryError } = await supabase
       .from('card_submissions')
       .select(`
-        id, created_at, storage_path, back_storage_path, member, card_name, notes, contributor_handle,
+        id, created_at, storage_path, back_storage_path, member, card_name, notes, contributor_handle, album_unlisted,
         collection_types ( name ),
         album_eras ( name ),
         albums ( name ),
@@ -109,7 +111,7 @@ export function useSubmissionsQueue(enabled: boolean) {
         signedUrl: urlByPath.get(row.storage_path) ?? null,
         backSignedUrl: row.back_storage_path ? urlByPath.get(row.back_storage_path) ?? null : null,
         member: row.member,
-        cardName: row.card_name,
+        cardName: row.card_name ?? '',
         notes: row.notes,
         handle: row.contributor_handle,
         typeName: row.collection_types?.name ?? null,
@@ -119,6 +121,7 @@ export function useSubmissionsQueue(enabled: boolean) {
         categoryName: row.card_categories?.name ?? '—',
         cardSetName: set?.name ?? null,
         cardSetDetail: detail || null,
+        albumUnlisted: !!row.album_unlisted,
       };
     }));
     setLoading(false);

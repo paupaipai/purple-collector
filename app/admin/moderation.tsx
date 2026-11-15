@@ -154,6 +154,15 @@ export default function ModerationScreen() {
   // todo el mundo en cuanto se guarda. Por eso pide confirmacion y rechazar no:
   // rechazar no publica nada.
   const askApproveCard = (item: PendingCardSubmission) => {
+    // Album no listado: no se crea nada. "Resolver" solo la saca de la bandeja,
+    // despues de haber agregado el album y la card a mano (o decidido no hacerlo).
+    if (item.albumUnlisted) {
+      alert(t('markResolved'), t('markResolvedDesc'), [
+        { text: t('cancel'), style: 'cancel' },
+        { text: t('markResolved'), onPress: () => runSubmission(item, 'approve') },
+      ]);
+      return;
+    }
     alert(t('newCardTitle'), `${item.cardName}\n${item.albumName} \u00b7 ${item.member}`, [
       { text: t('cancel'), style: 'cancel' },
       { text: t('approve'), onPress: () => runSubmission(item, 'approve') },
@@ -364,17 +373,27 @@ export default function ModerationScreen() {
                       ) : null}
                     </View>
                     <View style={styles.flex}>
-                      <Text style={styles.cardName} numberOfLines={2}>{item.cardName}</Text>
+                      {item.albumUnlisted ? (
+                        // Sin album: no hay nombre ni cadena que mostrar. Lo que
+                        // importa es la descripcion, que va abajo.
+                        <View style={[styles.sideTag, styles.unlistedTag]}>
+                          <Text style={styles.sideTagText}>{t('albumUnlistedTag')}</Text>
+                        </View>
+                      ) : (
+                        <Text style={styles.cardName} numberOfLines={2}>{item.cardName}</Text>
+                      )}
                       <Text style={styles.cardMeta}>
                         {item.member}{item.handle ? ` \u00b7 @${item.handle}` : ''}
                       </Text>
                       {/* La cadena taxonomica completa. Aprobar CREA la card,
                           asi que hay que poder ver donde va a caer sin salir
                           de la bandeja. */}
+                      {!item.albumUnlisted && (
                       <Text style={styles.chain} numberOfLines={3}>
                         {[item.typeName, item.eraName, item.albumName, item.versionName, item.categoryName]
                           .filter(Boolean).join(' \u203a ')}
                       </Text>
+                      )}
                       {item.cardSetName ? (
                         <Text style={styles.cardCode} numberOfLines={2}>
                           {item.cardSetName}
@@ -415,7 +434,9 @@ export default function ModerationScreen() {
                       ) : (
                         <>
                           <Ionicons name="checkmark" size={16} color={COLORS.green} />
-                          <Text style={[styles.btnText, { color: COLORS.green }]}>{t('approve')}</Text>
+                          <Text style={[styles.btnText, { color: COLORS.green }]}>
+                            {item.albumUnlisted ? t('markResolved') : t('approve')}
+                          </Text>
                         </>
                       )}
                     </TouchableOpacity>
@@ -533,6 +554,7 @@ const styles = StyleSheet.create({
     paddingHorizontal: 8, paddingVertical: 2, borderRadius: 999,
     borderWidth: 1, borderColor: COLORS.border, backgroundColor: COLORS.surfaceGlass,
   },
+  unlistedTag: { alignSelf: 'flex-start', borderColor: COLORS.gold + '88', backgroundColor: COLORS.gold + '22', marginBottom: 2 },
   sideTagBack: { borderColor: COLORS.borderActive, backgroundColor: 'rgba(168,85,247,0.18)' },
   sideTagText: { fontSize: 10, fontWeight: '800', color: COLORS.textPrimary },
   root: { flex: 1, backgroundColor: COLORS.bg },
