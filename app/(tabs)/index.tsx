@@ -2,7 +2,7 @@ import { Ionicons } from '@expo/vector-icons';
 import { LinearGradient } from 'expo-linear-gradient';
 import { useFocusEffect, useRouter } from 'expo-router';
 import { Image } from 'expo-image';
-import { useCallback, useEffect, useRef } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 import {
   ActivityIndicator,
   Animated,
@@ -22,6 +22,7 @@ import { useCollectionTypes } from '../../hooks/useCollectionTypes';
 import { useBias } from '../../lib/BiasContext';
 import { BIAS_ENABLED, COLORS, getMemberByKey } from '../../lib/constants';
 import { useI18n } from '../../lib/I18nContext';
+import { fetchUsername } from '../../lib/username';
 import { CollectionTypeWithStats, BiasKey } from '../../lib/types';
 
 const TYPE_ICONS: Record<string, any> = {
@@ -108,7 +109,7 @@ function TypeCard({
 
 export default function HomeScreen() {
   const router = useRouter();
-  const { userName } = useAuth();
+  const { userName, userId } = useAuth();
   const { types, loading, error, refetch, silentRefetch } = useCollectionTypes();
   const { t } = useI18n();
   const { biases } = useBias();
@@ -116,7 +117,17 @@ export default function HomeScreen() {
   const titleScale = useRef(new Animated.Value(0.85)).current;
   const titleOpacity = useRef(new Animated.Value(0)).current;
 
+  // Nombre de usuario de la app, si eligio uno. Se relee al volver a la
+  // pantalla porque se puede cambiar desde el perfil.
+  const [username, setUsername] = useState<string | null>(null);
+  const loadUsername = useCallback(() => {
+    let cancelled = false;
+    fetchUsername(userId).then(u => { if (!cancelled) setUsername(u); });
+    return () => { cancelled = true; };
+  }, [userId]);
+
   useFocusEffect(useCallback(() => { silentRefetch(); }, [silentRefetch]));
+  useFocusEffect(loadUsername);
 
   useEffect(() => {
     Animated.parallel([
@@ -125,7 +136,9 @@ export default function HomeScreen() {
     ]).start();
   }, []);
 
-  const firstName = userName?.split(' ')[0] || 'ARMY';
+  // Primero el nombre de usuario; si no tiene, el nombre de la cuenta (Google o
+  // Apple); y si tampoco, ARMY.
+  const firstName = username || userName?.split(' ')[0] || 'ARMY';
   const biasLine = BIAS_ENABLED ? getBiasLine(biases, t('bias'), t('biases')) : null;
 
   return (
