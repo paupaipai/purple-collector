@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useMemo, useState } from 'react';
 
+import { SiblingCard, suggestCardName } from '../lib/cardName';
 import { supabase } from '../lib/supabase';
 import {
   Album,
@@ -224,4 +225,54 @@ export function useExistingCards(params: {
   }, [albumId, versionId, categoryId, member]);
 
   return { cards, loading };
+}
+
+/**
+ * Nombre sugerido para la card nueva, a partir de sus hermanas.
+ *
+ * Las hermanas son las cards del mismo set si se eligio uno (es lo mas preciso:
+ * "Mini PCs" de un album), y si no las del mismo album/version/categoria. Se
+ * leen de `cards` y no de `cards_full` porque la vista no expone card_set_id.
+ */
+export function useSuggestedCardName(params: {
+  albumId: number | null;
+  versionId: number | null;
+  categoryId: number | null;
+  cardSetId: number | null;
+  member: string | null;
+  setName: string | null;
+  categoryName: string | null;
+}): string | null {
+  const { albumId, versionId, categoryId, cardSetId, member, setName, categoryName } = params;
+  const [siblings, setSiblings] = useState<SiblingCard[]>([]);
+
+  useEffect(() => {
+    if (albumId == null || categoryId == null) {
+      setSiblings([]);
+      return;
+    }
+    let cancelled = false;
+    let query = supabase
+      .from('cards')
+      .select('member, card_name')
+      .eq('album_id', albumId)
+      .eq('is_visible', true);
+    if (cardSetId != null) query = query.eq('card_set_id', cardSetId);
+    else {
+      query = query.eq('category_id', categoryId);
+      if (versionId != null) query = query.eq('version_id', versionId);
+    }
+    query.limit(500).then(({ data, error }) => {
+      if (cancelled) return;
+      // Sin hermanas igual hay sugerencia (desde el set o la categoria).
+      if (error) console.error('[taxonomy] hermanas para el nombre:', error.message);
+      setSiblings((data ?? []) as SiblingCard[]);
+    });
+    return () => { cancelled = true; };
+  }, [albumId, versionId, categoryId, cardSetId]);
+
+  return useMemo(
+    () => suggestCardName({ member, siblings, setName, categoryName }),
+    [member, siblings, setName, categoryName],
+  );
 }

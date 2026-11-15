@@ -2,7 +2,7 @@ import { Ionicons } from '@expo/vector-icons';
 import { Image } from 'expo-image';
 import { ImagePickerAsset } from 'expo-image-picker';
 import { useLocalSearchParams, useRouter } from 'expo-router';
-import { useEffect, useMemo, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import {
   ActivityIndicator,
   KeyboardAvoidingView,
@@ -26,6 +26,7 @@ import {
   useCatalogTaxonomy,
   useExistingCards,
   useFilteredCardSets,
+  useSuggestedCardName,
 } from '../../hooks/useCatalogTaxonomy';
 import { CARD_SUBMISSIONS_ENABLED, COLORS, MEMBERS } from '../../lib/constants';
 import {
@@ -102,6 +103,25 @@ export default function NewCardScreen() {
   // Las cards que ya existen en este hueco. Avisar llega tarde si se hace al
   // enviar: para entonces la persona ya respondio todo el formulario.
   const { cards: existentes } = useExistingCards({ albumId, versionId, categoryId, member });
+
+  // Nombre propuesto con el formato de las cards hermanas ("Jin Mini PC 8").
+  // Se escribe solo en el campo mientras la persona no lo haya editado: si lo
+  // cambia, se respeta, y la sugerencia queda como un boton para volver a ella.
+  const suggestedName = useSuggestedCardName({
+    albumId, versionId, categoryId, cardSetId, member,
+    setName: sets.find(s => s.id === cardSetId)?.name ?? null,
+    categoryName: taxonomy.categories.find(c => c.id === categoryId)?.name ?? null,
+  });
+  const lastAutoName = useRef('');
+  useEffect(() => {
+    if (!suggestedName) return;
+    setCardName(current => {
+      const untouched = current.trim() === '' || current === lastAutoName.current;
+      lastAutoName.current = suggestedName;
+      return untouched ? suggestedName : current;
+    });
+  }, [suggestedName]);
+  const nameIsSuggested = !!suggestedName && cardName === suggestedName;
 
   // Llegada desde un album: se rellenan los dos niveles de arriba a partir de
   // el, porque pedirlos de nuevo seria hacer repetir algo ya dicho.
@@ -427,6 +447,20 @@ export default function NewCardScreen() {
                   style={styles.input}
                   maxLength={120}
                 />
+                {nameIsSuggested ? (
+                  <Text style={styles.nameHint}>{t('newCardNameSuggested')}</Text>
+                ) : suggestedName ? (
+                  <TouchableOpacity
+                    onPress={() => setCardName(suggestedName)}
+                    activeOpacity={0.7}
+                    style={styles.nameSuggestion}
+                  >
+                    <Ionicons name="sparkles-outline" size={12} color={COLORS.purple3} />
+                    <Text style={styles.nameSuggestionText} numberOfLines={1}>
+                      {t('newCardNameUse')} {suggestedName}
+                    </Text>
+                  </TouchableOpacity>
+                ) : null}
 
                 <Text style={styles.fieldLabel}>{t('fieldNotes')}</Text>
                 <TextInput
@@ -642,6 +676,13 @@ const styles = StyleSheet.create({
     color: COLORS.textPrimary, fontSize: 13,
   },
   inputMulti: { minHeight: 68, textAlignVertical: 'top' },
+  nameHint: { fontSize: 10, lineHeight: 14, color: COLORS.textMuted, marginTop: -4 },
+  nameSuggestion: {
+    flexDirection: 'row', alignItems: 'center', gap: 5, alignSelf: 'flex-start',
+    marginTop: -4, paddingHorizontal: 10, paddingVertical: 6, borderRadius: 999,
+    borderWidth: 1, borderColor: COLORS.borderActive, backgroundColor: 'rgba(168,85,247,0.14)',
+  },
+  nameSuggestionText: { fontSize: 11, fontWeight: '700', color: COLORS.purple3, flexShrink: 1 },
 
   chips: { flexDirection: 'row', flexWrap: 'wrap', gap: 6 },
   chip: {
