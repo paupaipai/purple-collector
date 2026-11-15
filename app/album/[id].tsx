@@ -37,6 +37,18 @@ import { useI18n } from '../../lib/I18nContext';
 import { getPhotocardUrl } from '../../lib/supabase';
 import { CardStatus, CardWithStatus, ReportReason } from '../../lib/types';
 
+/**
+ * Corre `fn` cuando la ficha de la card ya termino de cerrarse.
+ *
+ * La ficha es un <Modal> nativo y los avisos (useDialog) viven DENTRO del arbol
+ * de React: si el aviso se abre en el mismo instante en que se pide cerrar la
+ * ficha, en Android queda dibujado DETRAS de ella. No se ven los textos y el
+ * siguiente toque cae en un boton invisible. Mismo truco que la ayuda de estados.
+ */
+function afterSheetCloses(fn: () => void) {
+  setTimeout(fn, 350);
+}
+
 export default function AlbumDetailScreen() {
   const { id } = useLocalSearchParams<{ id: string }>();
   const router = useRouter();
@@ -124,7 +136,7 @@ export default function AlbumDetailScreen() {
     // detras y solo se ve el oscurecido.
     setSelectedCard(null);
 
-    alert(t('reportTitle'), t('reportDesc'), [
+    afterSheetCloses(() => alert(t('reportTitle'), t('reportDesc'), [
       ...REPORT_REASONS.map(r => ({
         text: t(r.key as any),
         onPress: async () => {
@@ -144,7 +156,7 @@ export default function AlbumDetailScreen() {
         },
       })),
       { text: t('cancel'), style: 'cancel' as const },
-    ]);
+    ]));
   };
 
   /**
@@ -258,11 +270,11 @@ export default function AlbumDetailScreen() {
 
     // La camara primero: quien aporta suele tener la photocard EN LA MANO. La
     // galeria queda para fotos ya hechas.
-    alert(side === 'back' ? t('contributeBackOnly') : t('contributeTitle'), t('contributeRights'), [
+    afterSheetCloses(() => alert(side === 'back' ? t('contributeBackOnly') : t('contributeTitle'), t('contributeRights'), [
       { text: t('cancel'), style: 'cancel' },
       { text: t('contributeFromLibrary'), onPress: () => pickSide('galeria', card.id, side) },
       { text: t('contributeTakePhoto'), onPress: () => pickSide('camara', card.id, side) },
-    ]);
+    ]));
   };
 
   const filtered = useMemo(() => {
