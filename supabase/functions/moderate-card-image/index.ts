@@ -34,6 +34,7 @@ type CardImageRow = {
   source_type: string;
   status: string;
   contributed_by: string | null;
+  side: "front" | "back";
 };
 
 /**
@@ -113,7 +114,7 @@ const protectedHandler = withSupabase({ auth: ["user"] }, async (req, ctx) => {
 
   const { data: row, error: rowError } = await ctx.supabaseAdmin
     .from("card_images")
-    .select("id, card_id, bucket_id, storage_path, source_type, status, contributed_by")
+    .select("id, card_id, bucket_id, storage_path, source_type, status, contributed_by, side")
     .eq("id", cardImageId)
     .maybeSingle<CardImageRow>();
 
@@ -290,13 +291,15 @@ const protectedHandler = withSupabase({ auth: ["user"] }, async (req, ctx) => {
     );
   }
 
-  // La primaria es única por (card_id, source_type) entre las aprobadas, así que
-  // hay que bajar la community primaria anterior ANTES de subir esta. La legacy
-  // no se toca: es otro source_type y sigue siendo el fallback.
+  // La primaria es única por (card_id, source_type, side) entre las aprobadas,
+  // así que hay que bajar la community primaria anterior DEL MISMO LADO antes de
+  // subir esta: aprobar un reverso no puede quitarle la primaria al frente. La
+  // legacy no se toca: es otro source_type y sigue siendo el fallback.
   const { error: demoteError } = await ctx.supabaseAdmin
     .from("card_images")
     .update({ is_primary: false })
     .eq("card_id", row.card_id)
+    .eq("side", row.side)
     .eq("source_type", "community")
     .eq("status", "approved")
     .eq("is_primary", true);

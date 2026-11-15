@@ -57,6 +57,19 @@ export function getCardImageUrl(card: {
   return `${data.publicUrl}?v=${IMAGE_CACHE_VERSION}`;
 }
 
+/**
+ * URL publica del reverso, o null si la card no tiene uno aprobado. A diferencia
+ * del frente no hay fallback legacy: `cards.image_path` es solo el frente.
+ */
+export function getCardBackUrl(card: {
+  back_image_path?: string | null;
+  back_image_bucket?: string | null;
+}): string | null {
+  if (!card.back_image_path || !card.back_image_bucket) return null;
+  const { data } = supabase.storage.from(card.back_image_bucket).getPublicUrl(card.back_image_path);
+  return `${data.publicUrl}?v=${IMAGE_CACHE_VERSION}`;
+}
+
 // PostgREST caps unbounded selects at 1000 rows by default, so any query that
 // can grow past that needs explicit pagination or the select silently
 // truncates instead of erroring. This bites both the catalog ('cards', 4500+

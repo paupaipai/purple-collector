@@ -105,8 +105,10 @@ export async function submitNewCard(params: {
   asset: ImagePicker.ImagePickerAsset;
   /** Encuadre elegido en ImageCropper. Sin el se recorta al centro. */
   crop?: CropRect;
+  /** Reverso opcional. Al aprobar la card se modera aparte, como otro aporte. */
+  back?: { asset: ImagePicker.ImagePickerAsset; crop?: CropRect } | null;
 }): Promise<SubmissionResult> {
-  const { userId, draft, asset, crop } = params;
+  const { userId, draft, asset, crop, back } = params;
   if (!userId) return { ok: false, reason: 'no_session' };
   if (!isDraftComplete(draft)) return { ok: false, reason: 'incomplete' };
 
@@ -114,6 +116,18 @@ export async function submitNewCard(params: {
   // bucket una propuesta de card nueva de un aporte a una card existente.
   const uploaded = await uploadReviewImage({ userId, asset, crop, folder: 'cards' });
   if (!uploaded.ok) return uploaded;
+
+  // Si el reverso falla, se cancela todo en vez de mandar la card sin el: la
+  // persona eligio enviarlo y perderlo en silencio seria peor que reintentar.
+  let uploadedBack: Awaited<ReturnType<typeof uploadReviewImage>> | null = null;
+  if (back) {
+    uploadedBack = await uploadReviewImage({ userId, asset: back.asset, crop: back.crop, folder: 'cards' });
+    if (!uploadedBack.ok) {
+      await supabase.storage.from(COMMUNITY_REVIEW_BUCKET).remove([uploaded.storagePath]);
+      return uploadedBack;
+    }
+  }
+  const backOk = uploadedBack && uploadedBack.ok ? uploadedBack : null;
 
   const { data, error } = await supabase
     .from('card_submissions')
@@ -131,6 +145,10 @@ export async function submitNewCard(params: {
       width: uploaded.width,
       height: uploaded.height,
       byte_size: uploaded.byteSize,
+      back_storage_path: backOk?.storagePath ?? null,
+      back_width: backOk?.width ?? null,
+      back_height: backOk?.height ?? null,
+      back_byte_size: backOk?.byteSize ?? null,
       terms_accepted_at: new Date().toISOString(),
       terms_version: CONTRIBUTION_TERMS_VERSION,
       // era_id y collection_type_id NO se mandan: los deriva el trigger del
@@ -143,7 +161,9 @@ export async function submitNewCard(params: {
     // El objeto ya subio pero la fila no entro: sin esta limpieza quedaria un
     // huerfano en el bucket que nada referencia. La policy
     // "community review delete own or admin" permite borrar lo propio.
-    await supabase.storage.from(COMMUNITY_REVIEW_BUCKET).remove([uploaded.storagePath]);
+    await supabase.storage
+      .from(COMMUNITY_REVIEW_BUCKET)
+      .remove([uploaded.storagePath, ...(backOk ? [backOk.storagePath] : [])]);
 
     // El indice card_submissions_no_dup_pending es lo que impide mandar dos
     // veces la misma card mientras la primera espera revision.

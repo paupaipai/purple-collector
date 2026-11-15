@@ -19,6 +19,8 @@ export interface PendingCardSubmission {
   storagePath: string;
   /** URL firmada: el bucket de revision es privado, no hay URL publica. */
   signedUrl: string | null;
+  /** Reverso opcional. Al aprobar la card pasa a la bandeja de imagenes. */
+  backSignedUrl: string | null;
   member: string;
   cardName: string;
   notes: string | null;
@@ -59,7 +61,7 @@ export function useSubmissionsQueue(enabled: boolean) {
     const { data, error: queryError } = await supabase
       .from('card_submissions')
       .select(`
-        id, created_at, storage_path, member, card_name, notes, contributor_handle,
+        id, created_at, storage_path, back_storage_path, member, card_name, notes, contributor_handle,
         collection_types ( name ),
         album_eras ( name ),
         albums ( name ),
@@ -83,7 +85,8 @@ export function useSubmissionsQueue(enabled: boolean) {
 
     // Una URL firmada por propuesta: el bucket es privado a proposito, asi que
     // no hay forma de mostrarlas sin firmar.
-    const paths = (data as any[]).map(r => r.storage_path as string);
+    const paths = (data as any[]).flatMap(r =>
+      r.back_storage_path ? [r.storage_path as string, r.back_storage_path as string] : [r.storage_path as string]);
     const { data: signed } = await supabase.storage
       .from(COMMUNITY_REVIEW_BUCKET)
       .createSignedUrls(paths, SIGNED_URL_TTL_SECONDS);
@@ -104,6 +107,7 @@ export function useSubmissionsQueue(enabled: boolean) {
         createdAt: row.created_at,
         storagePath: row.storage_path,
         signedUrl: urlByPath.get(row.storage_path) ?? null,
+        backSignedUrl: row.back_storage_path ? urlByPath.get(row.back_storage_path) ?? null : null,
         member: row.member,
         cardName: row.card_name,
         notes: row.notes,

@@ -34,6 +34,7 @@ import {
   normalizeToPhotocard,
   pickContributionImage,
   submitContribution,
+  CardSide,
 } from '../../lib/contributions';
 import { useDialog } from '../../lib/DialogContext';
 import { useI18n } from '../../lib/I18nContext';
@@ -84,15 +85,17 @@ export default function NewCardScreen() {
   const [cardName, setCardName] = useState('');
   const [notes, setNotes] = useState('');
 
-  const [asset, setAsset] = useState<ImagePickerAsset | null>(null);
-  const [crop, setCrop] = useState<CropRect | null>(null);
-  const [cropping, setCropping] = useState<ImagePickerAsset | null>(null);
+  // Frente (obligatorio) y reverso (opcional). Cada uno guarda la foto, el
+  // encuadre y la miniatura. La miniatura tiene que ser el ENCUADRE elegido, no
+  // la foto original metida en un marco 2:3: si no, la pantalla muestra algo
+  // distinto de lo que se va a enviar. Sale de normalizeToPhotocard(), la misma
+  // funcion que aplica el recorte al subir.
+  const [photos, setPhotos] = useState<Record<CardSide, PickedPhoto | null>>({ front: null, back: null });
+  const [cropping, setCropping] = useState<{ asset: ImagePickerAsset; side: CardSide } | null>(null);
   const [sending, setSending] = useState(false);
-  // La miniatura tiene que ser el ENCUADRE elegido, no la foto original metida
-  // en un marco 2:3: si no, la pantalla muestra algo distinto de lo que se va a
-  // enviar. Sale de normalizeToPhotocard(), la misma funcion que aplica el
-  // recorte al subir.
-  const [previewUri, setPreviewUri] = useState<string | null>(null);
+  const asset = photos.front?.asset ?? null;
+  const crop = photos.front?.crop ?? null;
+  const back = photos.back;
 
   const { sets } = useFilteredCardSets(albumId, versionId, categoryId);
 
@@ -191,7 +194,7 @@ export default function NewCardScreen() {
     return t('contributeErrFailed');
   };
 
-  const pickPhoto = async (desde: 'camara' | 'galeria') => {
+  const pickPhoto = async (desde: 'camara' | 'galeria', side: CardSide = 'front') => {
     const picked = desde === 'camara'
       ? await captureContributionImage()
       : await pickContributionImage();
@@ -201,7 +204,7 @@ export default function NewCardScreen() {
       }
       return;
     }
-    setCropping(picked.asset);
+    setCropping({ asset: picked.asset, side });
   };
 
   /**
@@ -228,10 +231,23 @@ export default function NewCardScreen() {
             asset,
             crop: crop ?? undefined,
           });
+          // El reverso va como un aporte aparte (se modera por separado). Solo
+          // se intenta si el frente entro.
+          const sentBack = sent.ok && back
+            ? await submitContribution({
+                cardId: card.id, userId, asset: back.asset, crop: back.crop ?? undefined, side: 'back',
+              })
+            : null;
           setSending(false);
 
           if (!sent.ok) {
             alert(t('contributeTitle'), failureText(sent.reason));
+            return;
+          }
+          if (sentBack && !sentBack.ok) {
+            alert(t('contributeTitle'), t('contributeBackFailed'), [
+              { text: 'OK', onPress: () => router.back() },
+            ]);
             return;
           }
           alert(t('contributeSent'), t('contributeSentDesc'), [
@@ -261,6 +277,7 @@ export default function NewCardScreen() {
             draft,
             asset,
             crop: crop ?? undefined,
+            back: back ? { asset: back.asset, crop: back.crop ?? undefined } : null,
           });
           setSending(false);
 
@@ -315,58 +332,26 @@ export default function NewCardScreen() {
               {/* La foto primero: es lo que la persona ya tiene. */}
               <GlassCard style={styles.card}>
                 <Text style={styles.sectionTitle}>{t('newCardImage')}</Text>
-                <View style={styles.photoRow}>
-                  <TouchableOpacity
-                    onPress={() => pickPhoto('camara')}
-                    activeOpacity={0.8}
-                    style={styles.photoFrame}
-                  >
-                    {asset ? (
-                      <Image
-                        source={{ uri: previewUri ?? asset.uri }}
-                        style={styles.photo}
-                        contentFit="cover"
-                      />
-                    ) : (
-                      <View style={styles.photoEmpty}>
-                        <Ionicons name="image-outline" size={24} color={COLORS.purple3} />
-                      </View>
-                    )}
-                  </TouchableOpacity>
-                  <View style={styles.photoSide}>
-                    <Text style={styles.photoHint}>{t('newCardImageHint')}</Text>
-                    {/* La camara primero: quien propone una card la tiene en
-                        la mano. La galeria queda para fotos ya hechas. */}
-                    <TouchableOpacity
-                      onPress={() => pickPhoto('camara')}
-                      activeOpacity={0.7}
-                      style={styles.photoBtn}
-                    >
-                      <Ionicons name="camera-outline" size={15} color={COLORS.purple3} />
-                      <Text style={styles.photoBtnText}>{t('contributeTakePhoto')}</Text>
-                    </TouchableOpacity>
-                    <TouchableOpacity
-                      onPress={() => pickPhoto('galeria')}
-                      activeOpacity={0.7}
-                      style={styles.photoBtn}
-                    >
-                      <Ionicons name={asset ? 'swap-horizontal' : 'images-outline'} size={15} color={COLORS.purple3} />
-                      <Text style={styles.photoBtnText}>
-                        {t(asset ? 'newCardChangeImage' : 'contributeFromLibrary')}
-                      </Text>
-                    </TouchableOpacity>
-                    {asset ? (
-                      <TouchableOpacity
-                        onPress={() => setCropping(asset)}
-                        activeOpacity={0.7}
-                        style={styles.photoBtn}
-                      >
-                        <Ionicons name="crop-outline" size={15} color={COLORS.purple3} />
-                        <Text style={styles.photoBtnText}>{t('cropConfirm')}</Text>
-                      </TouchableOpacity>
-                    ) : null}
-                  </View>
-                </View>
+                <PhotoSlot
+                  label={t('sideFront')}
+                  hint={t('newCardImageHint')}
+                  photo={photos.front}
+                  onCamera={() => pickPhoto('camara', 'front')}
+                  onLibrary={() => pickPhoto('galeria', 'front')}
+                  onRecrop={() => photos.front && setCropping({ asset: photos.front.asset, side: 'front' })}
+                />
+                <View style={styles.slotDivider} />
+                {/* El reverso es opcional: se puede enviar sin el. */}
+                <PhotoSlot
+                  label={t('sideBack')}
+                  optional
+                  hint={t('newCardBackHint')}
+                  photo={photos.back}
+                  onCamera={() => pickPhoto('camara', 'back')}
+                  onLibrary={() => pickPhoto('galeria', 'back')}
+                  onRecrop={() => photos.back && setCropping({ asset: photos.back.asset, side: 'back' })}
+                  onRemove={() => setPhotos(prev => ({ ...prev, back: null }))}
+                />
               </GlassCard>
 
               {/* La taxonomia, en cascada. */}
@@ -519,31 +504,93 @@ export default function NewCardScreen() {
 
       <ImageCropper
         visible={!!cropping}
-        uri={cropping?.uri ?? null}
-        imageWidth={cropping?.width ?? 0}
-        imageHeight={cropping?.height ?? 0}
+        title={cropping?.side === 'back' ? t('cropTitleBack') : undefined}
+        uri={cropping?.asset.uri ?? null}
+        imageWidth={cropping?.asset.width ?? 0}
+        imageHeight={cropping?.asset.height ?? 0}
         onCancel={() => setCropping(null)}
         onConfirm={async rect => {
-          const picked = cropping;
-          setAsset(picked);
-          setCrop(rect);
+          if (!cropping) return;
+          const { asset: picked, side } = cropping;
           setCropping(null);
-          if (!picked) return;
+          setPhotos(prev => ({ ...prev, [side]: { asset: picked, crop: rect, previewUri: null } }));
 
           // Si el recorte de la vista previa falla no se bloquea nada: se
           // muestra la original y el envio vuelve a intentarlo por su cuenta.
+          let previewUri = picked.uri;
           try {
-            const framed = await normalizeToPhotocard(
-              picked,
-              picked.mimeType ?? 'image/jpeg',
-              rect,
-            );
-            setPreviewUri(framed?.uri ?? picked.uri);
-          } catch {
-            setPreviewUri(picked.uri);
-          }
+            const framed = await normalizeToPhotocard(picked, picked.mimeType ?? 'image/jpeg', rect);
+            previewUri = framed?.uri ?? picked.uri;
+          } catch {}
+          setPhotos(prev => prev[side]?.asset === picked
+            ? { ...prev, [side]: { asset: picked, crop: rect, previewUri } }
+            : prev);
         }}
       />
+    </View>
+  );
+}
+
+interface PickedPhoto {
+  asset: ImagePickerAsset;
+  crop: CropRect | null;
+  previewUri: string | null;
+}
+
+/** Un lado de la photocard: miniatura + camara / galeria / re-encuadrar. */
+function PhotoSlot({
+  label, hint, photo, optional, onCamera, onLibrary, onRecrop, onRemove,
+}: {
+  label: string;
+  hint: string;
+  photo: PickedPhoto | null;
+  optional?: boolean;
+  onCamera: () => void;
+  onLibrary: () => void;
+  onRecrop: () => void;
+  onRemove?: () => void;
+}) {
+  const { t } = useI18n();
+  return (
+    <View style={styles.photoRow}>
+      <TouchableOpacity onPress={onCamera} activeOpacity={0.8} style={styles.photoFrame}>
+        {photo ? (
+          <Image source={{ uri: photo.previewUri ?? photo.asset.uri }} style={styles.photo} contentFit="cover" />
+        ) : (
+          <View style={styles.photoEmpty}>
+            <Ionicons name="image-outline" size={24} color={COLORS.purple3} />
+          </View>
+        )}
+      </TouchableOpacity>
+      <View style={styles.photoSide}>
+        <Text style={styles.slotLabel}>
+          {label}
+          {optional ? <Text style={styles.slotOptional}>{`  ${t('optional')}`}</Text> : null}
+        </Text>
+        <Text style={styles.photoHint}>{hint}</Text>
+        {/* La camara primero: quien propone una card la tiene en la mano. La
+            galeria queda para fotos ya hechas. */}
+        <TouchableOpacity onPress={onCamera} activeOpacity={0.7} style={styles.photoBtn}>
+          <Ionicons name="camera-outline" size={15} color={COLORS.purple3} />
+          <Text style={styles.photoBtnText}>{t('contributeTakePhoto')}</Text>
+        </TouchableOpacity>
+        <TouchableOpacity onPress={onLibrary} activeOpacity={0.7} style={styles.photoBtn}>
+          <Ionicons name={photo ? 'swap-horizontal' : 'images-outline'} size={15} color={COLORS.purple3} />
+          <Text style={styles.photoBtnText}>{t(photo ? 'newCardChangeImage' : 'contributeFromLibrary')}</Text>
+        </TouchableOpacity>
+        {photo ? (
+          <TouchableOpacity onPress={onRecrop} activeOpacity={0.7} style={styles.photoBtn}>
+            <Ionicons name="crop-outline" size={15} color={COLORS.purple3} />
+            <Text style={styles.photoBtnText}>{t('cropConfirm')}</Text>
+          </TouchableOpacity>
+        ) : null}
+        {photo && onRemove ? (
+          <TouchableOpacity onPress={onRemove} activeOpacity={0.7} style={styles.photoBtn}>
+            <Ionicons name="trash-outline" size={15} color={COLORS.textMuted} />
+            <Text style={[styles.photoBtnText, { color: COLORS.textMuted }]}>{t('removeBack')}</Text>
+          </TouchableOpacity>
+        ) : null}
+      </View>
     </View>
   );
 }
@@ -573,6 +620,9 @@ const styles = StyleSheet.create({
   photoEmpty: { flex: 1, alignItems: 'center', justifyContent: 'center' },
   photoSide: { flex: 1, gap: 8, justifyContent: 'center' },
   photoHint: { fontSize: 11, lineHeight: 15, color: COLORS.textMuted },
+  slotLabel: { fontSize: 12, fontWeight: '800', color: COLORS.textPrimary },
+  slotOptional: { fontSize: 10, fontWeight: '700', color: COLORS.textMuted },
+  slotDivider: { height: 1, backgroundColor: 'rgba(255,255,255,0.06)' },
   photoBtn: {
     flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 5,
     paddingVertical: 9, borderRadius: 10,

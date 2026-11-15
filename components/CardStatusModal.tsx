@@ -1,12 +1,13 @@
 import { Ionicons } from '@expo/vector-icons';
 import { Image } from 'expo-image';
+import { useEffect, useState } from 'react';
 import { Modal, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
 import {
   COLORS, STATUS_CONFIG, STATUS_LABEL_KEY, LEGACY_TREATMENT_ENABLED,
   CONTRIBUTIONS_ENABLED, LEGACY_BLUR_RADIUS,
 } from '../lib/constants';
 import { useI18n } from '../lib/I18nContext';
-import { getCardImageUrl } from '../lib/supabase';
+import { getCardBackUrl, getCardImageUrl } from '../lib/supabase';
 import { CardStatus, CardWithStatus } from '../lib/types';
 
 interface CardStatusModalProps {
@@ -19,24 +20,36 @@ interface CardStatusModalProps {
   onSetDuplicates?: (count: number) => void;
   /** Solo con CONTRIBUTIONS_ENABLED. Abre el flujo de aporte de imagen. */
   onContribute?: () => void;
+  /** Aportar solo el reverso, para cards que ya tienen frente y no reverso. */
+  onContributeBack?: () => void;
   /** true si el usuario ya tiene una aportacion sin resolver para esta card. */
   contributionPending?: boolean;
-  /** Abre el flujo de reporte de la imagen que se esta viendo. */
-  onReport?: () => void;
-  /** true si el usuario ya reporto esta imagen. */
-  reportSent?: boolean;
+  /** Abre el flujo de reporte de la imagen que se esta viendo (frente o reverso). */
+  onReport?: (cardImageId: number) => void;
+  /** true si el usuario ya reporto esa imagen. */
+  isReported?: (cardImageId: number) => boolean;
 }
 
 export default function CardStatusModal({
   card, onClose, onSetStatus, onClearStatus, onSetDuplicates,
-  onContribute, contributionPending, onReport, reportSent,
+  onContribute, onContributeBack, contributionPending, onReport, isReported,
 }: CardStatusModalProps) {
   const { t } = useI18n();
   const visible = !!card;
   const status = card?.status as CardStatus | null | undefined;
 
+  // Que lado se ve. Vuelve al frente cada vez que se abre otra card.
+  const [showBack, setShowBack] = useState(false);
+  useEffect(() => { setShowBack(false); }, [card?.id]);
+
   const dupCount = card?.duplicate_count ?? 0;
-  const thumbUrl = card ? getCardImageUrl(card) : null;
+  const frontUrl = card ? getCardImageUrl(card) : null;
+  const backUrl = card ? getCardBackUrl(card) : null;
+  const viewingBack = showBack && !!backUrl;
+  const thumbUrl = viewingBack ? backUrl : frontUrl;
+  // La imagen que se reporta es la que se esta viendo.
+  const visibleImageId = viewingBack ? card?.back_image_id ?? null : card?.primary_image_id ?? null;
+  const reportSent = visibleImageId != null && !!isReported?.(visibleImageId);
 
   // Procedencia de la imagen. Gated por la misma bandera que la grilla: con el
   // catalogo 100% legacy, mostrar "Legacy" en cada card no distingue nada.
@@ -55,14 +68,14 @@ export default function CardStatusModal({
                     style={styles.thumb}
                     contentFit="cover"
                     transition={150}
-                    blurRadius={imageSource === 'legacy' ? LEGACY_BLUR_RADIUS : 0}
+                    blurRadius={!viewingBack && imageSource === 'legacy' ? LEGACY_BLUR_RADIUS : 0}
                   />
                 ) : (
                   <View style={[styles.thumb, styles.placeholder, { backgroundColor: card.album_color + '33' }]}>
                     <Text style={styles.memberInitial}>{card.member?.charAt(0) || '?'}</Text>
                   </View>
                 )}
-                {imageSource ? (
+                {imageSource && !viewingBack ? (
                   <View style={styles.sourceTag}>
                     <Text style={styles.sourceTagText} numberOfLines={1}>
                       {imageSource === 'community'
@@ -72,6 +85,18 @@ export default function CardStatusModal({
                   </View>
                 ) : null}
               </View>
+
+              {/* Girar la carta: solo si hay reverso aprobado. */}
+              {backUrl ? (
+                <TouchableOpacity
+                  onPress={() => setShowBack(v => !v)}
+                  activeOpacity={0.7}
+                  style={styles.flipBtn}
+                >
+                  <Ionicons name="sync-outline" size={13} color={COLORS.purple3} />
+                  <Text style={styles.flipText}>{viewingBack ? t('showFront') : t('showBack')}</Text>
+                </TouchableOpacity>
+              ) : null}
 
               <Text style={styles.title} numberOfLines={1}>{card.card_name}</Text>
               <Text style={styles.sub} numberOfLines={1}>
@@ -197,13 +222,25 @@ export default function CardStatusModal({
                   <Text style={styles.contributeText}>{t('contribute')}</Text>
                 </TouchableOpacity>
               ) : null)}
+              {/* Card con frente pero sin reverso: se puede aportar solo el
+                  reverso. Con un aporte pendiente se espera a que se resuelva. */}
+              {CONTRIBUTIONS_ENABLED && !contributionPending && onContributeBack && frontUrl && !backUrl ? (
+                <TouchableOpacity
+                  onPress={onContributeBack}
+                  activeOpacity={0.7}
+                  style={styles.contributeBackRow}
+                >
+                  <Ionicons name="albums-outline" size={14} color={COLORS.purple3} />
+                  <Text style={styles.contributeBackText}>{t('contributeBackOnly')}</Text>
+                </TouchableOpacity>
+              ) : null}
 
               {/* Reportar — NO va tras CONTRIBUTIONS_ENABLED: recibir un
                   reclamo de copyright sobre una legacy es valioso desde ya, y
                   las 4503 del catalogo son de terceros. Solo si hay imagen. */}
-              {onReport && card.primary_image_id != null && (
+              {onReport && visibleImageId != null && (
                 <TouchableOpacity
-                  onPress={reportSent ? undefined : onReport}
+                  onPress={reportSent ? undefined : () => onReport(visibleImageId)}
                   disabled={reportSent}
                   activeOpacity={0.7}
                   style={styles.reportRow}
@@ -265,6 +302,18 @@ const styles = StyleSheet.create({
   },
   contributeText: { fontSize: 12, fontWeight: '800', color: COLORS.purple3 },
   contributePendingText: { fontSize: 12, fontWeight: '700', color: COLORS.textSecondary },
+  contributeBackRow: {
+    flexDirection: 'row', alignItems: 'center', justifyContent: 'center',
+    gap: 5, marginTop: 6, paddingVertical: 7, width: '100%',
+  },
+  contributeBackText: { fontSize: 11, fontWeight: '800', color: COLORS.purple3 },
+  flipBtn: {
+    flexDirection: 'row', alignItems: 'center', gap: 4,
+    marginTop: -6, marginBottom: 10, paddingHorizontal: 10, paddingVertical: 5,
+    borderRadius: 999, borderWidth: 1, borderColor: 'rgba(168,85,247,0.35)',
+    backgroundColor: 'rgba(168,85,247,0.10)',
+  },
+  flipText: { fontSize: 11, fontWeight: '800', color: COLORS.purple3 },
   reportRow: {
     flexDirection: 'row', alignItems: 'center', justifyContent: 'center',
     gap: 5, marginTop: 8, paddingVertical: 6, width: '100%',

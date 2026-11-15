@@ -37,6 +37,9 @@ export type ContributionFailure =
   | 'upload_failed'  // fallo la subida a Storage
   | 'insert_failed'; // fallo el registro en card_images
 
+/** Lado de la photocard. Coincide con card_images.side. */
+export type CardSide = 'front' | 'back';
+
 export type ContributionResult =
   | { ok: true; storagePath: string }
   | { ok: false; reason: ContributionFailure; detail?: string };
@@ -416,8 +419,10 @@ export async function submitContribution(params: {
   asset: ImagePicker.ImagePickerAsset;
   /** Encuadre elegido en ImageCropper. Sin el se recorta al centro. */
   crop?: CropRect;
+  /** Lado de la photocard. Cada lado se modera por separado. */
+  side?: CardSide;
 }): Promise<ContributionResult> {
-  const { cardId, userId, asset, crop } = params;
+  const { cardId, userId, asset, crop, side = 'front' } = params;
   if (!userId) return { ok: false, reason: 'no_session' };
 
   const uploaded = await uploadReviewImage({ userId, asset, crop });
@@ -430,6 +435,7 @@ export async function submitContribution(params: {
     source_type: 'community',
     status: 'pending',
     is_primary: false,
+    side,
     contributed_by: userId,
     terms_accepted_at: new Date().toISOString(),
     terms_version: CONTRIBUTION_TERMS_VERSION,

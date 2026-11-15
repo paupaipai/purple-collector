@@ -29,7 +29,7 @@ import { CARD_SUBMISSIONS_ENABLED, COLORS, MEMBERS, STATUS_LABEL_KEY, CONTRIBUTI
 import type { ImagePickerAsset } from 'expo-image-picker';
 import {
   captureContributionImage,
-  ContributionFailure, fetchMyPendingContributions, pickContributionImage, submitContribution,
+  CardSide, ContributionFailure, fetchMyPendingContributions, pickContributionImage, submitContribution,
 } from '../../lib/contributions';
 import { fetchMyReportedImages, submitImageReport } from '../../lib/reports';
 import { useDialog } from '../../lib/DialogContext';
@@ -69,7 +69,10 @@ export default function AlbumDetailScreen() {
   const [reported, setReported] = useState<Set<number>>(new Set());
   // Foto elegida esperando encuadre. Guarda tambien la card, porque el modal de
   // la card se cierra al abrir el cropper.
-  const [cropping, setCropping] = useState<{ asset: ImagePickerAsset; cardId: number } | null>(null);
+  const [cropping, setCropping] = useState<{ asset: ImagePickerAsset; cardId: number; side: CardSide } | null>(null);
+  // Frente ya encuadrado, esperando a que se decida el reverso. Se envian
+  // juntos al final para que "Saltar" o cancelar el reverso no pierdan el frente.
+  const frontRef = useRef<{ asset: ImagePickerAsset; crop: CropRect; cardId: number } | null>(null);
 
   // Track completion to trigger celebration
   const prevOwnedRef = useRef<number | null>(null);
@@ -112,10 +115,8 @@ export default function AlbumDetailScreen() {
     { value: 'low_quality', key: 'reportLowQuality' },
   ];
 
-  const handleReport = () => {
-    const card = selectedCard;
-    if (!card || card.primary_image_id == null) return;
-    const imageId = card.primary_image_id;
+  const handleReport = (imageId: number) => {
+    if (!selectedCard) return;
 
     // La ficha se cierra ANTES de preguntar. Es un <Modal> de React Native, o
     // sea una presentacion de UIKit que se dibuja por encima de todo el arbol,
@@ -146,18 +147,88 @@ export default function AlbumDetailScreen() {
     ]);
   };
 
-  const finishContribution = async (crop: CropRect) => {
-    if (!cropping) return;
-    const { asset, cardId } = cropping;
-    setCropping(null);
+  /**
+   * Envia lo que haya: frente, reverso, o ambos. Cada lado es un card_images
+   * propio y se modera por separado.
+   */
+  const sendContribution = async (
+    cardId: number,
+    front: { asset: ImagePickerAsset; crop: CropRect } | null,
+    back: { asset: ImagePickerAsset; crop: CropRect } | null,
+  ) => {
+    frontRef.current = null;
+    if (!front && !back) return;
 
-    const sent = await submitContribution({ cardId, userId, asset, crop });
-    if (!sent.ok) {
-      alert(t('contributeTitle'), contributionError(sent.reason));
-      return;
+    if (front) {
+      const sent = await submitContribution({ cardId, userId, asset: front.asset, crop: front.crop });
+      if (!sent.ok) {
+        alert(t('contributeTitle'), contributionError(sent.reason));
+        return;
+      }
+    }
+    if (back) {
+      const sentBack = await submitContribution({ cardId, userId, asset: back.asset, crop: back.crop, side: 'back' });
+      if (!sentBack.ok) {
+        // Si el frente ya entro, se dice que solo fallo el reverso.
+        alert(t('contributeTitle'), front ? t('contributeBackFailed') : contributionError(sentBack.reason));
+        if (!front) return;
+      }
     }
     setPendingContrib(prev => new Set(prev).add(cardId));
     alert(t('contributeSent'), t('contributeSentDesc'));
+  };
+
+  /** Elige la foto de un lado y abre el encuadre. */
+  const pickSide = async (desde: 'camara' | 'galeria', cardId: number, side: CardSide) => {
+    const picked = desde === 'camara'
+      ? await captureContributionImage()
+      : await pickContributionImage();
+    if (!picked.ok) {
+      if (picked.reason !== 'cancelled') {
+        alert(t('contributeTitle'), contributionError(picked.reason));
+      }
+      // Sin reverso, el frente que estaba esperando se manda solo.
+      if (side === 'back' && frontRef.current?.cardId === cardId) {
+        const front = frontRef.current;
+        await sendContribution(cardId, front, null);
+      }
+      return;
+    }
+    // El envio no ocurre aca: primero se encuadra. Lo continua finishCrop().
+    setCropping({ asset: picked.asset, cardId, side });
+  };
+
+  const finishCrop = async (crop: CropRect) => {
+    if (!cropping) return;
+    const { asset, cardId, side } = cropping;
+    setCropping(null);
+
+    if (side === 'back') {
+      const front = frontRef.current?.cardId === cardId ? frontRef.current : null;
+      await sendContribution(cardId, front, { asset, crop });
+      return;
+    }
+
+    // Frente listo: se ofrece el reverso. "Saltar" es el boton de cancelar,
+    // que tambien es lo que corre al cerrar el aviso, asi que el frente nunca
+    // se queda sin enviar.
+    frontRef.current = { asset, crop, cardId };
+    alert(t('contributeBackTitle'), t('contributeBackDesc'), [
+      { text: t('contributeBackSkip'), style: 'cancel', onPress: () => sendContribution(cardId, { asset, crop }, null) },
+      { text: t('contributeFromLibrary'), onPress: () => pickSide('galeria', cardId, 'back') },
+      { text: t('contributeTakePhoto'), onPress: () => pickSide('camara', cardId, 'back') },
+    ]);
+  };
+
+  const cancelCrop = () => {
+    const current = cropping;
+    setCropping(null);
+    // Cancelar el encuadre del reverso no debe perder el frente ya encuadrado.
+    if (current?.side === 'back' && frontRef.current?.cardId === current.cardId) {
+      sendContribution(current.cardId, frontRef.current, null);
+    } else {
+      frontRef.current = null;
+    }
   };
 
   const contributionError = (reason: ContributionFailure) => {
@@ -171,7 +242,11 @@ export default function AlbumDetailScreen() {
     return t('contributeErrFailed');
   };
 
-  const handleContribute = () => {
+  /**
+   * `side` = 'back' es el boton "Aportar reverso" de una card que ya tiene
+   * frente: se salta el frente y va directo al reverso.
+   */
+  const handleContribute = (side: CardSide = 'front') => {
     const card = selectedCard;
     if (!card) return;
     // El aviso ES la aceptacion explicita de terminos: submitContribution
@@ -179,28 +254,14 @@ export default function AlbumDetailScreen() {
     // card_images_community_has_terms no deja registrar el aporte sin ellos.
     // Igual que en handleReport: la ficha es un Modal nativo y taparia el aviso.
     setSelectedCard(null);
+    frontRef.current = null;
 
     // La camara primero: quien aporta suele tener la photocard EN LA MANO. La
     // galeria queda para fotos ya hechas.
-    const empezar = async (desde: 'camara' | 'galeria') => {
-      const picked = desde === 'camara'
-        ? await captureContributionImage()
-        : await pickContributionImage();
-      if (!picked.ok) {
-        if (picked.reason !== 'cancelled') {
-          alert(t('contributeTitle'), contributionError(picked.reason));
-        }
-        return;
-      }
-      // El envio no ocurre aca: primero se encuadra. Lo continua
-      // finishContribution().
-      setCropping({ asset: picked.asset, cardId: card.id });
-    };
-
-    alert(t('contributeTitle'), t('contributeRights'), [
+    alert(side === 'back' ? t('contributeBackOnly') : t('contributeTitle'), t('contributeRights'), [
       { text: t('cancel'), style: 'cancel' },
-      { text: t('contributeFromLibrary'), onPress: () => empezar('galeria') },
-      { text: t('contributeTakePhoto'), onPress: () => empezar('camara') },
+      { text: t('contributeFromLibrary'), onPress: () => pickSide('galeria', card.id, side) },
+      { text: t('contributeTakePhoto'), onPress: () => pickSide('camara', card.id, side) },
     ]);
   };
 
@@ -559,21 +620,21 @@ export default function AlbumDetailScreen() {
           setDuplicateCount(selectedCard.id, clamped);
           setSelectedCard(prev => prev ? { ...prev, duplicate_count: clamped } : null);
         }}
-        onContribute={handleContribute}
+        onContribute={() => handleContribute('front')}
+        onContributeBack={() => handleContribute('back')}
         contributionPending={selectedCard ? pendingContrib.has(selectedCard.id) : false}
         onReport={handleReport}
-        reportSent={
-          selectedCard?.primary_image_id != null && reported.has(selectedCard.primary_image_id)
-        }
+        isReported={id => reported.has(id)}
       />
 
       <ImageCropper
         visible={!!cropping}
+        title={cropping?.side === 'back' ? t('cropTitleBack') : undefined}
         uri={cropping?.asset.uri ?? null}
         imageWidth={cropping?.asset.width ?? 0}
         imageHeight={cropping?.asset.height ?? 0}
-        onCancel={() => setCropping(null)}
-        onConfirm={finishContribution}
+        onCancel={cancelCrop}
+        onConfirm={finishCrop}
       />
 
       <StatusHelpModal visible={showHelp} onClose={() => setShowHelp(false)} />

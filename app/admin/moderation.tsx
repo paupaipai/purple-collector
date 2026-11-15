@@ -338,17 +338,31 @@ export default function ModerationScreen() {
               return (
                 <GlassCard key={item.id} style={styles.item}>
                   <View style={styles.submissionRow}>
-                    {item.signedUrl ? (
-                      <Image
-                        source={{ uri: item.signedUrl }}
-                        style={styles.submissionThumb}
-                        contentFit="cover"
-                      />
-                    ) : (
-                      <View style={[styles.submissionThumb, styles.thumbEmpty]}>
-                        <Ionicons name="alert-circle-outline" size={18} color={COLORS.textMuted} />
-                      </View>
-                    )}
+                    <View style={styles.submissionThumbs}>
+                      {item.signedUrl ? (
+                        <Image
+                          source={{ uri: item.signedUrl }}
+                          style={styles.submissionThumb}
+                          contentFit="cover"
+                        />
+                      ) : (
+                        <View style={[styles.submissionThumb, styles.thumbEmpty]}>
+                          <Ionicons name="alert-circle-outline" size={18} color={COLORS.textMuted} />
+                        </View>
+                      )}
+                      {/* El reverso se ve aqui, pero se aprueba aparte: al
+                          aprobar la card pasa a la pestana de imagenes. */}
+                      {item.backSignedUrl ? (
+                        <View>
+                          <Image
+                            source={{ uri: item.backSignedUrl }}
+                            style={styles.submissionThumb}
+                            contentFit="cover"
+                          />
+                          <Text style={styles.submissionBackLabel}>{t('sideBack')}</Text>
+                        </View>
+                      ) : null}
+                    </View>
                     <View style={styles.flex}>
                       <Text style={styles.cardName} numberOfLines={2}>{item.cardName}</Text>
                       <Text style={styles.cardMeta}>
@@ -427,7 +441,14 @@ export default function ModerationScreen() {
               const busy = working === item.id;
               return (
                 <GlassCard key={item.id} style={styles.item}>
-                  <Text style={styles.cardName} numberOfLines={1}>{item.cardName}</Text>
+                  <View style={styles.nameRow}>
+                    <Text style={[styles.cardName, styles.flexShrink]} numberOfLines={1}>{item.cardName}</Text>
+                    {/* Frente y reverso se moderan por separado: el lado se
+                        marca para no confundir uno con otro. */}
+                    <View style={[styles.sideTag, item.side === 'back' && styles.sideTagBack]}>
+                      <Text style={styles.sideTagText}>{item.side === 'back' ? t('sideBack') : t('sideFront')}</Text>
+                    </View>
+                  </View>
                   <Text style={styles.cardMeta} numberOfLines={1}>
                     {item.member} · {item.albumShort} · {item.categoryName}
                   </Text>
@@ -504,6 +525,16 @@ export default function ModerationScreen() {
 }
 
 const styles = StyleSheet.create({
+  submissionThumbs: { gap: 6 },
+  submissionBackLabel: { fontSize: 9, fontWeight: '800', color: COLORS.textMuted, textAlign: 'center', marginTop: 2 },
+  nameRow: { flexDirection: 'row', alignItems: 'center', gap: 8 },
+  flexShrink: { flexShrink: 1 },
+  sideTag: {
+    paddingHorizontal: 8, paddingVertical: 2, borderRadius: 999,
+    borderWidth: 1, borderColor: COLORS.border, backgroundColor: COLORS.surfaceGlass,
+  },
+  sideTagBack: { borderColor: COLORS.borderActive, backgroundColor: 'rgba(168,85,247,0.18)' },
+  sideTagText: { fontSize: 10, fontWeight: '800', color: COLORS.textPrimary },
   root: { flex: 1, backgroundColor: COLORS.bg },
   flex: { flex: 1 },
   centered: { flex: 1, alignItems: 'center', justifyContent: 'center' },

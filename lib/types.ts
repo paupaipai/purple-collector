@@ -209,6 +209,16 @@ export interface CardFull {
    * de card_images.taken_down_at, no de deducirlo del estado.
    */
   image_retired: boolean;
+  /**
+   * Reverso aprobado, si existe. Mismas reglas que el frente pero con
+   * card_images.side = 'back'. Opcionales: una respuesta cacheada anterior a la
+   * migracion no los trae.
+   */
+  back_image_path?: string | null;
+  back_image_bucket?: string | null;
+  back_image_source?: ImageSourceType | null;
+  back_image_id?: number | null;
+  back_image_handle?: string | null;
 }
 
 export interface CardWithStatus extends CardFull {

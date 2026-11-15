@@ -40,6 +40,8 @@ export interface CropRect {
 
 interface Props {
   visible: boolean;
+  /** Titulo a mostrar. Por defecto "Encuadra la photocard". */
+  title?: string;
   uri: string | null;
   /** Dimensiones reales del archivo, en pixeles. */
   imageWidth: number;
@@ -49,7 +51,7 @@ interface Props {
 }
 
 export default function ImageCropper({
-  visible, uri, imageWidth, imageHeight, onCancel, onConfirm,
+  visible, title, uri, imageWidth, imageHeight, onCancel, onConfirm,
 }: Props) {
   const { t } = useI18n();
 
@@ -204,7 +206,7 @@ export default function ImageCropper({
   return (
     <View style={StyleSheet.absoluteFill} pointerEvents="auto">
       <View style={styles.backdrop}>
-        <Text style={styles.title}>{t('cropTitle')}</Text>
+        <Text style={styles.title}>{title ?? t('cropTitle')}</Text>
         <Text style={styles.hint}>{t('cropHint')}</Text>
 
         <View style={[styles.frame, { width: frame.w, height: frame.h }]} {...responder.panHandlers}>

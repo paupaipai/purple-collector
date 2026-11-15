@@ -1,12 +1,14 @@
 import { useCallback, useEffect, useState } from 'react';
 
 import { COMMUNITY_REVIEW_BUCKET } from '../lib/constants';
-import { getCardImageUrl, supabase } from '../lib/supabase';
+import { getCardBackUrl, getCardImageUrl, supabase } from '../lib/supabase';
 
 /** Una aportacion pendiente, ya cruzada con los datos de su card. */
 export interface PendingSubmission {
   id: number;
   cardId: number;
+  /** Lado aportado. La comparacion es contra la imagen actual del MISMO lado. */
+  side: 'front' | 'back';
   createdAt: string;
   storagePath: string;
   /** URL firmada: el bucket de revision es privado, no hay URL publica. */
@@ -50,7 +52,7 @@ export function useModerationQueue(enabled: boolean) {
     // cualquiera; un usuario normal solo veria las suyas.
     const { data: rows, error: rowsError } = await supabase
       .from('card_images')
-      .select('id, card_id, storage_path, created_at')
+      .select('id, card_id, storage_path, created_at, side')
       .eq('status', 'pending')
       .eq('source_type', 'community')
       .order('created_at', { ascending: true });
@@ -71,7 +73,7 @@ export function useModerationQueue(enabled: boolean) {
     const [{ data: cards }, signed] = await Promise.all([
       supabase
         .from('cards_full')
-        .select('id, code, card_name, member, album_short, category_name, primary_image_path, primary_image_bucket, primary_image_source')
+        .select('id, code, card_name, member, album_short, category_name, primary_image_path, primary_image_bucket, primary_image_source, back_image_path, back_image_bucket, back_image_source')
         .in('id', cardIds),
       supabase.storage
         .from(COMMUNITY_REVIEW_BUCKET)
@@ -88,6 +90,7 @@ export function useModerationQueue(enabled: boolean) {
       return {
         id: row.id,
         cardId: row.card_id,
+        side: row.side === 'back' ? 'back' : 'front',
         createdAt: row.created_at,
         storagePath: row.storage_path,
         signedUrl: urlByPath.get(row.storage_path) ?? null,
@@ -96,8 +99,8 @@ export function useModerationQueue(enabled: boolean) {
         member: card?.member ?? '—',
         albumShort: card?.album_short ?? '—',
         categoryName: card?.category_name ?? '—',
-        currentUrl: card ? getCardImageUrl(card) : null,
-        currentSource: card?.primary_image_source ?? null,
+        currentUrl: !card ? null : row.side === 'back' ? getCardBackUrl(card) : getCardImageUrl(card),
+        currentSource: (row.side === 'back' ? card?.back_image_source : card?.primary_image_source) ?? null,
       };
     }));
     setLoading(false);

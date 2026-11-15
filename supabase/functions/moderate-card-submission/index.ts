@@ -54,6 +54,10 @@ type SubmissionRow = {
   byte_size: number | null;
   terms_accepted_at: string | null;
   terms_version: string | null;
+  back_storage_path: string | null;
+  back_width: number | null;
+  back_height: number | null;
+  back_byte_size: number | null;
 };
 
 /**
@@ -151,7 +155,8 @@ const protectedHandler = withSupabase({ auth: ["user"] }, async (req, ctx) => {
     .select(
       "id, submitted_by, status, album_id, version_id, category_id, card_set_id, " +
       "member, card_name, bucket_id, storage_path, width, height, byte_size, " +
-      "terms_accepted_at, terms_version",
+      "terms_accepted_at, terms_version, " +
+      "back_storage_path, back_width, back_height, back_byte_size",
     )
     .eq("id", submissionId)
     .maybeSingle<SubmissionRow>();
@@ -382,6 +387,39 @@ const protectedHandler = withSupabase({ auth: ["user"] }, async (req, ctx) => {
     console.error("[moderate-card-submission] leftover in review bucket:", row.storage_path, removeError);
   }
 
+  // El reverso NO se publica aqui: se modera por separado, como cualquier otro
+  // aporte. Se registra como card_images 'pending' de la card recien creada y
+  // aparece en la bandeja normal de imagenes. Si esto falla la card ya existe y
+  // el frente esta publicado, asi que no se deshace nada: solo se pierde el
+  // reverso, y se avisa en la respuesta.
+  let backPending: number | null = null;
+  if (row.back_storage_path) {
+    const { data: back, error: backError } = await ctx.supabaseAdmin
+      .from("card_images")
+      .insert({
+        card_id: cardId,
+        bucket_id: REVIEW_BUCKET,
+        storage_path: row.back_storage_path,
+        source_type: "community",
+        status: "pending",
+        is_primary: false,
+        side: "back",
+        contributed_by: row.submitted_by,
+        terms_accepted_at: row.terms_accepted_at,
+        terms_version: row.terms_version,
+        width: row.back_width,
+        height: row.back_height,
+        byte_size: row.back_byte_size,
+      })
+      .select("id")
+      .single();
+    if (backError || !back) {
+      console.error("[moderate-card-submission] back image registration failed:", backError);
+    } else {
+      backPending = back.id as number;
+    }
+  }
+
   return Response.json({
     success: true,
     action: "approve",
@@ -389,6 +427,7 @@ const protectedHandler = withSupabase({ auth: ["user"] }, async (req, ctx) => {
     cardId,
     code: built.code,
     storagePath: publicPath,
+    backPendingImageId: backPending,
   });
 });
 
