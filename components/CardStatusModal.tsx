@@ -46,7 +46,6 @@ export default function CardStatusModal({
   const frontUrl = card ? getCardImageUrl(card) : null;
   const backUrl = card ? getCardBackUrl(card) : null;
   const viewingBack = showBack && !!backUrl;
-  const thumbUrl = viewingBack ? backUrl : frontUrl;
   // La imagen que se reporta es la que se esta viendo.
   const visibleImageId = viewingBack ? card?.back_image_id ?? null : card?.primary_image_id ?? null;
   const reportSent = visibleImageId != null && !!isReported?.(visibleImageId);
@@ -55,48 +54,84 @@ export default function CardStatusModal({
   // catalogo 100% legacy, mostrar "Legacy" en cada card no distingue nada.
   const imageSource = LEGACY_TREATMENT_ENABLED ? card?.primary_image_source : null;
 
+  // Card con frente pero sin reverso: el recuadro vacio permite aportarlo. Con
+  // un aporte pendiente se espera a que se resuelva.
+  const canContributeBack =
+    CONTRIBUTIONS_ENABLED && !contributionPending && !!onContributeBack && !!frontUrl && !backUrl;
+
   return (
     <Modal visible={visible} transparent animationType="fade" onRequestClose={onClose}>
       <TouchableOpacity style={styles.backdrop} activeOpacity={1} onPress={onClose}>
         <TouchableOpacity activeOpacity={1} style={styles.card}>
           {card && (
             <>
-              <View style={styles.thumbWrap}>
-                {thumbUrl ? (
-                  <Image
-                    source={{ uri: thumbUrl }}
-                    style={styles.thumb}
-                    contentFit="cover"
-                    transition={150}
-                    blurRadius={!viewingBack && imageSource === 'legacy' ? LEGACY_BLUR_RADIUS : 0}
-                  />
-                ) : (
-                  <View style={[styles.thumb, styles.placeholder, { backgroundColor: card.album_color + '33' }]}>
-                    <Text style={styles.memberInitial}>{card.member?.charAt(0) || '?'}</Text>
-                  </View>
-                )}
-                {imageSource && !viewingBack ? (
-                  <View style={styles.sourceTag}>
-                    <Text style={styles.sourceTagText} numberOfLines={1}>
-                      {imageSource === 'community'
-                        ? t('imageSourceCommunity')
-                        : t('imageSourceLegacy')}
-                    </Text>
-                  </View>
-                ) : null}
-              </View>
-
-              {/* Girar la carta: solo si hay reverso aprobado. */}
-              {backUrl ? (
+              {/* Frente y reverso lado a lado. Sin reverso aprobado queda un
+                  recuadro vacio (que sirve para aportarlo, si se puede). Si hay
+                  reverso, tocar un lado lo elige como el que se reporta. */}
+              <View style={styles.sidesRow}>
                 <TouchableOpacity
-                  onPress={() => setShowBack(v => !v)}
-                  activeOpacity={0.7}
-                  style={styles.flipBtn}
+                  activeOpacity={backUrl ? 0.8 : 1}
+                  disabled={!backUrl}
+                  onPress={() => setShowBack(false)}
+                  style={styles.side}
                 >
-                  <Ionicons name="sync-outline" size={13} color={COLORS.purple3} />
-                  <Text style={styles.flipText}>{viewingBack ? t('showFront') : t('showBack')}</Text>
+                  <View style={[styles.thumbWrap, backUrl && !viewingBack && styles.thumbSelected]}>
+                    {frontUrl ? (
+                      <Image
+                        source={{ uri: frontUrl }}
+                        style={styles.thumb}
+                        contentFit="cover"
+                        transition={150}
+                        blurRadius={imageSource === 'legacy' ? LEGACY_BLUR_RADIUS : 0}
+                      />
+                    ) : (
+                      <View style={[styles.thumb, styles.placeholder, { backgroundColor: card.album_color + '33' }]}>
+                        <Text style={styles.memberInitial}>{card.member?.charAt(0) || '?'}</Text>
+                      </View>
+                    )}
+                    {imageSource ? (
+                      <View style={styles.sourceTag}>
+                        <Text style={styles.sourceTagText} numberOfLines={1}>
+                          {imageSource === 'community'
+                            ? t('imageSourceCommunity')
+                            : t('imageSourceLegacy')}
+                        </Text>
+                      </View>
+                    ) : null}
+                  </View>
+                  <Text style={styles.sideLabel}>{t('sideFront')}</Text>
                 </TouchableOpacity>
-              ) : null}
+
+                <TouchableOpacity
+                  activeOpacity={0.8}
+                  disabled={!backUrl && !canContributeBack}
+                  onPress={backUrl ? () => setShowBack(true) : onContributeBack}
+                  style={styles.side}
+                >
+                  {backUrl ? (
+                    <View style={[styles.thumbWrap, viewingBack && styles.thumbSelected]}>
+                      <Image
+                        source={{ uri: backUrl }}
+                        style={styles.thumb}
+                        contentFit="cover"
+                        transition={150}
+                      />
+                    </View>
+                  ) : (
+                    <View style={[styles.thumbWrap, styles.emptyBack]}>
+                      <Ionicons
+                        name={canContributeBack ? 'add' : 'image-outline'}
+                        size={22}
+                        color={canContributeBack ? COLORS.purple3 : 'rgba(255,255,255,0.25)'}
+                      />
+                      <Text style={[styles.emptyBackText, canContributeBack && { color: COLORS.purple3 }]}>
+                        {canContributeBack ? t('contributeBackOnly') : t('noBack')}
+                      </Text>
+                    </View>
+                  )}
+                  <Text style={styles.sideLabel}>{t('sideBack')}</Text>
+                </TouchableOpacity>
+              </View>
 
               <Text style={styles.title} numberOfLines={1}>{card.card_name}</Text>
               <Text style={styles.sub} numberOfLines={1}>
@@ -222,19 +257,6 @@ export default function CardStatusModal({
                   <Text style={styles.contributeText}>{t('contribute')}</Text>
                 </TouchableOpacity>
               ) : null)}
-              {/* Card con frente pero sin reverso: se puede aportar solo el
-                  reverso. Con un aporte pendiente se espera a que se resuelva. */}
-              {CONTRIBUTIONS_ENABLED && !contributionPending && onContributeBack && frontUrl && !backUrl ? (
-                <TouchableOpacity
-                  onPress={onContributeBack}
-                  activeOpacity={0.7}
-                  style={styles.contributeBackRow}
-                >
-                  <Ionicons name="albums-outline" size={14} color={COLORS.purple3} />
-                  <Text style={styles.contributeBackText}>{t('contributeBackOnly')}</Text>
-                </TouchableOpacity>
-              ) : null}
-
               {/* Reportar — NO va tras CONTRIBUTIONS_ENABLED: recibir un
                   reclamo de copyright sobre una legacy es valioso desde ya, y
                   las 4503 del catalogo son de terceros. Solo si hay imagen. */}
@@ -285,11 +307,24 @@ const styles = StyleSheet.create({
     borderWidth: 1,
     borderColor: 'rgba(168,85,247,0.25)',
   },
+  sidesRow: { flexDirection: 'row', gap: 12, marginBottom: 14 },
+  side: { alignItems: 'center' },
   thumbWrap: {
     width: 96, height: 144, borderRadius: 12,
-    overflow: 'hidden', marginBottom: 14,
+    overflow: 'hidden',
     borderWidth: 2, borderColor: 'rgba(255,255,255,0.1)',
   },
+  thumbSelected: { borderColor: COLORS.purple3 },
+  emptyBack: {
+    alignItems: 'center', justifyContent: 'center', gap: 6, paddingHorizontal: 8,
+    borderStyle: 'dashed', borderColor: 'rgba(255,255,255,0.18)',
+    backgroundColor: 'rgba(255,255,255,0.03)',
+  },
+  emptyBackText: {
+    fontSize: 10, fontWeight: '700', textAlign: 'center',
+    color: 'rgba(255,255,255,0.35)',
+  },
+  sideLabel: { marginTop: 5, fontSize: 10, fontWeight: '700', color: COLORS.textMuted },
   thumb: { width: '100%', height: '100%' },
   contributeRow: {
     flexDirection: 'row', alignItems: 'center', justifyContent: 'center',
@@ -302,18 +337,6 @@ const styles = StyleSheet.create({
   },
   contributeText: { fontSize: 12, fontWeight: '800', color: COLORS.purple3 },
   contributePendingText: { fontSize: 12, fontWeight: '700', color: COLORS.textSecondary },
-  contributeBackRow: {
-    flexDirection: 'row', alignItems: 'center', justifyContent: 'center',
-    gap: 5, marginTop: 6, paddingVertical: 7, width: '100%',
-  },
-  contributeBackText: { fontSize: 11, fontWeight: '800', color: COLORS.purple3 },
-  flipBtn: {
-    flexDirection: 'row', alignItems: 'center', gap: 4,
-    marginTop: -6, marginBottom: 10, paddingHorizontal: 10, paddingVertical: 5,
-    borderRadius: 999, borderWidth: 1, borderColor: 'rgba(168,85,247,0.35)',
-    backgroundColor: 'rgba(168,85,247,0.10)',
-  },
-  flipText: { fontSize: 11, fontWeight: '800', color: COLORS.purple3 },
   reportRow: {
     flexDirection: 'row', alignItems: 'center', justifyContent: 'center',
     gap: 5, marginTop: 8, paddingVertical: 6, width: '100%',
