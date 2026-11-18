@@ -121,7 +121,7 @@ export default function AppDialog({ request, onPress }: Props) {
                   activeOpacity={0.75}
                   style={[
                     styles.button,
-                    stacked && styles.buttonStacked,
+                    stacked ? styles.buttonStacked : styles.buttonInRow,
                     isPrimary && styles.buttonPrimary,
                   ]}
                 >
@@ -171,11 +171,15 @@ const styles = StyleSheet.create({
   actions: { flexDirection: 'row', gap: 8, paddingHorizontal: 16, paddingBottom: 16 },
   actionsStacked: { flexDirection: 'column' },
   button: {
-    flex: 1, alignItems: 'center', justifyContent: 'center',
+    alignItems: 'center', justifyContent: 'center',
     paddingVertical: 13, borderRadius: 13,
     borderWidth: 1, borderColor: 'rgba(255,255,255,0.14)',
   },
-  buttonStacked: { flex: 0, width: '100%' },
+  // flex:1 SOLO en fila. En la web, flex:1 es flex-basis 0, y apilados en
+  // columna el `flex: 0` no lo deshacia: los botones quedaban de alto cero y el
+  // texto, recortado (numberOfLines) -- se veian los bordes vacios.
+  buttonInRow: { flex: 1 },
+  buttonStacked: { width: '100%' },
   buttonPrimary: { backgroundColor: COLORS.purple1, borderColor: COLORS.purple1 },
   buttonText: { fontSize: 14, fontWeight: '800' },
 });
