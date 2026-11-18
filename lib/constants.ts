@@ -73,7 +73,10 @@ export const CONTRIBUTIONS_ENABLED = true;
 //
 // No hace falta un build nativo nuevo: usa los mismos modulos que el aporte de
 // imagen (expo-image-picker y expo-image-manipulator), que ya estan en el build.
-export const CARD_SUBMISSIONS_ENABLED = true;
+//
+// APAGADA el 2026-11-18: por ahora solo se aportan imagenes (frente y reverso)
+// de cards que ya existen. Apagarla tambien oculta la pestaña "Scan".
+export const CARD_SUBMISSIONS_ENABLED = false;
 
 export const COMMUNITY_BUCKET = 'photocard-community';
 export const COMMUNITY_REVIEW_BUCKET = 'photocard-community-review';

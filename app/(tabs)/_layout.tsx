@@ -1,6 +1,6 @@
 import { Tabs } from 'expo-router';
 import { Image } from 'react-native';
-import { COLORS } from '../../lib/constants';
+import { CARD_SUBMISSIONS_ENABLED, COLORS } from '../../lib/constants';
 import { useI18n } from '../../lib/I18nContext';
 
 function TabIcon({ source, focused }: { source: any; focused: boolean }) {
@@ -58,6 +58,9 @@ export default function TabsLayout() {
       <Tabs.Screen
         name="contributions"
         options={{
+          // Oculta mientras no se propongan cards nuevas: hoy solo se aportan
+          // imagenes de cards existentes, desde la ficha de cada una.
+          href: CARD_SUBMISSIONS_ENABLED ? undefined : null,
           title: t('tabContributions'),
           tabBarIcon: ({ focused }) => (
             <TabIcon source={require('../../assets/images/menu/camera.png')} focused={focused} />
