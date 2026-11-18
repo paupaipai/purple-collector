@@ -46,6 +46,17 @@ import { goBack, BACK_HIT_SLOP } from '../../lib/navigation';
  * ficha, en Android queda dibujado DETRAS de ella. No se ven los textos y el
  * siguiente toque cae en un boton invisible. Mismo truco que la ayuda de estados.
  */
+/** Espera a que React pinte el estado nuevo (dos frames: render + pintado). */
+function nextPaint(): Promise<void> {
+  return new Promise(resolve => {
+    if (typeof requestAnimationFrame === 'function') {
+      requestAnimationFrame(() => requestAnimationFrame(() => resolve()));
+    } else {
+      setTimeout(resolve, 50);
+    }
+  });
+}
+
 function afterSheetCloses(fn: () => void) {
   setTimeout(fn, 350);
 }
@@ -177,6 +188,10 @@ export default function AlbumDetailScreen() {
     if (!front && !back) return;
 
     setUploading(true);
+    // Dejar que el spinner se PINTE antes de empezar: el recorte y la compresion
+    // (canvas en la web) ocupan el hilo principal, y sin esta pausa la pantalla
+    // no se actualizaba hasta terminar -- parecia que "Saltar" no hacia nada.
+    await nextPaint();
     let ok = false;
     let error: string | null = null;
     try {
