@@ -44,6 +44,7 @@ import { CardFull } from '../../lib/types';
 import {
   isDraftComplete, NewCardDraft, submitNewCard, SubmissionFailure, UNLISTED_DESCRIPTION_MIN,
 } from '../../lib/submissions';
+import { goBack, BACK_HIT_SLOP } from '../../lib/navigation';
 
 /**
  * Proponer una card que no esta en el catalogo.
@@ -271,12 +272,12 @@ export default function NewCardScreen() {
           }
           if (sentBack && !sentBack.ok) {
             alert(t('contributeTitle'), t('contributeBackFailed'), [
-              { text: 'OK', onPress: () => router.back() },
+              { text: 'OK', onPress: () => goBack(router) },
             ]);
             return;
           }
           alert(t('contributeSent'), t('contributeSentDesc'), [
-            { text: 'OK', onPress: () => router.back() },
+            { text: 'OK', onPress: () => goBack(router) },
           ]);
         },
       },
@@ -311,7 +312,7 @@ export default function NewCardScreen() {
             return;
           }
           alert(t('newCardSent'), t('newCardSentDesc'), [
-            { text: 'OK', onPress: () => router.back() },
+            { text: 'OK', onPress: () => goBack(router) },
           ]);
         },
       },
@@ -325,7 +326,7 @@ export default function NewCardScreen() {
       <View style={styles.root}>
         <GalaxyBackground />
         <SafeAreaView style={styles.flex}>
-          <ErrorView message={t('newCardDisabled')} onRetry={() => router.back()} />
+          <ErrorView message={t('newCardDisabled')} onRetry={() => goBack(router)} />
         </SafeAreaView>
       </View>
     );
@@ -336,7 +337,7 @@ export default function NewCardScreen() {
       <GalaxyBackground />
       <SafeAreaView style={styles.flex} edges={['top']}>
         <View style={styles.header}>
-          <TouchableOpacity onPress={() => router.back()} activeOpacity={0.7} style={styles.backBtn}>
+          <TouchableOpacity onPress={() => goBack(router)} hitSlop={BACK_HIT_SLOP} activeOpacity={0.7} style={styles.backBtn}>
             <Ionicons name="chevron-back" size={22} color={COLORS.textSecondary} />
           </TouchableOpacity>
           <Text style={styles.title}>{t('newCardTitle')}</Text>

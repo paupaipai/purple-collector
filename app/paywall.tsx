@@ -11,6 +11,7 @@ import { COLORS, PREMIUM_ENABLED } from '../lib/constants';
 import { usePremium } from '../lib/PremiumContext';
 import { TranslationKey } from '../lib/i18n';
 import { getOfferings, isPurchasesConfigured, purchasePackage } from '../lib/purchases';
+import { goBack } from '../lib/navigation';
 
 // RevenueCat's default package identifiers for annual/monthly duration packages.
 const RC_PACKAGE_ID: Record<string, string> = {
@@ -58,7 +59,7 @@ export default function PaywallScreen() {
     if (!isPurchasesConfigured()) {
       // No RevenueCat API key set yet (see lib/purchases.ts) — fall back to the local mock unlock.
       await unlock();
-      router.back();
+      goBack(router);
       return;
     }
 
@@ -69,7 +70,7 @@ export default function PaywallScreen() {
       if (!pkg) throw new Error(`No RevenueCat package found for "${plan}" — check offerings/products config`);
 
       await purchasePackage(pkg);
-      router.back();
+      goBack(router);
     } catch (error: any) {
       if (!error?.userCancelled) {
         // OJO si se enciende PREMIUM_ENABLED: el paywall se abre con
@@ -88,7 +89,7 @@ export default function PaywallScreen() {
     <SafeAreaView style={styles.container}>
       <GalaxyBackground />
 
-      <TouchableOpacity style={styles.closeBtn} onPress={() => router.back()} activeOpacity={0.7}>
+      <TouchableOpacity style={styles.closeBtn} onPress={() => goBack(router)} activeOpacity={0.7}>
         <Text style={styles.closeText}>✕</Text>
       </TouchableOpacity>
 

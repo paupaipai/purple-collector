@@ -36,6 +36,7 @@ import { useDialog } from '../../lib/DialogContext';
 import { useI18n } from '../../lib/I18nContext';
 import { getPhotocardUrl } from '../../lib/supabase';
 import { CardStatus, CardWithStatus, ReportReason } from '../../lib/types';
+import { goBack, BACK_HIT_SLOP } from '../../lib/navigation';
 
 /**
  * Corre `fn` cuando la ficha de la card ya termino de cerrarse.
@@ -424,7 +425,7 @@ export default function AlbumDetailScreen() {
 
       {/* Header fijo */}
       <View style={styles.headerRow}>
-        <TouchableOpacity onPress={() => router.back()} style={styles.backBtn} activeOpacity={0.7}>
+        <TouchableOpacity onPress={() => goBack(router)} hitSlop={BACK_HIT_SLOP} style={styles.backBtn} activeOpacity={0.7}>
           <Text style={styles.backText}>←</Text>
         </TouchableOpacity>
         <View style={{ flex: 1 }}>

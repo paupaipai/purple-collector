@@ -24,6 +24,7 @@ import { COLORS } from '../../lib/constants';
 import { useI18n } from '../../lib/I18nContext';
 import { getPhotocardUrl } from '../../lib/supabase';
 import { AlbumEraWithAlbums, AlbumWithStats } from '../../lib/types';
+import { goBack, BACK_HIT_SLOP } from '../../lib/navigation';
 
 const TYPE_ICONS: Record<string, any> = {
   book:   require('../../assets/images/icons/book.png'),
@@ -190,7 +191,7 @@ export default function TypeDetailScreen() {
 
       {/* Header fijo */}
       <Animated.View style={[styles.headerRow, { opacity: headerOpacity }]}>
-        <TouchableOpacity onPress={() => router.back()} style={styles.backBtn} activeOpacity={0.7}>
+        <TouchableOpacity onPress={() => goBack(router)} hitSlop={BACK_HIT_SLOP} style={styles.backBtn} activeOpacity={0.7}>
           <Text style={styles.backText}>←</Text>
         </TouchableOpacity>
         {typeIcon && TYPE_ICONS[typeIcon] && (

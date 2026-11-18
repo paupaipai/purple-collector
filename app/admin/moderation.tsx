@@ -26,6 +26,7 @@ import { useDialog } from '../../lib/DialogContext';
 import { useI18n } from '../../lib/I18nContext';
 import { SubmissionRejectReason } from '../../lib/submissions';
 import { ReportReason } from '../../lib/types';
+import { goBack, BACK_HIT_SLOP } from '../../lib/navigation';
 
 /** Motivo del reporte -> clave de i18n. */
 const REASON_KEY: Record<ReportReason, string> = {
@@ -196,7 +197,7 @@ export default function ModerationScreen() {
       <View style={styles.root}>
         <GalaxyBackground />
         <SafeAreaView style={styles.flex}>
-          <ErrorView message={t('moderationNotAllowed')} onRetry={() => router.back()} />
+          <ErrorView message={t('moderationNotAllowed')} onRetry={() => goBack(router)} />
         </SafeAreaView>
       </View>
     );
@@ -207,7 +208,7 @@ export default function ModerationScreen() {
       <GalaxyBackground />
       <SafeAreaView style={styles.flex} edges={['top']}>
         <View style={styles.header}>
-          <TouchableOpacity onPress={() => router.back()} activeOpacity={0.7} style={styles.backBtn}>
+          <TouchableOpacity onPress={() => goBack(router)} hitSlop={BACK_HIT_SLOP} activeOpacity={0.7} style={styles.backBtn}>
             <Ionicons name="chevron-back" size={22} color={COLORS.textSecondary} />
           </TouchableOpacity>
           <Text style={styles.title}>{t('moderation')}</Text>
