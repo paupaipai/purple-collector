@@ -159,6 +159,10 @@ export default function AlbumDetailScreen() {
     ]));
   };
 
+  // Subiendo el aporte: se tapa la pantalla con un spinner para que no parezca
+  // que el toque no hizo nada (con dos fotos tarda unos segundos).
+  const [uploading, setUploading] = useState(false);
+
   /**
    * Envia lo que haya: frente, reverso, o ambos. Cada lado es un card_images
    * propio y se modera por separado.
@@ -171,23 +175,33 @@ export default function AlbumDetailScreen() {
     frontRef.current = null;
     if (!front && !back) return;
 
-    if (front) {
-      const sent = await submitContribution({ cardId, userId, asset: front.asset, crop: front.crop });
-      if (!sent.ok) {
-        alert(t('contributeTitle'), contributionError(sent.reason));
-        return;
+    setUploading(true);
+    let ok = false;
+    let error: string | null = null;
+    try {
+      if (front) {
+        const sent = await submitContribution({ cardId, userId, asset: front.asset, crop: front.crop });
+        if (!sent.ok) {
+          error = contributionError(sent.reason);
+          return;
+        }
       }
-    }
-    if (back) {
-      const sentBack = await submitContribution({ cardId, userId, asset: back.asset, crop: back.crop, side: 'back' });
-      if (!sentBack.ok) {
-        // Si el frente ya entro, se dice que solo fallo el reverso.
-        alert(t('contributeTitle'), front ? t('contributeBackFailed') : contributionError(sentBack.reason));
-        if (!front) return;
+      if (back) {
+        const sentBack = await submitContribution({ cardId, userId, asset: back.asset, crop: back.crop, side: 'back' });
+        if (!sentBack.ok) {
+          // Si el frente ya entro, se dice que solo fallo el reverso.
+          error = front ? t('contributeBackFailed') : contributionError(sentBack.reason);
+          if (!front) return;
+        }
       }
+      ok = true;
+    } finally {
+      // Los avisos van despues de quitar el spinner, para que no queden tapados.
+      setUploading(false);
+      if (ok) setPendingContrib(prev => new Set(prev).add(cardId));
+      if (error) alert(t('contributeTitle'), error);
+      else if (ok) alert(t('contributeSent'), t('contributeSentDesc'));
     }
-    setPendingContrib(prev => new Set(prev).add(cardId));
-    alert(t('contributeSent'), t('contributeSentDesc'));
   };
 
   /** Elige la foto de un lado y abre el encuadre. */
@@ -649,6 +663,15 @@ export default function AlbumDetailScreen() {
         onConfirm={finishCrop}
       />
 
+      {uploading ? (
+        <View style={styles.uploadingOverlay}>
+          <View style={styles.uploadingBox}>
+            <ActivityIndicator size="large" color={COLORS.purple3} />
+            <Text style={styles.uploadingText}>{t('contributeUploading')}</Text>
+          </View>
+        </View>
+      ) : null}
+
       <StatusHelpModal visible={showHelp} onClose={() => setShowHelp(false)} />
 
       {/* Album completion celebration */}
@@ -692,6 +715,18 @@ export default function AlbumDetailScreen() {
 }
 
 const styles = StyleSheet.create({
+  uploadingOverlay: {
+    ...StyleSheet.absoluteFillObject,
+    backgroundColor: 'rgba(5,0,15,0.72)',
+    alignItems: 'center', justifyContent: 'center',
+  },
+  uploadingBox: {
+    alignItems: 'center', gap: 12,
+    paddingHorizontal: 28, paddingVertical: 22, borderRadius: 18,
+    backgroundColor: 'rgba(38, 20, 80, 0.96)',
+    borderWidth: 1, borderColor: COLORS.borderActive,
+  },
+  uploadingText: { color: COLORS.textSecondary, fontSize: 13, fontWeight: '700' },
   container: { flex: 1, backgroundColor: 'transparent' },
   scroll: { paddingBottom: 40 },
   headerRow: {
