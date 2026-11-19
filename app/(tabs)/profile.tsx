@@ -104,6 +104,19 @@ export default function ProfileScreen() {
   };
 
   const [deleteModal, setDeleteModal] = useState(false);
+
+  // Cerrar sesion pasa por la red y puede tardar unos segundos: sin esto el
+  // boton parecia no hacer nada. No se apaga al terminar porque la pantalla se
+  // desmonta al salir; solo si falla.
+  const [signingOut, setSigningOut] = useState(false);
+  const handleSignOut = async () => {
+    setSigningOut(true);
+    try {
+      await signOut();
+    } catch {
+      setSigningOut(false);
+    }
+  };
   // Handle publico para la attribution. Se lee de la propia fila, que es lo
   // unico que la RLS permite desde SR-2.
   const [handle, setHandle] = useState<string | null>(null);
@@ -463,8 +476,15 @@ export default function ProfileScreen() {
             es donde ademas se ve en que quedo cada cosa. Dejar tambien la
             entrada aqui seria un segundo camino a lo mismo. */}
 
-        <TouchableOpacity onPress={signOut} activeOpacity={0.7} style={styles.signOutBtn}>
-          <Text style={styles.signOutText}>{t('signOut')}</Text>
+        <TouchableOpacity
+          onPress={handleSignOut}
+          disabled={signingOut}
+          activeOpacity={0.7}
+          style={styles.signOutBtn}
+        >
+          {signingOut
+            ? <ActivityIndicator size="small" color="#FF6B6B" />
+            : <Text style={styles.signOutText}>{t('signOut')}</Text>}
         </TouchableOpacity>
 
         <TouchableOpacity

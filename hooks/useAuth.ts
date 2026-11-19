@@ -190,7 +190,16 @@ export function useAuth() {
   };
 
   const signOut = async () => {
-    await supabase.auth.signOut();
+    // El signOut global revoca la sesion en el servidor; con mala red se
+    // quedaba colgado y no salia nunca. Con tope de 5 s: si no responde, se
+    // cierra al menos en este dispositivo (scope local, sin red).
+    const timeout = new Promise<'timeout'>(resolve => setTimeout(() => resolve('timeout'), 5000));
+    try {
+      const result = await Promise.race([supabase.auth.signOut(), timeout]);
+      if (result === 'timeout' || result?.error) await supabase.auth.signOut({ scope: 'local' });
+    } catch {
+      await supabase.auth.signOut({ scope: 'local' });
+    }
     setSession(null);
   };
 
