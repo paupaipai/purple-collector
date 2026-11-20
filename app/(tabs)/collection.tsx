@@ -23,6 +23,7 @@ import { useCollection } from '../../hooks/useCollection';
 import { COLORS, MEMBERS, RARITIES, RARITY_LABEL_KEY } from '../../lib/constants';
 import { useI18n } from '../../lib/I18nContext';
 import { usePremium } from '../../lib/PremiumContext';
+import { matchesMembers, without } from '../../lib/filters';
 
 function StatBadge({ value, label, color }: { value: number; label: string; color: string }) {
   return (
@@ -40,8 +41,9 @@ export default function CollectionScreen() {
   const { t } = useI18n();
   const { isPremium } = usePremium();
 
-  const [albumFilter, setAlbumFilter] = useState('All');
-  const [memberFilter, setMemberFilter] = useState('All');
+  // Varias opciones por seccion; vacio = sin filtro.
+  const [albumFilter, setAlbumFilter] = useState<string[]>([]);
+  const [memberFilter, setMemberFilter] = useState<string[]>([]);
   const [dupFilter, setDupFilter] = useState('All');
   const [showFilters, setShowFilters] = useState(false);
   const [searchQuery, setSearchQuery] = useState('');
@@ -70,11 +72,8 @@ export default function CollectionScreen() {
 
   const filtered = useMemo(() => {
     let result = cards;
-    if (albumFilter !== 'All') result = result.filter(c => c.album_name === albumFilter);
-    if (memberFilter !== 'All') {
-      if (memberFilter === 'Group') result = result.filter(c => c.is_group);
-      else result = result.filter(c => c.member === memberFilter);
-    }
+    if (albumFilter.length > 0) result = result.filter(c => albumFilter.includes(c.album_name));
+    if (memberFilter.length > 0) result = result.filter(c => matchesMembers(c, memberFilter));
     if (dupFilter === 'with') result = result.filter(c => c.status === 'have' && c.duplicate_count > 0);
     else if (dupFilter === 'without') result = result.filter(c => c.status === 'have' && c.duplicate_count === 0);
     const query = searchQuery.trim().toLowerCase();
@@ -100,11 +99,12 @@ export default function CollectionScreen() {
     return seen.size;
   }, [cards]);
 
-  const activeFilterCount = (albumFilter !== 'All' ? 1 : 0) + (memberFilter !== 'All' ? 1 : 0) + (dupFilter !== 'All' ? 1 : 0);
+  const activeFilterCount = albumFilter.length + memberFilter.length + (dupFilter !== 'All' ? 1 : 0);
 
   const filterSections = useMemo<FilterSection[]>(() => [
     {
       key: 'album',
+      multi: true,
       label: 'Álbum',
       options: [
         { value: 'All', label: t('filterAllAlbums') },
@@ -115,6 +115,7 @@ export default function CollectionScreen() {
     },
     {
       key: 'member',
+      multi: true,
       label: 'Miembro',
       options: [
         { value: 'All', label: t('filterAll') },
@@ -264,18 +265,18 @@ export default function CollectionScreen() {
                 showsHorizontalScrollIndicator={false}
                 contentContainerStyle={styles.chipsRow}
               >
-                {albumFilter !== 'All' && (
-                  <TouchableOpacity onPress={() => setAlbumFilter('All')} activeOpacity={0.7} style={styles.activeChip}>
-                    <Text style={styles.activeChipText}>{albumFilter}</Text>
+                {albumFilter.map(value => (
+                  <TouchableOpacity key={`album-${value}`} onPress={() => setAlbumFilter(prev => without(prev, value))} activeOpacity={0.7} style={styles.activeChip}>
+                    <Text style={styles.activeChipText}>{value}</Text>
                     <Ionicons name="close" size={11} color={COLORS.purple3} />
                   </TouchableOpacity>
-                )}
-                {memberFilter !== 'All' && (
-                  <TouchableOpacity onPress={() => setMemberFilter('All')} activeOpacity={0.7} style={styles.activeChip}>
-                    <Text style={styles.activeChipText}>{memberFilter}</Text>
+                ))}
+                {memberFilter.map(value => (
+                  <TouchableOpacity key={`member-${value}`} onPress={() => setMemberFilter(prev => without(prev, value))} activeOpacity={0.7} style={styles.activeChip}>
+                    <Text style={styles.activeChipText}>{value === 'Group' ? t('filterGroup') : value}</Text>
                     <Ionicons name="close" size={11} color={COLORS.purple3} />
                   </TouchableOpacity>
-                )}
+                ))}
                 {dupFilter !== 'All' && (
                   <TouchableOpacity onPress={() => setDupFilter('All')} activeOpacity={0.7} style={styles.activeChip}>
                     <Text style={styles.activeChipText}>
@@ -342,7 +343,7 @@ export default function CollectionScreen() {
         visible={showFilters}
         onClose={() => setShowFilters(false)}
         sections={filterSections}
-        onReset={() => { setAlbumFilter('All'); setMemberFilter('All'); setDupFilter('All'); }}
+        onReset={() => { setAlbumFilter([]); setMemberFilter([]); setDupFilter('All'); }}
         resultCount={filtered.length}
       />
     </SafeAreaView>

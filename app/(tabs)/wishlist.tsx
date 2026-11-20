@@ -20,6 +20,7 @@ import GalaxyBackground from '../../components/GalaxyBackground';
 import ErrorView from '../../components/ErrorView';
 import { Ionicons } from '@expo/vector-icons';
 import { useI18n } from '../../lib/I18nContext';
+import { matchesMembers, without } from '../../lib/filters';
 
 // ─── Status pill ────────────────────────────────────────────────────────────
 const STATUS_ORDER: CardStatus[] = ['want', 'otw'];
@@ -74,8 +75,9 @@ export default function WishlistScreen() {
   const { cards, loading, error, setCardStatus, refetch, silentRefetch } = useWishlist(userId);
   const { t } = useI18n();
 
-  const [statusFilter, setStatusFilter] = useState<'All' | CardStatus>('All');
-  const [memberFilter, setMemberFilter] = useState('All');
+  // Varias opciones por seccion; vacio = sin filtro.
+  const [statusFilter, setStatusFilter] = useState<string[]>([]);
+  const [memberFilter, setMemberFilter] = useState<string[]>([]);
   const [showFilters, setShowFilters] = useState(false);
   const [showStatusHelp, setShowStatusHelp] = useState(false);
   const [activeCard, setActiveCard] = useState<CardWithStatus | null>(null);
@@ -103,19 +105,17 @@ export default function WishlistScreen() {
 
   const filtered = useMemo(() => {
     let result = cards;
-    if (statusFilter !== 'All') result = result.filter(c => c.status === statusFilter);
-    if (memberFilter !== 'All') {
-      if (memberFilter === 'Group') result = result.filter(c => c.is_group);
-      else result = result.filter(c => c.member === memberFilter);
-    }
+    if (statusFilter.length > 0) result = result.filter(c => !!c.status && statusFilter.includes(c.status));
+    if (memberFilter.length > 0) result = result.filter(c => matchesMembers(c, memberFilter));
     return result;
   }, [cards, statusFilter, memberFilter]);
 
-  const activeFilterCount = (statusFilter !== 'All' ? 1 : 0) + (memberFilter !== 'All' ? 1 : 0);
+  const activeFilterCount = statusFilter.length + memberFilter.length;
 
   const filterSections = useMemo<FilterSection[]>(() => [
     {
       key: 'status',
+      multi: true,
       label: 'Estado',
       options: [
         { value: 'All', label: t('filterAll') },
@@ -125,7 +125,7 @@ export default function WishlistScreen() {
         })),
       ],
       value: statusFilter,
-      onChange: (v) => setStatusFilter(v as 'All' | CardStatus),
+      onChange: setStatusFilter,
       onHelp: () => {
         setShowFilters(false);
         setTimeout(() => setShowStatusHelp(true), 300);
@@ -133,6 +133,7 @@ export default function WishlistScreen() {
     },
     {
       key: 'member',
+      multi: true,
       label: 'Miembro',
       options: [
         { value: 'All', label: t('filterAll') },
@@ -231,20 +232,20 @@ export default function WishlistScreen() {
                 showsHorizontalScrollIndicator={false}
                 contentContainerStyle={styles.chipsRow}
               >
-                {statusFilter !== 'All' && (
-                  <TouchableOpacity onPress={() => setStatusFilter('All')} activeOpacity={0.7} style={styles.activeChip}>
+                {(statusFilter as CardStatus[]).map(value => (
+                  <TouchableOpacity key={`status-${value}`} onPress={() => setStatusFilter(prev => without(prev, value))} activeOpacity={0.7} style={styles.activeChip}>
                     <Text style={styles.activeChipText}>
-                      {STATUS_CONFIG[statusFilter].icon} {t(STATUS_LABEL_KEY[statusFilter] as any)}
+                      {STATUS_CONFIG[value].icon} {t(STATUS_LABEL_KEY[value] as any)}
                     </Text>
                     <Ionicons name="close" size={11} color={COLORS.pink} />
                   </TouchableOpacity>
-                )}
-                {memberFilter !== 'All' && (
-                  <TouchableOpacity onPress={() => setMemberFilter('All')} activeOpacity={0.7} style={styles.activeChip}>
-                    <Text style={styles.activeChipText}>{memberFilter}</Text>
+                ))}
+                {memberFilter.map(value => (
+                  <TouchableOpacity key={`member-${value}`} onPress={() => setMemberFilter(prev => without(prev, value))} activeOpacity={0.7} style={styles.activeChip}>
+                    <Text style={styles.activeChipText}>{value === 'Group' ? t('filterGroup') : value}</Text>
                     <Ionicons name="close" size={11} color={COLORS.pink} />
                   </TouchableOpacity>
-                )}
+                ))}
               </ScrollView>
             )}
           </View>
@@ -304,7 +305,7 @@ export default function WishlistScreen() {
         onClose={() => setShowFilters(false)}
         sections={filterSections}
         accentColor={COLORS.pink}
-        onReset={() => { setStatusFilter('All'); setMemberFilter('All'); }}
+        onReset={() => { setStatusFilter([]); setMemberFilter([]); }}
         resultCount={filtered.length}
       />
 

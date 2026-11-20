@@ -7,15 +7,53 @@ import {
 import { COLORS } from '../lib/constants';
 import { useI18n } from '../lib/I18nContext';
 
-export interface FilterSection {
+interface FilterSectionBase {
   key: string;
   label: string;
+  /** La opcion 'All' (si esta) es "sin filtro". */
   options: { value: string; label: string }[];
-  value: string;
-  onChange: (value: string) => void;
   premiumLocked?: boolean;
   onPremiumPress?: () => void;
   onHelp?: () => void;
+}
+
+/**
+ * Una seccion es de UNA opcion (value: string, 'All' = sin filtro) o de VARIAS
+ * (`multi`, value: string[], vacio = sin filtro). En las de varias, tocar una
+ * opcion la agrega o la quita, y tocar 'All' las limpia.
+ */
+export type FilterSection = FilterSectionBase & (
+  | { multi?: false; value: string; onChange: (value: string) => void }
+  | { multi: true; value: string[]; onChange: (value: string[]) => void }
+);
+
+function isActive(section: FilterSection, optionValue: string): boolean {
+  if (section.multi) {
+    return optionValue === 'All' ? section.value.length === 0 : section.value.includes(optionValue);
+  }
+  return section.value === optionValue;
+}
+
+function press(section: FilterSection, optionValue: string) {
+  if (!section.multi) {
+    section.onChange(optionValue);
+    return;
+  }
+  if (optionValue === 'All') {
+    section.onChange([]);
+    return;
+  }
+  const current = section.value;
+  section.onChange(
+    current.includes(optionValue)
+      ? current.filter(v => v !== optionValue)
+      : [...current, optionValue],
+  );
+}
+
+/** La seccion tiene algun filtro puesto. */
+export function sectionHasFilter(section: FilterSection): boolean {
+  return section.multi ? section.value.length > 0 : section.value !== 'All';
 }
 
 interface Props {
@@ -36,7 +74,7 @@ export default function FilterBottomSheet({
   resultCount,
 }: Props) {
   const { t } = useI18n();
-  const hasActive = sections.some(s => !s.premiumLocked && s.value !== 'All');
+  const hasActive = sections.some(s => !s.premiumLocked && sectionHasFilter(s));
 
   return (
     <Modal visible={visible} transparent animationType="slide" onRequestClose={onClose}>
@@ -87,11 +125,11 @@ export default function FilterBottomSheet({
                 ) : (
                   <View style={styles.pillWrap}>
                     {section.options.map(opt => {
-                      const active = section.value === opt.value;
+                      const active = isActive(section, opt.value);
                       return (
                         <TouchableOpacity
                           key={opt.value}
-                          onPress={() => section.onChange(opt.value)}
+                          onPress={() => press(section, opt.value)}
                           activeOpacity={0.7}
                           style={[
                             styles.pill,
