@@ -177,7 +177,6 @@ export default function Photocard({
               con esta porque aquella sólo sale cuando NO hay imagen. */}
           {card.primary_image_source === 'community' && card.primary_image_handle && (
             <View style={styles.attribution} pointerEvents="none">
-              <Ionicons name="person-circle" size={11} color={COLORS.purple4} />
               <Text style={styles.attributionText} numberOfLines={1}>
                 @{card.primary_image_handle}
               </Text>
@@ -264,16 +263,16 @@ const styles = StyleSheet.create({
     maxWidth: '72%',
     flexDirection: 'row',
     alignItems: 'center',
-    gap: 2,
-    paddingHorizontal: 4,
+    paddingHorizontal: 6,
     paddingVertical: 2,
-    borderRadius: 7,
-    backgroundColor: 'rgba(88,28,135,0.82)',
+    borderRadius: 999,
+    // Lila claro con texto oscuro: se lee sobre cualquier foto, clara u oscura.
+    backgroundColor: '#E9D5FF',
   },
   attributionText: {
     fontSize: 8,
     fontWeight: '800',
-    color: COLORS.purple4,
+    color: '#2E1065',
     letterSpacing: 0.2,
   },
   addHint: {

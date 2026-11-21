@@ -89,12 +89,21 @@ export default function CardStatusModal({
                         <Text style={styles.memberInitial}>{card.member?.charAt(0) || '?'}</Text>
                       </View>
                     )}
-                    {imageSource ? (
+                    {/* Aportada por la comunidad: se firma con el @ de quien la
+                        dono, con la misma pastilla lila de la grilla. Sin handle
+                        va sin firmar, igual que en la grilla. */}
+                    {imageSource === 'community' ? (
+                      card.primary_image_handle ? (
+                        <View style={styles.handleTag} pointerEvents="none">
+                          <Text style={styles.handleTagText} numberOfLines={1}>
+                            @{card.primary_image_handle}
+                          </Text>
+                        </View>
+                      ) : null
+                    ) : imageSource ? (
                       <View style={styles.sourceTag}>
                         <Text style={styles.sourceTagText} numberOfLines={1}>
-                          {imageSource === 'community'
-                            ? t('imageSourceCommunity')
-                            : t('imageSourceLegacy')}
+                          {t('imageSourceLegacy')}
                         </Text>
                       </View>
                     ) : null}
@@ -350,6 +359,12 @@ const styles = StyleSheet.create({
     fontSize: 9, fontWeight: '800', letterSpacing: 0.4,
     color: 'rgba(255,255,255,0.85)', textAlign: 'center',
   },
+  handleTag: {
+    position: 'absolute', bottom: 5, left: 5, maxWidth: '90%',
+    paddingHorizontal: 6, paddingVertical: 2, borderRadius: 999,
+    backgroundColor: '#E9D5FF',
+  },
+  handleTagText: { fontSize: 9, fontWeight: '800', letterSpacing: 0.2, color: '#2E1065' },
   placeholder: { alignItems: 'center', justifyContent: 'center' },
   memberInitial: { fontSize: 28, fontWeight: '900', color: '#fff' },
   title: { color: '#fff', fontSize: 15, fontWeight: '800', textAlign: 'center' },
