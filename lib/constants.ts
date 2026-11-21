@@ -24,7 +24,10 @@ export const BIAS_ENABLED = false;
 // photocard es, para que el usuario pueda identificarla y decidir aportar una
 // propia. De ahi que el blur sea moderado y el velo suave: si no se distinguiera
 // la card, el catalogo dejaria de servir para lo que sirve.
-export const LEGACY_TREATMENT_ENABLED = false;
+//
+// Apagado el 2026-10-22 y vuelto a encender el 2026-11-20 con blur al 40%
+// (radio 2.4 sobre 6, que es donde la card deja de reconocerse).
+export const LEGACY_TREATMENT_ENABLED = true;
 
 // Solo aplican con LEGACY_TREATMENT_ENABLED = true.
 //
@@ -35,7 +38,7 @@ export const LEGACY_TREATMENT_ENABLED = false;
 // El velo es bajo a proposito porque se APILA con el de las cards no adquiridas
 // (NOT_OWNED_IMAGE_OPACITY 0.65 + NOT_OWNED_OVERLAY_OPACITY 0.32). Con 0.30 las
 // legacy no adquiridas quedaban casi negras.
-export const LEGACY_BLUR_RADIUS = 3;
+export const LEGACY_BLUR_RADIUS = 2.4;
 export const LEGACY_VEIL_COLOR = 'rgba(11,0,36,0.16)';
 
 // Flujo de aporte de imagenes (FASE D).
