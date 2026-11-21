@@ -25,18 +25,20 @@ import UsernameSuggestions from './UsernameSuggestions';
  * tiene uno. Es el momento con mas sentido para pedirlo: es cuando la persona
  * esta decidiendo quien es dentro de la app, no a mitad de aportar una foto.
  *
- * Se puede saltar. Pedirlo como requisito seria cobrar un peaje para entrar a
- * una app que se puede usar entera sin aportar nada; quien lo salte lo tiene en
- * su perfil, debajo del correo.
+ * Es OBLIGATORIO (desde 2026-11-20): el @ firma las imagenes que se donan, y
+ * sin el una aportacion quedaba sin firmar. No hay "Ahora no"; la unica salida
+ * es cerrar sesion, por si se entro con la cuenta equivocada.
  */
 interface Props {
   userId: string | null;
   /** Nombre sugerido, normalmente el del proveedor de OAuth. */
   suggestion?: string | null;
-  onDone: (username: string | null) => void;
+  onDone: (username: string) => void;
+  /** Salida para quien entro con otra cuenta: sin esto quedaria atrapado. */
+  onSignOut: () => void;
 }
 
-export default function UsernameScreen({ userId, suggestion, onDone }: Props) {
+export default function UsernameScreen({ userId, suggestion, onDone, onSignOut }: Props) {
   const { t } = useI18n();
 
   // La sugerencia se limpia a lo que el formato admite: de "Pau Sepúlveda" sale
@@ -133,17 +135,14 @@ export default function UsernameScreen({ userId, suggestion, onDone }: Props) {
             )}
           </TouchableOpacity>
 
-          {/* Saltar no es un fracaso: se puede poner luego desde el perfil, y
-              decirlo aqui evita que parezca una puerta cerrada. */}
           <TouchableOpacity
-            onPress={() => onDone(null)}
+            onPress={onSignOut}
             disabled={saving}
             activeOpacity={0.7}
             style={styles.skip}
           >
-            <Text style={styles.skipText}>{t('usernameSkip')}</Text>
+            <Text style={styles.skipText}>{t('signOut')}</Text>
           </TouchableOpacity>
-          <Text style={styles.skipHint}>{t('usernameSkipHint')}</Text>
         </View>
       </KeyboardAvoidingView>
     </SafeAreaView>
@@ -197,7 +196,4 @@ const styles = StyleSheet.create({
 
   skip: { alignItems: 'center', paddingVertical: 14 },
   skipText: { fontSize: 13, fontWeight: '700', color: COLORS.textSecondary },
-  skipHint: {
-    fontSize: 11, color: COLORS.textMuted, textAlign: 'center', marginTop: -6,
-  },
 });

@@ -51,7 +51,6 @@ const en = {
   filterWithDuplicates: 'With duplicates',
   filterWithoutDuplicates: 'No duplicates',
   imageSourceLegacy: 'Legacy',
-  imageSourceCommunity: 'Community',
   // Va sobre la imagen en la grilla: dos lineas, centrado.
   imageLegacyBadge: 'Legacy\nimage',
   imageMissingBadge: 'No\nimage',
@@ -291,8 +290,6 @@ const en = {
   usernameSetupDesc: 'It signs what you contribute to the catalog. Anyone can see it, so avoid your real name.',
   usernamePlaceholder: 'username',
   usernameContinue: 'Continue',
-  usernameSkip: 'Not now',
-  usernameSkipHint: 'You can set it later from your profile.',
   usernameAdd: '+ add a username',
   duplicateWarnTitle: '{n} already here',
   duplicateWarnDesc: 'Check whether yours is one of these. If what is missing is the photo and not the card, contribute it to the existing one and it will fill that gap.',
@@ -414,7 +411,6 @@ const es: Translations = {
   filterWithDuplicates: 'Con repetidas',
   filterWithoutDuplicates: 'Sin repetidas',
   imageSourceLegacy: 'Legacy',
-  imageSourceCommunity: 'Comunidad',
   // Va sobre la imagen en la grilla: dos lineas, centrado.
   imageLegacyBadge: 'Imagen\nLegacy',
   imageMissingBadge: 'Sin\nimagen',
@@ -654,8 +650,6 @@ const es: Translations = {
   usernameSetupDesc: 'Firma lo que aportas al catálogo. Cualquiera puede verlo, así que evita tu nombre real.',
   usernamePlaceholder: 'nombredeusuario',
   usernameContinue: 'Continuar',
-  usernameSkip: 'Ahora no',
-  usernameSkipHint: 'Puedes ponerlo luego desde tu perfil.',
   usernameAdd: '+ añade un nombre de usuario',
   duplicateWarnTitle: 'Ya hay {n} acá',
   duplicateWarnDesc: 'Mira si la tuya es una de estas. Si lo que falta es la foto y no la card, apórtala a la que ya existe y ese hueco queda lleno.',

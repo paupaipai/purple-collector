@@ -46,7 +46,6 @@ SplashScreen.preventAutoHideAsync();
 const onboardedKey = (userId: string) => `@purplecollector/onboarded:${userId}`;
 // Se guarda que YA se pregunto, no la respuesta: quien lo salte no tiene que
 // volver a verlo en cada arranque.
-const usernameAskedKey = (userId: string) => `@purplecollector/username-asked:${userId}`;
 
 function LoadingScreen() {
   const pulse = useRef(new Animated.Value(0.85)).current;
@@ -79,9 +78,10 @@ interface AppShellProps {
   authLoading: 'google' | 'apple' | null;
   signInWithGoogle: () => Promise<void>;
   signInWithApple: () => Promise<void>;
+  signOut: () => Promise<void>;
 }
 
-function AppShell({ session, loading, authLoading, signInWithGoogle, signInWithApple }: AppShellProps) {
+function AppShell({ session, loading, authLoading, signInWithGoogle, signInWithApple, signOut }: AppShellProps) {
   const { saveBiases } = useBias();
   const [onboarded, setOnboarded] = useState<boolean | null>(null);
 
@@ -133,9 +133,8 @@ function AppShell({ session, loading, authLoading, signInWithGoogle, signInWithA
     checkOnboarded();
   }, [session?.user?.id]);
 
-  // Nombre de usuario: se pregunta una sola vez, al entrar, y solo si la cuenta
-  // no tiene. Se recuerda que ya se pregunto para no insistir en cada arranque
-  // a quien decidio saltarlo -- lo tiene en su perfil cuando quiera.
+  // Nombre de usuario: obligatorio. Se comprueba en cada arranque y, si la
+  // cuenta no tiene, no se entra a la app hasta elegir uno.
   const [askUsername, setAskUsername] = useState<boolean | null>(null);
 
   useEffect(() => {
@@ -144,14 +143,12 @@ function AppShell({ session, loading, authLoading, signInWithGoogle, signInWithA
 
     let cancelled = false;
     (async () => {
-      const asked = await AsyncStorage.getItem(usernameAskedKey(uid));
-      if (asked) { if (!cancelled) setAskUsername(false); return; }
-
       try {
         // Mismo motivo que el timeout de onboarding: justo despues del login la
         // red puede estar aun asentandose, y sin tope esta consulta dejaria la
-        // app en la pantalla de carga. Ante la duda NO se pregunta: es mejor
-        // entrar sin nombre que no entrar.
+        // app en la pantalla de carga. Ante la duda NO se pregunta (a quien ya
+        // tiene nombre no se le debe pedir otro): se vuelve a mirar en el
+        // proximo arranque.
         const timeout = new Promise<never>((_, reject) =>
           setTimeout(() => reject(new Error('username check timed out')), 8000),
         );
@@ -165,11 +162,7 @@ function AppShell({ session, loading, authLoading, signInWithGoogle, signInWithA
     return () => { cancelled = true; };
   }, [session?.user?.id]);
 
-  const finishUsername = async () => {
-    const uid = session?.user?.id;
-    if (uid) await AsyncStorage.setItem(usernameAskedKey(uid), 'true');
-    setAskUsername(false);
-  };
+  const finishUsername = () => setAskUsername(false);
 
   const finishOnboarding = async (biases: BiasKey[]) => {
     await saveBiases(biases);
@@ -221,6 +214,7 @@ function AppShell({ session, loading, authLoading, signInWithGoogle, signInWithA
           userId={session?.user?.id ?? null}
           suggestion={session?.user?.user_metadata?.full_name ?? session?.user?.email?.split('@')[0]}
           onDone={finishUsername}
+          onSignOut={signOut}
         />
       ) : (
         <Stack
@@ -246,7 +240,7 @@ function AppShell({ session, loading, authLoading, signInWithGoogle, signInWithA
 }
 
 export default Sentry.wrap(function RootLayout() {
-  const { session, loading, authLoading, signInWithGoogle, signInWithApple } = useAuth();
+  const { session, loading, authLoading, signInWithGoogle, signInWithApple, signOut } = useAuth();
   const userId = session?.user?.id ?? null;
 
   return (
@@ -263,6 +257,7 @@ export default Sentry.wrap(function RootLayout() {
             authLoading={authLoading}
             signInWithGoogle={signInWithGoogle}
             signInWithApple={signInWithApple}
+            signOut={signOut}
           />
           </DialogProvider>
         </BiasProvider>
