@@ -28,7 +28,8 @@ import { removeAvatar, uploadAvatar, useMyAvatar } from '../../lib/avatar';
 import { captureContributionImage, pickContributionImage, PickedImage } from '../../lib/contributions';
 import type { ImagePickerAsset } from 'expo-image-picker';
 import { usePremium } from '../../lib/PremiumContext';
-import { fetchAllByIds, fetchAllPages, supabase } from '../../lib/supabase';
+import { supabase } from '../../lib/supabase';
+import { keys, refreshIfStale, useMemberCounts, useMyCards } from '../../lib/queries';
 import { BiasKey } from '../../lib/types';
 
 function BiasChip({ biasKey }: { biasKey: BiasKey }) {
@@ -233,54 +234,33 @@ export default function ProfileScreen() {
 
   const groupOwned = useMemo(() => ownedCards.filter(c => c.is_group).length, [ownedCards]);
 
-  const [totalByMember, setTotalByMember] = useState<Record<string, number>>({});
-  const [totalGroup, setTotalGroup] = useState(0);
-
-  const fetchMemberTotals = useCallback(async () => {
-    // Vista agregada (8 filas). El select anterior pedia todas las cards que no
-    // son de grupo y PostgREST se lo cortaba en 1000 de 4286, asi que los
-    // totales por miembro salian mal — el mismo bug de truncado que ya se
-    // arreglo en useAlbums, que aca habia quedado suelto.
-    const { data: counts } = await supabase
-      .from('member_card_counts')
-      .select('member, is_group, total');
-
+  // Totales por miembro: catalogo (vista agregada, 8 filas) menos las cartas
+  // que marque como "no colecciono" -- misma convencion que la pantalla de
+  // album. Todo sale de la cache compartida: antes esto volvia a descargar
+  // user_cards y cards en cada visita al perfil.
+  const memberCountsQuery = useMemberCounts();
+  const myCards = useMyCards(userId);
+  const { totalByMember, totalGroup } = useMemo(() => {
     const byMember: Record<string, number> = {};
     let group = 0;
-    (counts || []).forEach((c: any) => {
+    (memberCountsQuery.data ?? []).forEach(c => {
       if (c.is_group) group += c.total;
       else byMember[c.member] = (byMember[c.member] || 0) + c.total;
     });
-
-    // Cards the user opted out of don't count toward their own totals —
-    // same convention as the album screen's collectibleCount.
-    if (userId) {
-      const { data: notCollectingRows } = await fetchAllPages<{ card_id: number }>(
-        () => supabase
-          .from('user_cards')
-          .select('card_id')
-          .eq('user_id', userId)
-          .eq('status', 'not_collecting'),
-      );
-
-      if (notCollectingRows.length > 0) {
-        const { data: notCollectingCards } = await fetchAllByIds<any>(
-          notCollectingRows.map((r: any) => r.card_id),
-          chunk => supabase.from('cards').select('member, is_group').in('id', chunk),
-        );
-
-        notCollectingCards.forEach((c: any) => {
-          if (c.is_group) group -= 1;
-          else byMember[c.member] = (byMember[c.member] || 0) - 1;
-        });
+    const uc = myCards.userCards;
+    const det = myCards.details;
+    if (uc && det) {
+      for (const key of Object.keys(uc)) {
+        const id = Number(key);
+        if (uc[id].status !== 'not_collecting') continue;
+        const c = det[id];
+        if (!c) continue;
+        if (c.is_group) group -= 1;
+        else byMember[c.member] = (byMember[c.member] || 0) - 1;
       }
     }
-
-    setTotalByMember(byMember);
-    setTotalGroup(group);
-  }, [userId]);
-
-  useEffect(() => { fetchMemberTotals(); }, [fetchMemberTotals]);
+    return { totalByMember: byMember, totalGroup: group };
+  }, [memberCountsQuery.data, myCards.userCards, myCards.details]);
 
   // Ojo con las dependencias: `moderation` es un objeto nuevo en cada render.
   // Con el objeto aqui, cada respuesta (que provoca un render) volvia a
@@ -291,8 +271,8 @@ export default function ProfileScreen() {
     refetchModeration();
     silentRefetchCollection();
     silentRefetchAlbums();
-    fetchMemberTotals();
-  }, [silentRefetchCollection, silentRefetchAlbums, fetchMemberTotals, refetchModeration]));
+    refreshIfStale(keys.memberCounts);
+  }, [silentRefetchCollection, silentRefetchAlbums, refetchModeration]));
 
   const rarityCounts = useMemo(() => {
     const c: Record<string, number> = { Common: 0, Rare: 0, 'Ultra Rare': 0, Limited: 0 };

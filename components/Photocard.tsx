@@ -9,7 +9,7 @@ import {
   CONTRIBUTIONS_ENABLED,
 } from '../lib/constants';
 import { CardWithStatus } from '../lib/types';
-import { getCardImageUrl } from '../lib/supabase';
+import { getCardThumbUrl } from '../lib/supabase';
 import { useI18n } from '../lib/I18nContext';
 
 // Atenuacion de las cartas NO marcadas como "Tengo". Son los dos unicos valores
@@ -33,7 +33,7 @@ export default function Photocard({
   const member = MEMBER_MAP[card.member];
   const rarity = RARITIES[card.rarity];
   const isOwned = card.status === 'have';
-  const imageUrl = getCardImageUrl(card);
+  const imageUrl = getCardThumbUrl(card);
   const hasImage = !!imageUrl && !card.is_blurred;
   // Sin imagen hay dos situaciones distintas, y se muestran distinto: la que
   // nunca tuvo foto y la que la tuvo y se retiro.

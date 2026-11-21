@@ -61,7 +61,13 @@ async function copyToPublicBucket(
 
   const { error: uploadError } = await storage
     .from(PUBLIC_BUCKET)
-    .upload(toPath, blob, { contentType: blob.type || "image/jpeg", upsert: false });
+    .upload(toPath, blob, {
+      contentType: blob.type || "image/jpeg",
+      upsert: false,
+      // El nombre es unico y el archivo nunca cambia: cache de 1 año. Con el
+      // de 1 hora por defecto, cada visitante volvia a bajarla cada hora.
+      cacheControl: "31536000",
+    });
 
   if (uploadError) {
     return { ok: false, error: `upload failed: ${uploadError.message}` };

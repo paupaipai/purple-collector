@@ -104,7 +104,8 @@ function extensionFor(mimeType: string): string {
 /** Proporcion real de una photocard: 55x85mm. */
 const PHOTOCARD_ASPECT = 2 / 3;
 /** Techo de ancho. Las legacy del catalogo rondan los 160px, asi que sobra. */
-const MAX_WIDTH = 1000;
+// 800 px sobra para el detalle de la carta (la grilla usa miniatura).
+const MAX_WIDTH = 800;
 
 /** Rectangulo de recorte en pixeles de la imagen original. */
 export interface CropRect {
@@ -125,9 +126,9 @@ export interface CropRect {
  * respeta Android, iOS lo ignora y fuerza un recorte cuadrado, y web no recorta.
  * El primer aporte de prueba entro en 158x162 por eso.
  *
- * El formato se conserva: un PNG sigue siendo PNG. Pasarlo todo a JPEG seria
- * mas liviano, pero aplastaria la transparencia de un recorte con fondo
- * transparente.
+ * Sale siempre en JPEG (antes un PNG seguia en PNG y pesaba hasta 1,5 MB). La
+ * transparencia no importa: el recorte es un rectangulo de la foto, sin fondo
+ * transparente que conservar.
  */
 export async function normalizeToPhotocard(
   asset: ImagePicker.ImagePickerAsset,
@@ -161,8 +162,11 @@ export async function normalizeToPhotocard(
 
   const rendered = await context.renderAsync();
   const saved = await rendered.saveAsync({
-    compress: 0.85,
-    format: mimeType === 'image/png' ? SaveFormat.PNG : SaveFormat.JPEG,
+    // Siempre JPEG al 75 %: una foto de photocard no necesita transparencia, y
+    // en PNG pesaba hasta 1,5 MB. 800x1200 al 75 % deja ~150-250 kB, con
+    // detalle de sobra para una futura opcion de "ampliar".
+    compress: 0.75,
+    format: SaveFormat.JPEG,
   });
 
   return { uri: saved.uri, width: saved.width, height: saved.height };
@@ -354,12 +358,10 @@ export async function uploadReviewImage(params: {
   }
 
   // El mime tiene que describir el archivo que se sube, no el que se eligio:
-  // normalizeToPhotocard() siempre devuelve PNG o JPEG, asi que un HEIC del
+  // normalizeToPhotocard() siempre devuelve JPEG, asi que un HEIC o PNG del
   // carrete llega al bucket como JPEG. Subirlo con el mime original lo haria
   // rechazar por la whitelist.
-  const finalMime = normalized
-    ? (sourceMime === 'image/png' ? 'image/png' : 'image/jpeg')
-    : sourceMime;
+  const finalMime = normalized ? 'image/jpeg' : sourceMime;
 
   // Solo hace falta comprobar la whitelist en el camino de respaldo: lo que sale
   // del normalizador siempre es png o jpeg.
@@ -389,7 +391,7 @@ export async function uploadReviewImage(params: {
 
   const { error: uploadError } = await supabase.storage
     .from(COMMUNITY_REVIEW_BUCKET)
-    .upload(storagePath, body, { contentType: finalMime, upsert: false });
+    .upload(storagePath, body, { contentType: finalMime, upsert: false, cacheControl: '31536000' });
 
   if (uploadError) {
     return { ok: false, reason: 'upload_failed', detail: uploadError.message };

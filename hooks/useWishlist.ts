@@ -1,116 +1,41 @@
-import { useState, useEffect, useCallback } from 'react';
-import { fetchAllByIds, fetchAllPages, supabase } from '../lib/supabase';
-import { CardWithStatus, CardStatus } from '../lib/types';
+import { useCallback, useMemo } from 'react';
+
 import { t } from '../lib/i18n';
+import { setMyCardStatus } from '../lib/myCards';
+import { combine, keys, refreshIfStale, refreshNow, useMyCards } from '../lib/queries';
+import { CardStatus, CardWithStatus } from '../lib/types';
 
+const ORDER: Record<string, number> = { want: 0, otw: 1 };
+
+/** Cartas que quiero o vienen en camino. Sale de la cache compartida. */
 export function useWishlist(userId: string | null) {
-  const [cards, setCards] = useState<CardWithStatus[]>([]);
-  const [loading, setLoading] = useState(true);
-  const [error, setError] = useState<string | null>(null);
+  const { userCards, details, loading, error } = useMyCards(userId);
 
-  const fetchWishlist = useCallback(async (silent = false) => {
-    if (!userId) {
-      setCards([]);
-      setLoading(false);
-      return;
-    }
-    if (!silent) setLoading(true);
-    setError(null);
-
-    // Paginado: ver nota en useCollection. Las wishlists son las que mas
-    // crecen (3300+ filas en la base), asi que aca el truncado era peor.
-    const { data: ucData, error: ucError } = await fetchAllPages<{ card_id: number; status: CardStatus }>(
-      () => supabase
-        .from('user_cards')
-        .select('card_id, status')
-        .eq('user_id', userId)
-        .in('status', ['want', 'otw']),
-    );
-
-    if (ucError) {
-      console.error('[useWishlist] user_cards error:', JSON.stringify(ucError));
-      setError(t('errorWishlist'));
-      setLoading(false);
-      return;
-    }
-
-    if (ucData.length === 0) {
-      setCards([]);
-      setLoading(false);
-      return;
-    }
-
-    const cardIds = ucData.map((uc: any) => uc.card_id);
-    const { data: cardsData, error: cardsError } = await fetchAllByIds<any>(
-      cardIds,
-      chunk => supabase.from('cards_full').select('*').in('id', chunk),
-    );
-
-    if (cardsError) {
-      console.error('[useWishlist] cards_full error:', JSON.stringify(cardsError));
-      setError(t('errorWishlist'));
-      setLoading(false);
-      return;
-    }
-
-    const statusMap: Record<number, CardStatus> = {};
-    ucData.forEach((uc: any) => { statusMap[uc.card_id] = uc.status; });
-
-    const combined: CardWithStatus[] = cardsData.map((card: any) => ({
-      ...card,
-      status: statusMap[card.id] || null,
-      duplicate_count: 0,
-    }));
-
-    const order: Record<string, number> = { want: 0, otw: 1 };
-    combined.sort((a, b) => (order[a.status!] ?? 3) - (order[b.status!] ?? 3));
-
-    setCards(combined);
-    setLoading(false);
-  }, [userId]);
-
-  useEffect(() => {
-    fetchWishlist();
-  }, [fetchWishlist]);
+  const cards: CardWithStatus[] = useMemo(() => {
+    const list = combine(userCards, details, r => r.status === 'want' || r.status === 'otw');
+    return list.sort((a, b) => (ORDER[a.status!] ?? 3) - (ORDER[b.status!] ?? 3));
+  }, [userCards, details]);
 
   const setCardStatus = useCallback(async (cardId: number, status: CardStatus) => {
     if (!userId) return;
+    await setMyCardStatus(userId, details?.[cardId], cardId, status);
+  }, [userId, details]);
 
-    if (status === 'have' || status === 'not_collecting') {
-      setCards(prev => prev.filter(c => c.id !== cardId));
-    } else {
-      setCards(prev => prev.map(c => c.id === cardId ? { ...c, status } : c));
-    }
-
-    const { error } = await supabase
-      .from('user_cards')
-      .upsert(
-        { user_id: userId, card_id: cardId, status },
-        { onConflict: 'user_id,card_id' }
-      );
-
-    if (error) {
-      console.error('[useWishlist] upsert error:', JSON.stringify(error));
-      fetchWishlist();
-    }
-  }, [userId, fetchWishlist]);
-
-  // Memoizadas, y esto NO es cosmetico: las pantallas hacen
-  //   useFocusEffect(useCallback(() => silentRefetch(), [silentRefetch]))
-  // y useFocusEffect depende de la identidad del callback. Si estas funciones
-  // se recrearan en cada render, el efecto se volveria a disparar despues de
-  // cada setState que el propio fetch provoca: refrescar -> render -> nueva
-  // identidad -> refrescar. Medido antes de arreglarlo: 87 consultas en 25
-  // segundos con la app QUIETA.
-  const refetchNow = useCallback(() => fetchWishlist(false), [fetchWishlist]);
-  const refetchSilently = useCallback(() => fetchWishlist(true), [fetchWishlist]);
+  const refetch = useCallback(() => {
+    refreshNow(keys.userCards(userId));
+    refreshNow(keys.myCardDetails(userId));
+  }, [userId]);
+  const silentRefetch = useCallback(() => {
+    refreshIfStale(keys.userCards(userId));
+    refreshIfStale(keys.myCardDetails(userId));
+  }, [userId]);
 
   return {
     cards,
     loading,
-    error,
+    error: error ? t('errorWishlist') : null,
     setCardStatus,
-    refetch: refetchNow,
-    silentRefetch: refetchSilently,
+    refetch,
+    silentRefetch,
   };
 }

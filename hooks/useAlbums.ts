@@ -1,92 +1,44 @@
-import { useState, useEffect, useCallback } from 'react';
-import { fetchAllPages, supabase } from '../lib/supabase';
-import { AlbumWithStats, AlbumVersion } from '../lib/types';
+import { useCallback, useMemo } from 'react';
+
 import { t } from '../lib/i18n';
+import { albumStats, keys, refreshIfStale, refreshNow, useAlbumsCatalog, useMyCards } from '../lib/queries';
+import { AlbumWithStats } from '../lib/types';
 
+/**
+ * Albumes con mi progreso. Catalogo y "mis cartas" salen de la cache
+ * compartida: ya no se descarga user_cards con un join por album.
+ */
 export function useAlbums(userId: string | null) {
-  const [albums, setAlbums] = useState<AlbumWithStats[]>([]);
-  const [loading, setLoading] = useState(true);
-  const [error, setError] = useState<string | null>(null);
+  const catalog = useAlbumsCatalog();
+  const mine = useMyCards(userId);
 
-  const fetchAlbums = useCallback(async (silent = false) => {
-    if (!silent) setLoading(true);
-    setError(null);
-
-    // Paginado: sin esto, un usuario con mas de 1000 filas en have/not_collecting
-    // veia mal el "owned" de sus ultimos albumes, porque PostgREST cortaba la
-    // lista en 1000 y los albumes que quedaban fuera contaban 0.
-    const userCardsQuery = userId
-      ? fetchAllPages<any>(() => supabase.from('user_cards').select('status, cards!inner(album_id)').eq('user_id', userId).in('status', ['have', 'not_collecting']))
-      : Promise.resolve({ data: null as any, error: null });
-
-    const [
-      { data: albumsData, error: aErr },
-      { data: versionsData },
-      { data: cardCounts },
-      { data: userCardsData },
-    ] = await Promise.all([
-      supabase.from('albums').select('*').eq('is_active', true).order('sort_order'),
-      supabase.from('album_versions').select('*').order('sort_order'),
-      // Vista agregada: ~130 filas en una sola peticion. Antes se bajaba la
-      // tabla `cards` completa (4500+ filas en 5 viajes secuenciales, ~3s)
-      // solo para contar cuantas cards tiene cada album, y encima se repetia
-      // en cada useFocusEffect.
-      supabase.from('album_card_counts').select('album_id, total'),
-      userCardsQuery,
-    ]);
-
-    if (aErr || !albumsData || !cardCounts) {
-      console.error('Error fetching albums:', aErr);
-      setError(t('errorAlbums'));
-      setLoading(false);
-      return;
-    }
-
-    // "not_collecting" cards are excluded from total_cards below — they
-    // shouldn't count toward an album's completion total.
-    const ownedByAlbum: Record<number, number> = {};
-    const notCollectingByAlbum: Record<number, number> = {};
-    if (userCardsData) {
-      userCardsData.forEach((uc: any) => {
-        const aid = uc.cards.album_id;
-        if (uc.status === 'have') ownedByAlbum[aid] = (ownedByAlbum[aid] || 0) + 1;
-        else if (uc.status === 'not_collecting') notCollectingByAlbum[aid] = (notCollectingByAlbum[aid] || 0) + 1;
-      });
-    }
-
-    const countByAlbum: Record<number, number> = {};
-    (cardCounts || []).forEach((c: any) => { countByAlbum[c.album_id] = c.total; });
-
-    const result: AlbumWithStats[] = albumsData.map(album => ({
+  const albums: AlbumWithStats[] = useMemo(() => {
+    if (!catalog.data) return [];
+    const { owned, notCollecting } = albumStats(mine.userCards, mine.details);
+    const { albums: list, versions, countByAlbum } = catalog.data;
+    return list.map(album => ({
       ...album,
-      versions: (versionsData || []).filter((v: AlbumVersion) => v.album_id === album.id),
-      total_cards: (countByAlbum[album.id] || 0) - (notCollectingByAlbum[album.id] || 0),
-      owned_cards: ownedByAlbum[album.id] || 0,
+      versions: versions.filter(v => v.album_id === album.id),
+      total_cards: (countByAlbum[album.id] || 0) - (notCollecting[album.id] || 0),
+      owned_cards: owned[album.id] || 0,
     }));
+  }, [catalog.data, mine.userCards, mine.details]);
 
-    setAlbums(result);
-    setLoading(false);
+  const refetch = useCallback(() => {
+    refreshNow(keys.albumsCatalog);
+    refreshNow(keys.userCards(userId));
   }, [userId]);
-
-  useEffect(() => {
-    fetchAlbums();
-  }, [fetchAlbums]);
-
-  // Memoizadas, y esto NO es cosmetico: las pantallas hacen
-  //   useFocusEffect(useCallback(() => silentRefetch(), [silentRefetch]))
-  // y useFocusEffect depende de la identidad del callback. Si estas funciones
-  // se recrearan en cada render, el efecto se volveria a disparar despues de
-  // cada setState que el propio fetch provoca: refrescar -> render -> nueva
-  // identidad -> refrescar. Medido antes de arreglarlo: 87 consultas en 25
-  // segundos con la app QUIETA.
-  const refetchNow = useCallback(() => fetchAlbums(false), [fetchAlbums]);
-  const refetchSilently = useCallback(() => fetchAlbums(true), [fetchAlbums]);
+  const silentRefetch = useCallback(() => {
+    refreshIfStale(keys.albumsCatalog);
+    refreshIfStale(keys.userCards(userId));
+    refreshIfStale(keys.myCardDetails(userId));
+  }, [userId]);
 
   return {
     albums,
-    loading,
-    error,
-    refetch: refetchNow,
-    silentRefetch: refetchSilently,
+    loading: catalog.isLoading || mine.loading,
+    error: catalog.error ? t('errorAlbums') : null,
+    refetch,
+    silentRefetch,
   };
 }
