@@ -1,94 +1,36 @@
-import { useState, useEffect, useCallback } from 'react';
-import { fetchAllByIds, fetchAllPages, supabase } from '../lib/supabase';
-import { CardWithStatus } from '../lib/types';
+import { useCallback, useMemo } from 'react';
+
 import { t } from '../lib/i18n';
+import { combine, keys, refreshIfStale, refreshNow, useMyCards } from '../lib/queries';
+import { CardWithStatus } from '../lib/types';
 
+/**
+ * Cartas que tengo. Sale de la cache compartida de "mis cartas"
+ * (lib/queries.ts): no hace pedidos propios.
+ */
 export function useCollection(userId: string | null) {
-  const [cards, setCards] = useState<CardWithStatus[]>([]);
-  const [loading, setLoading] = useState(true);
-  const [error, setError] = useState<string | null>(null);
+  const { userCards, details, loading, error } = useMyCards(userId);
 
-  const fetchCollection = useCallback(async (silent = false) => {
-    if (!userId) {
-      setCards([]);
-      setLoading(false);
-      return;
-    }
-    if (!silent) setLoading(true);
-    setError(null);
+  const cards: CardWithStatus[] = useMemo(
+    () => combine(userCards, details, r => r.status === 'have'),
+    [userCards, details],
+  );
 
-    // Paginado: un usuario con mas de 1000 cards en 'have' veia su coleccion
-    // cortada en exactamente 1000 (el cap por defecto de PostgREST).
-    const { data: ucData, error: ucError } = await fetchAllPages<{ card_id: number; status: 'have'; duplicate_count: number | null }>(
-      () => supabase
-        .from('user_cards')
-        .select('card_id, status, duplicate_count')
-        .eq('user_id', userId)
-        .eq('status', 'have'),
-    );
-
-    if (ucError) {
-      setError(t('errorCollection'));
-      setLoading(false);
-      return;
-    }
-
-    if (ucData.length === 0) {
-      setCards([]);
-      setLoading(false);
-      return;
-    }
-
-    const cardIds = ucData.map((uc: any) => uc.card_id);
-    // Por lotes: `in.(...)` viaja en la query string y con miles de ids la URL
-    // supera el limite del servidor.
-    const { data: cardsData, error: cardsError } = await fetchAllByIds<any>(
-      cardIds,
-      chunk => supabase.from('cards_full').select('*').in('id', chunk),
-    );
-
-    if (cardsError) {
-      setError(t('errorCollection'));
-      setLoading(false);
-      return;
-    }
-
-    const statusMap: Record<number, 'have'> = {};
-    const dupMap: Record<number, number> = {};
-    ucData.forEach((uc: any) => {
-      statusMap[uc.card_id] = 'have';
-      dupMap[uc.card_id] = uc.duplicate_count ?? 0;
-    });
-
-    const combined: CardWithStatus[] = cardsData.map((card: any) => ({
-      ...card,
-      status: statusMap[card.id] || null,
-      duplicate_count: dupMap[card.id] ?? 0,
-    }));
-
-    setCards(combined);
-    setLoading(false);
+  // Estables (useCallback): las pantallas las usan en useFocusEffect.
+  const refetch = useCallback(() => {
+    refreshNow(keys.userCards(userId));
+    refreshNow(keys.myCardDetails(userId));
   }, [userId]);
-
-  useEffect(() => {
-    fetchCollection();
-  }, [fetchCollection]);
-
-  // Memoizadas, y esto NO es cosmetico: las pantallas hacen
-  //   useFocusEffect(useCallback(() => silentRefetch(), [silentRefetch]))
-  // y useFocusEffect depende de la identidad del callback. Si estas funciones
-  // se recrearan en cada render, el efecto se volveria a disparar despues de
-  // cada setState que el propio fetch provoca: refrescar -> render -> nueva
-  // identidad -> refrescar. Medido antes de arreglarlo: 87 consultas en 25
-  // segundos con la app QUIETA.
-  const refetchNow = useCallback(() => fetchCollection(false), [fetchCollection]);
-  const refetchSilently = useCallback(() => fetchCollection(true), [fetchCollection]);
+  const silentRefetch = useCallback(() => {
+    refreshIfStale(keys.userCards(userId));
+    refreshIfStale(keys.myCardDetails(userId));
+  }, [userId]);
 
   return {
     cards,
     loading,
-    error,
-    refetch: refetchNow,
-    silentRefetch: refetchSilently,
+    error: error ? t('errorCollection') : null,
+    refetch,
+    silentRefetch,
   };
 }

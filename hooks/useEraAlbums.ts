@@ -1,143 +1,79 @@
-import { useCallback, useEffect, useState } from 'react';
 import { Image } from 'expo-image';
-import { fetchAllPages, supabase, getPhotocardUrl } from '../lib/supabase';
-import { AlbumEraWithAlbums, AlbumVersion, AlbumWithStats } from '../lib/types';
+import { useCallback, useEffect, useMemo } from 'react';
+
 import { t } from '../lib/i18n';
+import {
+  albumStats, keys, refreshIfStale, refreshNow,
+  useAlbumsCatalog, useCollectionTypesCatalog, useErasCatalog, useMyCards,
+} from '../lib/queries';
+import { getPhotocardUrl } from '../lib/supabase';
+import { AlbumEraWithAlbums, AlbumWithStats } from '../lib/types';
 
+/**
+ * Eras y albumes de un tipo de coleccion, con mi progreso. Todo sale de la
+ * cache compartida (catalogo + mis cartas): entrar a otro tipo no pide nada
+ * nuevo si el catalogo ya esta cargado.
+ */
 export function useEraAlbums(collectionTypeId: number | null, userId: string | null) {
-  const [eras, setEras] = useState<AlbumEraWithAlbums[]>([]);
-  const [typeName, setTypeName] = useState('');
-  const [typeNameEn, setTypeNameEn] = useState<string | null>(null);
-  const [typeColor, setTypeColor] = useState('');
-  const [typeIcon, setTypeIcon] = useState('');
-  const [loading, setLoading] = useState(true);
-  const [error, setError] = useState<string | null>(null);
+  const types = useCollectionTypesCatalog();
+  const eras = useErasCatalog();
+  const catalog = useAlbumsCatalog();
+  const mine = useMyCards(userId);
 
-  const fetchEraAlbums = useCallback(async (silent = false) => {
-    if (!collectionTypeId) return;
-    if (!silent) setLoading(true);
-    setError(null);
+  const type = useMemo(
+    () => (types.data ?? []).find((ct: any) => ct.id === collectionTypeId) ?? null,
+    [types.data, collectionTypeId],
+  );
 
-    // Step 1: eras + type info en paralelo
-    const [
-      { data: typeData },
-      { data: erasData, error: erasError },
-    ] = await Promise.all([
-      supabase.from('collection_types').select('name, name_en, color, icon').eq('id', collectionTypeId).single(),
-      supabase.from('album_eras').select('*').eq('collection_type_id', collectionTypeId).order('sort_order'),
-    ]);
+  const result: AlbumEraWithAlbums[] = useMemo(() => {
+    if (!eras.data || !catalog.data || collectionTypeId == null) return [];
+    const { owned, notCollecting } = albumStats(mine.userCards, mine.details);
+    const { albums, versions, countByAlbum } = catalog.data;
+    return eras.data
+      .filter((e: any) => e.collection_type_id === collectionTypeId)
+      .map((era: any) => ({
+        ...era,
+        albums: albums
+          .filter((a: any) => a.era_id === era.id)
+          .map((album: any): AlbumWithStats => ({
+            ...album,
+            versions: versions.filter(v => v.album_id === album.id),
+            total_cards: (countByAlbum[album.id] || 0) - (notCollecting[album.id] || 0),
+            owned_cards: owned[album.id] || 0,
+          })),
+      }));
+  }, [eras.data, catalog.data, mine.userCards, mine.details, collectionTypeId]);
 
-    if (erasError || !erasData) {
-      setError(t('errorAlbums'));
-      setLoading(false);
-      return;
-    }
-
-    if (typeData) {
-      setTypeName(typeData.name);
-      setTypeNameEn(typeData.name_en || null);
-      setTypeColor(typeData.color);
-      setTypeIcon(typeData.icon || '');
-    }
-
-    const eraIds = erasData.map((e: any) => e.id);
-
-    if (eraIds.length === 0) {
-      setEras([]);
-      setLoading(false);
-      return;
-    }
-
-    // Step 2: álbumes filtrados por era_id directamente en Supabase
-    // Paginado: mismo truncado que en useAlbums.
-    const userCardsQuery = userId
-      ? fetchAllPages<any>(() => supabase
-          .from('user_cards')
-          .select('status, cards!inner(album_id)')
-          .eq('user_id', userId)
-          .in('status', ['have', 'not_collecting']))
-      : Promise.resolve({ data: null as any, error: null });
-
-    const [
-      { data: albumsData, error: albumsError },
-      { data: versionsData },
-      { data: cardCounts },
-      { data: userCardsData },
-    ] = await Promise.all([
-      supabase.from('albums').select('*').in('era_id', eraIds).eq('is_active', true).order('sort_order'),
-      supabase.from('album_versions').select('*').order('sort_order'),
-      // Ver nota en useAlbums: vista agregada en vez de bajar `cards` entera.
-      supabase.from('album_card_counts').select('album_id, total'),
-      userCardsQuery,
-    ]);
-
-    // Owned / not-collecting count per album
-    const ownedByAlbum: Record<number, number> = {};
-    const notCollectingByAlbum: Record<number, number> = {};
-    if (userCardsData) {
-      userCardsData.forEach((uc: any) => {
-        const aid = uc.cards?.album_id;
-        if (!aid) return;
-        if (uc.status === 'have') ownedByAlbum[aid] = (ownedByAlbum[aid] || 0) + 1;
-        else if (uc.status === 'not_collecting') notCollectingByAlbum[aid] = (notCollectingByAlbum[aid] || 0) + 1;
-      });
-    }
-
-    // Total cards per album — "not_collecting" cards don't count toward it.
-    const totalByAlbum: Record<number, number> = {};
-    (cardCounts || []).forEach((c: any) => {
-      totalByAlbum[c.album_id] = c.total;
-    });
-    Object.keys(notCollectingByAlbum).forEach((aidStr) => {
-      const aid = Number(aidStr);
-      totalByAlbum[aid] = (totalByAlbum[aid] || 0) - notCollectingByAlbum[aid];
-    });
-
-    const albums = albumsData || [];
-
-    // Build eras with their albums
-    const result: AlbumEraWithAlbums[] = erasData.map((era: any) => ({
-      ...era,
-      albums: albums
-        .filter((a: any) => a.era_id === era.id)
-        .map((album: any): AlbumWithStats => ({
-          ...album,
-          versions: (versionsData || []).filter((v: AlbumVersion) => v.album_id === album.id),
-          total_cards: totalByAlbum[album.id] || 0,
-          owned_cards: ownedByAlbum[album.id] || 0,
-        })),
-    }));
-
-    setEras(result);
-    setLoading(false);
-
-    const coverUrls = albums
+  // Portadas: se precargan una vez por tipo.
+  const coverKey = result.map(e => e.id).join(',');
+  useEffect(() => {
+    const urls = result.flatMap(e => e.albums)
       .filter((a: any) => a.cover_image_url)
       .map((a: any) => getPhotocardUrl(a.cover_image_url));
-    if (coverUrls.length > 0) Image.prefetch(coverUrls);
-  }, [collectionTypeId, userId]);
+    if (urls.length > 0) Image.prefetch(urls);
+  }, [coverKey]);
 
-  useEffect(() => { fetchEraAlbums(); }, [fetchEraAlbums]);
-
-  // Memoizadas, y esto NO es cosmetico: las pantallas hacen
-  //   useFocusEffect(useCallback(() => silentRefetch(), [silentRefetch]))
-  // y useFocusEffect depende de la identidad del callback. Si estas funciones
-  // se recrearan en cada render, el efecto se volveria a disparar despues de
-  // cada setState que el propio fetch provoca: refrescar -> render -> nueva
-  // identidad -> refrescar. Medido antes de arreglarlo: 87 consultas en 25
-  // segundos con la app QUIETA.
-  const refetchNow = useCallback(() => fetchEraAlbums(false), [fetchEraAlbums]);
-  const refetchSilently = useCallback(() => fetchEraAlbums(true), [fetchEraAlbums]);
+  const refetch = useCallback(() => {
+    refreshNow(keys.erasCatalog);
+    refreshNow(keys.albumsCatalog);
+    refreshNow(keys.userCards(userId));
+  }, [userId]);
+  const silentRefetch = useCallback(() => {
+    refreshIfStale(keys.erasCatalog);
+    refreshIfStale(keys.albumsCatalog);
+    refreshIfStale(keys.userCards(userId));
+    refreshIfStale(keys.myCardDetails(userId));
+  }, [userId]);
 
   return {
-    eras,
-    typeName,
-    typeNameEn,
-    typeColor,
-    typeIcon,
-    loading,
-    error,
-    refetch: refetchNow,
-    silentRefetch: refetchSilently,
+    eras: result,
+    typeName: type?.name ?? '',
+    typeNameEn: type?.name_en ?? null,
+    typeColor: type?.color ?? '',
+    typeIcon: type?.icon ?? '',
+    loading: eras.isLoading || catalog.isLoading || types.isLoading,
+    error: eras.error || catalog.error ? t('errorAlbums') : null,
+    refetch,
+    silentRefetch,
   };
 }

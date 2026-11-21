@@ -15,6 +15,8 @@ import { BiasProvider, useBias } from '../lib/BiasContext';
 import { DialogProvider } from '../lib/DialogContext';
 import { I18nProvider } from '../lib/I18nContext';
 import { PremiumProvider } from '../lib/PremiumContext';
+import { QueryClientProvider } from '@tanstack/react-query';
+import { queryClient } from '../lib/queries';
 import { supabase } from '../lib/supabase';
 import { BIAS_ENABLED, COLORS } from '../lib/constants';
 import UsernameScreen from '../components/UsernameScreen';
@@ -249,6 +251,7 @@ export default Sentry.wrap(function RootLayout() {
   const userId = session?.user?.id ?? null;
 
   return (
+    <QueryClientProvider client={queryClient}>
     <I18nProvider>
       <PremiumProvider userId={userId}>
         <BiasProvider userId={userId}>
@@ -268,6 +271,7 @@ export default Sentry.wrap(function RootLayout() {
         </BiasProvider>
       </PremiumProvider>
     </I18nProvider>
+    </QueryClientProvider>
   );
 });
 

@@ -21,7 +21,7 @@ import { supabase } from './supabase';
  * contributed_by no cambia: el aporte y su punto siguen siendo de la usuaria.
  */
 
-const MAX_WIDTH = 1000;
+const MAX_WIDTH = 800;
 
 /**
  * Fuente que el manipulador puede abrir. En web, una URL de otro origen
@@ -53,20 +53,20 @@ export async function applyAdjust(params: {
 }): Promise<{ ok: true } | { ok: false; detail: string }> {
   const { cardImageId, adminId, oldPath, sourceUri, crop } = params;
   try {
-    const isPng = oldPath.toLowerCase().endsWith('.png');
     const ctx = ImageManipulator.manipulate(sourceUri).crop(crop);
     if (crop.width > MAX_WIDTH) ctx.resize({ width: MAX_WIDTH });
     const saved = await (await ctx.renderAsync()).saveAsync({
-      compress: 0.85,
-      format: isPng ? SaveFormat.PNG : SaveFormat.JPEG,
+      // Mismo formato que un aporte nuevo (lib/contributions.ts).
+      compress: 0.75,
+      format: SaveFormat.JPEG,
     });
 
     const body = await (await fetch(saved.uri)).arrayBuffer();
-    const newPath = `${adminId}/adjusted/${Crypto.randomUUID()}.${isPng ? 'png' : 'jpg'}`;
+    const newPath = `${adminId}/adjusted/${Crypto.randomUUID()}.jpg`;
 
     const { error: upErr } = await supabase.storage
       .from(COMMUNITY_REVIEW_BUCKET)
-      .upload(newPath, body, { contentType: isPng ? 'image/png' : 'image/jpeg', upsert: false });
+      .upload(newPath, body, { contentType: 'image/jpeg', upsert: false, cacheControl: '31536000' });
     if (upErr) return { ok: false, detail: upErr.message };
 
     // Solo si sigue pendiente: si otra sesion ya la resolvio, no se toca.

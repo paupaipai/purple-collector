@@ -58,6 +58,34 @@ export function getCardImageUrl(card: {
 }
 
 /**
+ * Miniatura para las GRILLAS (album, wishlist, coleccion).
+ *
+ * Las aportadas por la comunidad pesan ~230 kB de promedio (hasta 600 kB) y en
+ * la grilla se ven del tamano de una estampilla: se piden redimensionadas por
+ * Supabase (render/image) a 360 px de ancho, ~50 kB. Las legacy ya pesan
+ * ~13 kB y se dejan tal cual: transformarlas no ahorra nada y cada imagen
+ * transformada cuenta en la cuota de Supabase.
+ *
+ * El detalle de la carta sigue usando getCardImageUrl (imagen completa).
+ */
+const THUMB_WIDTH = 360;
+
+export function getCardThumbUrl(card: {
+  primary_image_path?: string | null;
+  primary_image_bucket?: string | null;
+  image_path?: string | null;
+}): string | null {
+  const path = card.primary_image_path ?? card.image_path ?? null;
+  if (!path) return null;
+  const bucket = card.primary_image_bucket ?? 'photocards';
+  if (bucket === 'photocards') return getCardImageUrl(card);
+  const { data } = supabase.storage.from(bucket).getPublicUrl(path, {
+    transform: { width: THUMB_WIDTH, quality: 70, resize: 'contain' },
+  });
+  return data.publicUrl;
+}
+
+/**
  * URL publica del reverso, o null si la card no tiene uno aprobado. A diferencia
  * del frente no hay fallback legacy: `cards.image_path` es solo el frente.
  */

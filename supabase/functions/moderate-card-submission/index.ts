@@ -339,7 +339,7 @@ const protectedHandler = withSupabase({ auth: ["user"] }, async (req, ctx) => {
 
   const { error: uploadError } = await ctx.supabaseAdmin.storage
     .from(PUBLIC_BUCKET)
-    .upload(publicPath, blob, { contentType: blob.type || "image/jpeg", upsert: false });
+    .upload(publicPath, blob, { contentType: blob.type || "image/jpeg", upsert: false, cacheControl: "31536000" });
 
   if (uploadError) {
     console.error("[moderate-card-submission] upload failed:", uploadError);
