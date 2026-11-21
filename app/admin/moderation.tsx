@@ -27,6 +27,8 @@ import { useI18n } from '../../lib/I18nContext';
 import { SubmissionRejectReason } from '../../lib/submissions';
 import { ReportReason } from '../../lib/types';
 import { goBack, BACK_HIT_SLOP } from '../../lib/navigation';
+import ImageCropper, { CropRect } from '../../components/ImageCropper';
+import { applyAdjust, loadForAdjust } from '../../lib/moderationAdjust';
 
 /** Motivo del reporte -> clave de i18n. */
 const REASON_KEY: Record<ReportReason, string> = {
@@ -81,6 +83,45 @@ export default function ModerationScreen() {
     : tab === 'cards'
       ? { loading: submissions.loading, error: submissions.error, refetch: submissions.refetch }
       : { loading: reports.loading, error: reports.error, refetch: reports.refetch };
+
+  // Ajustar encuadre: recortar el aporte antes de aprobarlo.
+  const [adjusting, setAdjusting] = useState<
+    { item: PendingSubmission; uri: string; width: number; height: number } | null
+  >(null);
+  const [adjustBusy, setAdjustBusy] = useState<number | null>(null);
+
+  const startAdjust = async (item: PendingSubmission) => {
+    if (!item.signedUrl) return;
+    setAdjustBusy(item.id);
+    const loaded = await loadForAdjust(item.signedUrl);
+    setAdjustBusy(null);
+    if (!loaded.ok) {
+      alert(t('moderation'), `${t('moderationError')}\n\n${loaded.detail}`);
+      return;
+    }
+    setAdjusting({ item, uri: loaded.uri, width: loaded.width, height: loaded.height });
+  };
+
+  const confirmAdjust = async (crop: CropRect) => {
+    const current = adjusting;
+    setAdjusting(null);
+    if (!current || !userId) return;
+    setAdjustBusy(current.item.id);
+    const res = await applyAdjust({
+      cardImageId: current.item.id,
+      adminId: userId,
+      oldPath: current.item.storagePath,
+      sourceUri: current.uri,
+      crop,
+    });
+    setAdjustBusy(null);
+    if (!res.ok) {
+      alert(t('moderation'), `${t('moderationError')}\n\n${res.detail}`);
+      return;
+    }
+    // Recortada: se aprueba en el mismo gesto, que es para lo que se ajusto.
+    await run(current.item, 'approve');
+  };
 
   const run = async (
     submission: PendingSubmission,
@@ -476,19 +517,10 @@ export default function ModerationScreen() {
                   </Text>
                   <Text style={styles.cardCode} numberOfLines={1}>{item.cardCode}</Text>
 
-                  {/* La aportada al lado de la que se ve hoy: aprobar sin poder
-                      comparar es como firmar a ciegas. */}
+                  {/* La que se ve hoy a la izquierda y la aportada a la derecha
+                      (antes -> despues): aprobar sin poder comparar es como
+                      firmar a ciegas. */}
                   <View style={styles.compare}>
-                    <View style={styles.side}>
-                      <Text style={styles.sideLabel}>{t('moderationSubmitted')}</Text>
-                      {item.signedUrl ? (
-                        <Image source={{ uri: item.signedUrl }} style={styles.thumb} contentFit="contain" />
-                      ) : (
-                        <View style={[styles.thumb, styles.thumbEmpty]}>
-                          <Ionicons name="alert-circle-outline" size={18} color={COLORS.textMuted} />
-                        </View>
-                      )}
-                    </View>
                     <View style={styles.side}>
                       <Text style={styles.sideLabel}>
                         {t('moderationCurrent')}
@@ -499,6 +531,16 @@ export default function ModerationScreen() {
                       ) : (
                         <View style={[styles.thumb, styles.thumbEmpty]}>
                           <Text style={styles.thumbEmptyText}>—</Text>
+                        </View>
+                      )}
+                    </View>
+                    <View style={styles.side}>
+                      <Text style={styles.sideLabel}>{t('moderationSubmitted')}</Text>
+                      {item.signedUrl ? (
+                        <Image source={{ uri: item.signedUrl }} style={styles.thumb} contentFit="contain" />
+                      ) : (
+                        <View style={[styles.thumb, styles.thumbEmpty]}>
+                          <Ionicons name="alert-circle-outline" size={18} color={COLORS.textMuted} />
                         </View>
                       )}
                     </View>
@@ -517,6 +559,21 @@ export default function ModerationScreen() {
                         <>
                           <Ionicons name="close" size={16} color={COLORS.pink} />
                           <Text style={[styles.btnText, { color: COLORS.pink }]}>{t('reject')}</Text>
+                        </>
+                      )}
+                    </TouchableOpacity>
+                    <TouchableOpacity
+                      onPress={() => startAdjust(item)}
+                      disabled={busy || adjustBusy != null || !item.signedUrl}
+                      activeOpacity={0.7}
+                      style={[styles.btn, styles.adjustBtn, (busy || adjustBusy != null) && styles.btnDisabled]}
+                    >
+                      {adjustBusy === item.id ? (
+                        <ActivityIndicator size="small" color={COLORS.purple3} />
+                      ) : (
+                        <>
+                          <Ionicons name="crop" size={15} color={COLORS.purple3} />
+                          <Text style={[styles.btnText, { color: COLORS.purple3 }]}>{t('moderationAdjust')}</Text>
                         </>
                       )}
                     </TouchableOpacity>
@@ -542,6 +599,15 @@ export default function ModerationScreen() {
           </ScrollView>
         )}
       </SafeAreaView>
+      <ImageCropper
+        visible={!!adjusting}
+        title={t('moderationAdjustTitle')}
+        uri={adjusting?.uri ?? null}
+        imageWidth={adjusting?.width ?? 0}
+        imageHeight={adjusting?.height ?? 0}
+        onCancel={() => setAdjusting(null)}
+        onConfirm={confirmAdjust}
+      />
     </View>
   );
 }
@@ -602,6 +668,7 @@ const styles = StyleSheet.create({
   btnDisabled: { opacity: 0.5 },
   approveBtn: { borderColor: COLORS.green + '55', backgroundColor: COLORS.green + '14' },
   rejectBtn: { borderColor: COLORS.pink + '55', backgroundColor: COLORS.pink + '14' },
+  adjustBtn: { borderColor: COLORS.borderActive, backgroundColor: 'rgba(168,85,247,0.12)' },
 
   btnText: { fontSize: 12, fontWeight: '800' },
 

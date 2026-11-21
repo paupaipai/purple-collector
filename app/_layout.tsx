@@ -228,6 +228,11 @@ function AppShell({ session, loading, authLoading, signInWithGoogle, signInWithA
           <Stack.Screen name="type/[id]" />
           <Stack.Screen name="album/[id]" />
           <Stack.Screen name="auth/callback" />
+          <Stack.Screen name="news/index" />
+          <Stack.Screen name="news/[id]" />
+          <Stack.Screen name="challenge/index" />
+          <Stack.Screen name="challenge/ranking" />
+          <Stack.Screen name="challenge/rules" />
           <Stack.Screen
             name="paywall"
             options={{ presentation: 'modal', animation: 'slide_from_bottom' }}
