@@ -44,3 +44,8 @@ yarn-error.*
 
 # Supabase local CLI state
 supabase/.temp/
+
+# Capturas sueltas en la raiz (no son parte de la app)
+/*.png
+/*.jpg
+/*.jpeg
