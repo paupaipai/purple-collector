@@ -73,7 +73,8 @@
           "icon": "./assets/images/notification-icon.png",
           "color": "#0B0024"
         }
-      ]
+      ],
+      "./plugins/withOptionalScreenFeatures"
     ],
     "experiments": {
       "typedRoutes": true
