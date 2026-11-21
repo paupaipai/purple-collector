@@ -37,7 +37,6 @@ import { useI18n } from '../../lib/I18nContext';
 import { getPhotocardUrl } from '../../lib/supabase';
 import { CardStatus, CardWithStatus, ReportReason } from '../../lib/types';
 import { goBack, BACK_HIT_SLOP } from '../../lib/navigation';
-import { matchesMembers, without } from '../../lib/filters';
 
 /**
  * Corre `fn` cuando la ficha de la card ya termino de cerrarse.
@@ -78,10 +77,9 @@ export default function AlbumDetailScreen() {
   const { t } = useI18n();
   const { alert } = useDialog();
 
-  // Varias opciones por seccion; vacio = sin filtro.
-  const [memberFilter, setMemberFilter] = useState<string[]>([]);
-  const [categoryFilter, setCategoryFilter] = useState<string[]>([]);
-  const [statusFilter, setStatusFilter] = useState<string[]>([]);
+  const [memberFilter, setMemberFilter] = useState('All');
+  const [categoryFilter, setCategoryFilter] = useState('All');
+  const [statusFilter, setStatusFilter] = useState('All');
   const [dupFilter, setDupFilter] = useState('All');
   const [searchQuery, setSearchQuery] = useState('');
   const [selectedCard, setSelectedCard] = useState<CardWithStatus | null>(null);
@@ -311,12 +309,12 @@ export default function AlbumDetailScreen() {
 
   const filtered = useMemo(() => {
     let result = cards;
-    // Sin filtro de estado se esconden las "no colecciono"; eligiendo estados,
-    // se muestran exactamente esos ('none' = sin estado).
-    if (statusFilter.length === 0) result = result.filter(c => c.status !== 'not_collecting');
-    else result = result.filter(c => statusFilter.includes(c.status ?? 'none'));
-    if (memberFilter.length > 0) result = result.filter(c => matchesMembers(c, memberFilter));
-    if (categoryFilter.length > 0) result = result.filter(c => categoryFilter.includes(c.category_name));
+    if (statusFilter === 'All') result = result.filter(c => c.status !== 'not_collecting');
+    if (memberFilter === 'Group') result = result.filter(c => c.is_group);
+    else if (memberFilter !== 'All') result = result.filter(c => c.member === memberFilter);
+    if (categoryFilter !== 'All') result = result.filter(c => c.category_name === categoryFilter);
+    if (statusFilter === 'none') result = result.filter(c => c.status === null);
+    else if (statusFilter !== 'All') result = result.filter(c => c.status === statusFilter);
     if (dupFilter === 'with') result = result.filter(c => c.status === 'have' && c.duplicate_count > 0);
     else if (dupFilter === 'without') result = result.filter(c => c.status === 'have' && c.duplicate_count === 0);
     const query = searchQuery.trim().toLowerCase();
@@ -341,12 +339,11 @@ export default function AlbumDetailScreen() {
     );
   }, [filtered]);
 
-  const activeFilterCount = categoryFilter.length + statusFilter.length + memberFilter.length + (dupFilter !== 'All' ? 1 : 0);
+  const activeFilterCount = (categoryFilter !== 'All' ? 1 : 0) + (statusFilter !== 'All' ? 1 : 0) + (memberFilter !== 'All' ? 1 : 0) + (dupFilter !== 'All' ? 1 : 0);
 
   const filterSections = useMemo<FilterSection[]>(() => [
     {
       key: 'category',
-      multi: true,
       label: 'Categoría',
       options: [
         { value: 'All', label: t('filterAll') },
@@ -357,7 +354,6 @@ export default function AlbumDetailScreen() {
     },
     {
       key: 'status',
-      multi: true,
       label: 'Estado',
       options: [
         { value: 'All', label: t('filterAll') },
@@ -376,7 +372,6 @@ export default function AlbumDetailScreen() {
     },
     {
       key: 'member',
-      multi: true,
       label: 'Miembro',
       options: [
         { value: 'All', label: t('filterAll') },
@@ -548,26 +543,26 @@ export default function AlbumDetailScreen() {
               showsHorizontalScrollIndicator={false}
               contentContainerStyle={styles.chipsRow}
             >
-              {categoryFilter.map(value => (
-                <TouchableOpacity key={`cat-${value}`} onPress={() => setCategoryFilter(prev => without(prev, value))} activeOpacity={0.7} style={[styles.activeChip, { borderColor: albumColor + '55', backgroundColor: albumColor + '18' }]}>
-                  <Text style={[styles.activeChipText, { color: albumColor }]}>{value}</Text>
+              {categoryFilter !== 'All' && (
+                <TouchableOpacity onPress={() => setCategoryFilter('All')} activeOpacity={0.7} style={[styles.activeChip, { borderColor: albumColor + '55', backgroundColor: albumColor + '18' }]}>
+                  <Text style={[styles.activeChipText, { color: albumColor }]}>{categoryFilter}</Text>
                   <Ionicons name="close" size={11} color={albumColor} />
                 </TouchableOpacity>
-              ))}
-              {statusFilter.map(value => (
-                <TouchableOpacity key={`status-${value}`} onPress={() => setStatusFilter(prev => without(prev, value))} activeOpacity={0.7} style={[styles.activeChip, { borderColor: albumColor + '55', backgroundColor: albumColor + '18' }]}>
+              )}
+              {statusFilter !== 'All' && (
+                <TouchableOpacity onPress={() => setStatusFilter('All')} activeOpacity={0.7} style={[styles.activeChip, { borderColor: albumColor + '55', backgroundColor: albumColor + '18' }]}>
                   <Text style={[styles.activeChipText, { color: albumColor }]}>
-                    {value === 'none' ? t('statusNone') : t(STATUS_LABEL_KEY[value as keyof typeof STATUS_LABEL_KEY] as any)}
+                    {statusFilter === 'none' ? t('statusNone') : t(STATUS_LABEL_KEY[statusFilter as keyof typeof STATUS_LABEL_KEY] as any)}
                   </Text>
                   <Ionicons name="close" size={11} color={albumColor} />
                 </TouchableOpacity>
-              ))}
-              {memberFilter.map(value => (
-                <TouchableOpacity key={`member-${value}`} onPress={() => setMemberFilter(prev => without(prev, value))} activeOpacity={0.7} style={[styles.activeChip, { borderColor: albumColor + '55', backgroundColor: albumColor + '18' }]}>
-                  <Text style={[styles.activeChipText, { color: albumColor }]}>{value === 'Group' ? t('filterGroup') : value}</Text>
+              )}
+              {memberFilter !== 'All' && (
+                <TouchableOpacity onPress={() => setMemberFilter('All')} activeOpacity={0.7} style={[styles.activeChip, { borderColor: albumColor + '55', backgroundColor: albumColor + '18' }]}>
+                  <Text style={[styles.activeChipText, { color: albumColor }]}>{memberFilter}</Text>
                   <Ionicons name="close" size={11} color={albumColor} />
                 </TouchableOpacity>
-              ))}
+              )}
               {dupFilter !== 'All' && (
                 <TouchableOpacity onPress={() => setDupFilter('All')} activeOpacity={0.7} style={[styles.activeChip, { borderColor: albumColor + '55', backgroundColor: albumColor + '18' }]}>
                   <Text style={[styles.activeChipText, { color: albumColor }]}>
@@ -651,7 +646,7 @@ export default function AlbumDetailScreen() {
         onClose={() => setShowFilters(false)}
         sections={filterSections}
         accentColor={albumColor}
-        onReset={() => { setCategoryFilter([]); setStatusFilter([]); setMemberFilter([]); setDupFilter('All'); }}
+        onReset={() => { setCategoryFilter('All'); setStatusFilter('All'); setMemberFilter('All'); setDupFilter('All'); }}
         resultCount={filtered.length}
       />
 
