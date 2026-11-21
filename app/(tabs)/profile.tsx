@@ -282,12 +282,17 @@ export default function ProfileScreen() {
 
   useEffect(() => { fetchMemberTotals(); }, [fetchMemberTotals]);
 
+  // Ojo con las dependencias: `moderation` es un objeto nuevo en cada render.
+  // Con el objeto aqui, cada respuesta (que provoca un render) volvia a
+  // disparar TODAS estas consultas: un bucle que saturaba Supabase mientras el
+  // perfil estaba abierto. Solo funciones estables (useCallback).
+  const refetchModeration = moderation.refetch;
   useFocusEffect(useCallback(() => {
-    moderation.refetch();
+    refetchModeration();
     silentRefetchCollection();
     silentRefetchAlbums();
     fetchMemberTotals();
-  }, [silentRefetchCollection, silentRefetchAlbums, fetchMemberTotals, moderation]));
+  }, [silentRefetchCollection, silentRefetchAlbums, fetchMemberTotals, refetchModeration]));
 
   const rarityCounts = useMemo(() => {
     const c: Record<string, number> = { Common: 0, Rare: 0, 'Ultra Rare': 0, Limited: 0 };
