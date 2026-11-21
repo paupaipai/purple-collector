@@ -32,6 +32,7 @@ import {
   CardSide, ContributionFailure, fetchMyPendingContributions, pickContributionImage, submitContribution,
 } from '../../lib/contributions';
 import { fetchMyReportedImages, submitImageReport } from '../../lib/reports';
+import { isChallengeOpen, useCurrentChallenge } from '../../lib/challenge';
 import { useDialog } from '../../lib/DialogContext';
 import { useI18n } from '../../lib/I18nContext';
 import { getPhotocardUrl } from '../../lib/supabase';
@@ -64,6 +65,7 @@ function afterSheetCloses(fn: () => void) {
 export default function AlbumDetailScreen() {
   const { id } = useLocalSearchParams<{ id: string }>();
   const router = useRouter();
+  const { challenge } = useCurrentChallenge();
   const { userId } = useAuth();
   const {
     cards, album, loading, error,
@@ -216,6 +218,19 @@ export default function AlbumDetailScreen() {
       setUploading(false);
       if (ok) setPendingContrib(prev => new Set(prev).add(cardId));
       if (error) alert(t('contributeTitle'), error);
+      else if (ok && isChallengeOpen(challenge)) {
+        // Pantalla E: mientras hay concurso, el aviso explica que el punto
+        // llega con la aprobacion (no al enviar) y que hacen falta ambos lados.
+        const both = !!front && !!back;
+        alert(
+          t('challengeThanksTitle'),
+          t('challengeThanksBody') + (both ? '' : `\n\n${t('challengeThanksNeedBoth')}`),
+          [
+            { text: t('challengeUploadAnother'), style: 'cancel' },
+            { text: t('challengeSeeRanking'), onPress: () => router.push('/challenge/ranking') },
+          ],
+        );
+      }
       else if (ok) alert(t('contributeSent'), t('contributeSentDesc'));
     }
   };

@@ -17,11 +17,15 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 import ErrorView from '../../components/ErrorView';
 import GalaxyBackground from '../../components/GalaxyBackground';
 import GlassCard from '../../components/GlassCard';
+import ChallengeCard from '../../components/ChallengeCard';
+import NewsBanner from '../../components/NewsBanner';
 import { useAuth } from '../../hooks/useAuth';
 import { useCollectionTypes } from '../../hooks/useCollectionTypes';
 import { useBias } from '../../lib/BiasContext';
 import { BIAS_ENABLED, COLORS, getMemberByKey } from '../../lib/constants';
 import { useI18n } from '../../lib/I18nContext';
+import { isChallengeHighlighted, useCurrentChallenge } from '../../lib/challenge';
+import { useNewsState } from '../../lib/news';
 import { fetchUsername } from '../../lib/username';
 import { CollectionTypeWithStats, BiasKey } from '../../lib/types';
 
@@ -113,6 +117,11 @@ export default function HomeScreen() {
   const { types, loading, error, refetch, silentRefetch } = useCollectionTypes();
   const { t } = useI18n();
   const { biases } = useBias();
+  const news = useNewsState(userId);
+  const { challenge } = useCurrentChallenge();
+  // Una sola tarjeta destacada: mientras el concurso es relevante, su tarjeta
+  // ocupa el lugar del banner de novedades (la novedad sigue en la campanita).
+  const showChallenge = isChallengeHighlighted(challenge);
 
   const titleScale = useRef(new Animated.Value(0.85)).current;
   const titleOpacity = useRef(new Animated.Value(0)).current;
@@ -146,6 +155,20 @@ export default function HomeScreen() {
       <GalaxyBackground />
       <ScrollView contentContainerStyle={styles.scroll} showsVerticalScrollIndicator={false}>
 
+        {/* Campanita: siempre esta, para volver a ver las novedades aunque se
+            haya cerrado el banner. El punto marca que hay una sin abrir. */}
+        <TouchableOpacity
+          onPress={() => router.push('/news')}
+          hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
+          style={styles.bell}
+          activeOpacity={0.7}
+          accessibilityRole="button"
+          accessibilityLabel={t('newsTitle')}
+        >
+          <Ionicons name="notifications-outline" size={20} color={COLORS.purple3} />
+          {news.hasUnread && <View style={styles.bellDot} />}
+        </TouchableOpacity>
+
         <Animated.View style={[styles.header, { opacity: titleOpacity, transform: [{ scale: titleScale }] }]}>
           <Image
             source={require('../../assets/images/logo.png')}
@@ -163,6 +186,16 @@ export default function HomeScreen() {
             </View>
           )}
         </Animated.View>
+
+        {showChallenge && challenge ? (
+          <ChallengeCard challenge={challenge} onOpen={() => router.push('/challenge')} />
+        ) : news.showBanner && news.latest && (
+          <NewsBanner
+            item={news.latest}
+            onOpen={() => router.push(`/news/${news.latest!.id}`)}
+            onClose={news.dismiss}
+          />
+        )}
 
         {loading ? (
           <View style={styles.loadingWrap}>
@@ -198,6 +231,19 @@ const styles = StyleSheet.create({
   scroll: { padding: 16, paddingBottom: 120 },
 
   header: { alignItems: 'center', marginBottom: 28, marginTop: 12 },
+  bell: {
+    position: 'absolute', top: 16, right: 16, zIndex: 10,
+    width: 38, height: 38, borderRadius: 12,
+    alignItems: 'center', justifyContent: 'center',
+    backgroundColor: 'rgba(255,255,255,0.06)',
+    borderWidth: 1, borderColor: COLORS.border,
+  },
+  bellDot: {
+    position: 'absolute', top: 8, right: 9,
+    width: 8, height: 8, borderRadius: 4,
+    backgroundColor: COLORS.pink,
+    borderWidth: 1.5, borderColor: COLORS.bg,
+  },
   logo: { width: 213, height: 92 },
   welcomeRow: { flexDirection: 'row', alignItems: 'center', marginTop: 18 },
   welcome: { fontSize: 14, color: COLORS.textSecondary },

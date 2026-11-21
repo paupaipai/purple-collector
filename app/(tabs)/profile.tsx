@@ -306,6 +306,17 @@ export default function ProfileScreen() {
               <Ionicons name="chevron-forward" size={14} color={COLORS.textMuted} />
             </TouchableOpacity>
           )}
+          {isAdmin && (
+            <TouchableOpacity
+              onPress={() => router.push('/admin/challenge')}
+              activeOpacity={0.85}
+              style={styles.modBanner}
+            >
+              <Ionicons name="trophy" size={16} color={COLORS.gold} />
+              <Text style={styles.modBannerText}>{t('challengeAdmin')}</Text>
+              <Ionicons name="chevron-forward" size={14} color={COLORS.textMuted} />
+            </TouchableOpacity>
+          )}
 
           {/* Premium badge or CTA */}
           {!PREMIUM_ENABLED ? null : isPremium ? (
