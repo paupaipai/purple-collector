@@ -476,19 +476,10 @@ export default function ModerationScreen() {
                   </Text>
                   <Text style={styles.cardCode} numberOfLines={1}>{item.cardCode}</Text>
 
-                  {/* La aportada al lado de la que se ve hoy: aprobar sin poder
-                      comparar es como firmar a ciegas. */}
+                  {/* La que se ve hoy a la izquierda y la aportada a la derecha
+                      (antes -> despues): aprobar sin poder comparar es como
+                      firmar a ciegas. */}
                   <View style={styles.compare}>
-                    <View style={styles.side}>
-                      <Text style={styles.sideLabel}>{t('moderationSubmitted')}</Text>
-                      {item.signedUrl ? (
-                        <Image source={{ uri: item.signedUrl }} style={styles.thumb} contentFit="contain" />
-                      ) : (
-                        <View style={[styles.thumb, styles.thumbEmpty]}>
-                          <Ionicons name="alert-circle-outline" size={18} color={COLORS.textMuted} />
-                        </View>
-                      )}
-                    </View>
                     <View style={styles.side}>
                       <Text style={styles.sideLabel}>
                         {t('moderationCurrent')}
@@ -499,6 +490,16 @@ export default function ModerationScreen() {
                       ) : (
                         <View style={[styles.thumb, styles.thumbEmpty]}>
                           <Text style={styles.thumbEmptyText}>—</Text>
+                        </View>
+                      )}
+                    </View>
+                    <View style={styles.side}>
+                      <Text style={styles.sideLabel}>{t('moderationSubmitted')}</Text>
+                      {item.signedUrl ? (
+                        <Image source={{ uri: item.signedUrl }} style={styles.thumb} contentFit="contain" />
+                      ) : (
+                        <View style={[styles.thumb, styles.thumbEmpty]}>
+                          <Ionicons name="alert-circle-outline" size={18} color={COLORS.textMuted} />
                         </View>
                       )}
                     </View>
