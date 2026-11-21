@@ -42,6 +42,8 @@ interface Props {
   visible: boolean;
   /** Titulo a mostrar. Por defecto "Encuadra la photocard". */
   title?: string;
+  /** Ancho/alto del marco. Por defecto 2:3 (photocard); 1 para el avatar. */
+  aspect?: number;
   uri: string | null;
   /** Dimensiones reales del archivo, en pixeles. */
   imageWidth: number;
@@ -51,7 +53,7 @@ interface Props {
 }
 
 export default function ImageCropper({
-  visible, title, uri, imageWidth, imageHeight, onCancel, onConfirm,
+  visible, title, aspect = ASPECT, uri, imageWidth, imageHeight, onCancel, onConfirm,
 }: Props) {
   const { t } = useI18n();
 
@@ -71,11 +73,11 @@ export default function ImageCropper({
   const frame = useMemo(() => {
     const { width: sw, height: sh } = Dimensions.get('window');
     let w = sw - 64;
-    let h = w / ASPECT;
+    let h = w / aspect;
     const maxH = sh * 0.6;
-    if (h > maxH) { h = maxH; w = h * ASPECT; }
+    if (h > maxH) { h = maxH; w = h * aspect; }
     return { w, h };
-  }, [visible]);
+  }, [visible, aspect]);
 
   // Escala minima: la imagen tiene que CUBRIR el marco, nunca dejar huecos.
   const baseScale = useMemo(() => {

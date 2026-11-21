@@ -23,6 +23,10 @@ import { usePendingModerationCount } from '../../hooks/useMyContributions';
 import { useIsAdmin } from '../../hooks/useIsAdmin';
 import { saveUsername, USERNAME_RE } from '../../lib/username';
 import UsernameSuggestions from '../../components/UsernameSuggestions';
+import ImageCropper, { CropRect } from '../../components/ImageCropper';
+import { removeAvatar, uploadAvatar, useMyAvatar } from '../../lib/avatar';
+import { captureContributionImage, pickContributionImage, PickedImage } from '../../lib/contributions';
+import type { ImagePickerAsset } from 'expo-image-picker';
 import { usePremium } from '../../lib/PremiumContext';
 import { fetchAllByIds, fetchAllPages, supabase } from '../../lib/supabase';
 import { BiasKey } from '../../lib/types';
@@ -144,6 +148,55 @@ export default function ProfileScreen() {
   const [showBiasEdit, setShowBiasEdit] = useState(false);
   const { lang, setLang, t } = useI18n();
   const { alert } = useDialog();
+
+  // Avatar propio: tiene prioridad sobre la foto de Google/Apple.
+  const avatar = useMyAvatar(userId);
+  const shownAvatar = avatar.url ?? userAvatar;
+  const [avatarCrop, setAvatarCrop] = useState<ImagePickerAsset | null>(null);
+  const [avatarBusy, setAvatarBusy] = useState(false);
+
+  const pickAvatar = async (from: 'gallery' | 'camera') => {
+    const picked: PickedImage = from === 'camera' ? await captureContributionImage() : await pickContributionImage();
+    if (picked.ok) { setAvatarCrop(picked.asset); return; }
+    if (picked.reason === 'cancelled') return;
+    const key = picked.reason === 'permission' ? 'contributeErrPermission'
+      : picked.reason === 'camera_permission' ? 'contributeErrCameraPermission'
+      : picked.reason === 'no_camera' ? 'contributeErrNoCamera'
+      : picked.reason === 'unavailable' ? 'contributeErrUnavailable'
+      : 'contributeErrReadFailed';
+    alert(t('avatarTitle'), t(key as any));
+  };
+
+  const saveAvatar = async (crop: CropRect) => {
+    const asset = avatarCrop;
+    setAvatarCrop(null);
+    if (!asset || !userId) return;
+    setAvatarBusy(true);
+    const res = await uploadAvatar(userId, asset, crop, avatar.path);
+    setAvatarBusy(false);
+    if (res.ok) avatar.setPath(res.path);
+    else alert(t('avatarTitle'), t('avatarFailed'));
+  };
+
+  const askAvatar = () => {
+    const buttons = [
+      { text: t('contributeFromLibrary'), onPress: () => pickAvatar('gallery') },
+      { text: t('contributeTakePhoto'), onPress: () => pickAvatar('camera') },
+      ...(avatar.path ? [{
+        text: t('avatarRemove'), style: 'destructive' as const,
+        onPress: async () => {
+          if (!userId) return;
+          setAvatarBusy(true);
+          const res = await removeAvatar(userId, avatar.path);
+          setAvatarBusy(false);
+          if (res.ok) avatar.setPath(null);
+          else alert(t('avatarTitle'), t('avatarFailed'));
+        },
+      }] : []),
+      { text: t('cancel'), style: 'cancel' as const },
+    ];
+    alert(t('avatarTitle'), t('avatarDesc'), buttons);
+  };
   const { isAdmin } = useIsAdmin(userId);
   const moderation = usePendingModerationCount(isAdmin);
   const { isPremium } = usePremium();
@@ -262,15 +315,26 @@ export default function ProfileScreen() {
             start={{ x: 0.5, y: 0 }}
             end={{ x: 0.5, y: 1 }}
           />
-          {userAvatar ? (
-            <View style={styles.avatarWrap}>
-              <Image source={{ uri: userAvatar }} style={styles.avatarImage} />
+          <TouchableOpacity onPress={askAvatar} disabled={avatarBusy} activeOpacity={0.8}
+            accessibilityRole="button" accessibilityLabel={t('avatarTitle')}>
+            {shownAvatar ? (
+              <View style={styles.avatarWrap}>
+                <Image source={{ uri: shownAvatar }} style={styles.avatarImage} />
+              </View>
+            ) : (
+              <LinearGradient colors={[COLORS.purple1, COLORS.purple2, COLORS.pink]} style={styles.avatarWrap}>
+                <Text style={styles.avatarInitial}>{firstName[0]?.toUpperCase()}</Text>
+              </LinearGradient>
+            )}
+            {avatarBusy && (
+              <View style={styles.avatarBusy}>
+                <ActivityIndicator color="#fff" />
+              </View>
+            )}
+            <View style={styles.avatarEdit}>
+              <Ionicons name="camera" size={13} color="#fff" />
             </View>
-          ) : (
-            <LinearGradient colors={[COLORS.purple1, COLORS.purple2, COLORS.pink]} style={styles.avatarWrap}>
-              <Text style={styles.avatarInitial}>{firstName[0]?.toUpperCase()}</Text>
-            </LinearGradient>
-          )}
+          </TouchableOpacity>
           <Text style={styles.name}>{userName || 'ARMY'}</Text>
           <Text style={styles.email}>{user?.email || ''}</Text>
 
@@ -655,6 +719,16 @@ export default function ProfileScreen() {
           </View>
         </View>
       </Modal>
+      <ImageCropper
+        visible={!!avatarCrop}
+        title={t('avatarCropTitle')}
+        aspect={1}
+        uri={avatarCrop?.uri ?? null}
+        imageWidth={avatarCrop?.width ?? 0}
+        imageHeight={avatarCrop?.height ?? 0}
+        onCancel={() => setAvatarCrop(null)}
+        onConfirm={saveAvatar}
+      />
     </SafeAreaView>
   );
 }
@@ -691,6 +765,16 @@ const styles = StyleSheet.create({
     shadowOffset: { width: 0, height: 0 },
   },
   avatarImage: { width: '100%', height: '100%' },
+  avatarBusy: {
+    position: 'absolute', top: 0, left: 0, width: 96, height: 96, borderRadius: 48,
+    alignItems: 'center', justifyContent: 'center', backgroundColor: 'rgba(11,0,36,0.55)',
+  },
+  avatarEdit: {
+    position: 'absolute', right: 2, bottom: 14,
+    width: 26, height: 26, borderRadius: 13,
+    alignItems: 'center', justifyContent: 'center',
+    backgroundColor: COLORS.purple1, borderWidth: 2, borderColor: COLORS.bg,
+  },
   avatarInitial: { fontSize: 40, fontWeight: '900', color: '#fff' },
   name: { color: '#fff', fontSize: 24, fontWeight: '900', letterSpacing: -0.3 },
   email: { color: COLORS.textSecondary, fontSize: 12, marginTop: 3 },
