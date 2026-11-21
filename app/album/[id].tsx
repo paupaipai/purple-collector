@@ -315,7 +315,7 @@ export default function AlbumDetailScreen() {
 
     // La camara primero: quien aporta suele tener la photocard EN LA MANO. La
     // galeria queda para fotos ya hechas.
-    afterSheetCloses(() => alert(side === 'back' ? t('contributeBackOnly') : t('contributeTitle'), t('contributeRights'), [
+    afterSheetCloses(() => alert(side === 'back' ? t('contributeBackOnly') : t('contributeTitle'), `${t('contributeRights')}\n\n${t('contributeTips')}`, [
       { text: t('cancel'), style: 'cancel' },
       { text: t('contributeFromLibrary'), onPress: () => pickSide('galeria', card.id, side) },
       { text: t('contributeTakePhoto'), onPress: () => pickSide('camara', card.id, side) },

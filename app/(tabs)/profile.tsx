@@ -723,6 +723,7 @@ export default function ProfileScreen() {
         visible={!!avatarCrop}
         title={t('avatarCropTitle')}
         aspect={1}
+        guide="circle"
         uri={avatarCrop?.uri ?? null}
         imageWidth={avatarCrop?.width ?? 0}
         imageHeight={avatarCrop?.height ?? 0}

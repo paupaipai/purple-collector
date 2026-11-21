@@ -44,6 +44,12 @@ interface Props {
   title?: string;
   /** Ancho/alto del marco. Por defecto 2:3 (photocard); 1 para el avatar. */
   aspect?: number;
+  /**
+   * Guia dibujada sobre el marco: 'card' (borde de photocard con esquinas
+   * redondeadas), 'circle' (como se vera un avatar) o 'none'. Por defecto
+   * 'card' si el marco es de photocard.
+   */
+  guide?: 'card' | 'circle' | 'none';
   uri: string | null;
   /** Dimensiones reales del archivo, en pixeles. */
   imageWidth: number;
@@ -53,9 +59,14 @@ interface Props {
 }
 
 export default function ImageCropper({
-  visible, title, aspect = ASPECT, uri, imageWidth, imageHeight, onCancel, onConfirm,
+  visible, title, aspect = ASPECT, guide, uri, imageWidth, imageHeight, onCancel, onConfirm,
 }: Props) {
   const { t } = useI18n();
+  const guideKind = guide ?? (aspect === ASPECT ? 'card' : 'none');
+  // Las photocards llegan casi siempre con un filo del fondo alrededor (y en
+  // las esquinas, que son redondeadas): se arranca un 3 % mas cerca para que
+  // ese filo quede fuera sin que la persona tenga que hacer nada.
+  const initialZoom = guideKind === 'card' ? 1.03 : 1;
 
   /**
    * El boton atras de Android lo daba el Modal; aqui hay que atenderlo a mano.
@@ -87,14 +98,24 @@ export default function ImageCropper({
 
   // Multiplicador del usuario sobre baseScale. Nunca baja de 1 para que el
   // invariante de cobertura se mantenga solo.
-  const [zoom, setZoom] = useState(1);
+  const [zoom, setZoom] = useState(initialZoom);
   // Desplazamiento del centro de la imagen respecto del centro del marco.
   const [offset, setOffset] = useState({ x: 0, y: 0 });
 
   // Los gestos necesitan leer el estado sin recrear el PanResponder en cada
   // render, de ahi las refs espejo.
-  const zoomRef = useRef(1);
+  const zoomRef = useRef(initialZoom);
   const offsetRef = useRef({ x: 0, y: 0 });
+
+  // El componente no se desmonta al cerrarse (devuelve null): sin esto, la
+  // siguiente foto abriria con el zoom y la posicion de la anterior.
+  useEffect(() => {
+    if (!visible) return;
+    zoomRef.current = initialZoom;
+    offsetRef.current = { x: 0, y: 0 };
+    setZoom(initialZoom);
+    setOffset({ x: 0, y: 0 });
+  }, [visible, uri, initialZoom]);
   const gestureStart = useRef({ x: 0, y: 0, zoom: 1, distance: 0 });
 
   /** Impide que la imagen se despegue del marco. */
@@ -161,10 +182,21 @@ export default function ImageCropper({
   }), [baseScale, frame.w, frame.h, imageWidth, imageHeight]);
 
   const reset = () => {
-    zoomRef.current = 1;
+    zoomRef.current = initialZoom;
     offsetRef.current = { x: 0, y: 0 };
-    setZoom(1);
+    setZoom(initialZoom);
     setOffset({ x: 0, y: 0 });
+  };
+
+  // Botones de zoom: en la web con mouse no hay pellizco, y sin ellos no habia
+  // forma de acercar.
+  const stepZoom = (delta: number) => {
+    const next = Math.min(5, Math.max(1, Math.round((zoomRef.current + delta) * 100) / 100));
+    zoomRef.current = next;
+    setZoom(next);
+    const clamped = clamp(offsetRef.current.x, offsetRef.current.y, next);
+    offsetRef.current = clamped;
+    setOffset(clamped);
   };
 
   /** Pasa el marco de coordenadas de pantalla a pixeles de la imagen. */
@@ -209,7 +241,7 @@ export default function ImageCropper({
     <View style={StyleSheet.absoluteFill} pointerEvents="auto">
       <View style={styles.backdrop}>
         <Text style={styles.title}>{title ?? t('cropTitle')}</Text>
-        <Text style={styles.hint}>{t('cropHint')}</Text>
+        <Text style={styles.hint}>{t(guideKind === 'card' ? 'cropHintCard' : 'cropHint')}</Text>
 
         <View style={[styles.frame, { width: frame.w, height: frame.h }]} {...responder.panHandlers}>
           {uri ? (
@@ -223,11 +255,28 @@ export default function ImageCropper({
               contentFit="fill"
             />
           ) : null}
+          {/* Guia: no recorta nada, solo muestra donde debe quedar el borde. */}
+          {guideKind === 'card' && (
+            <View pointerEvents="none" style={[styles.guideCard, { borderRadius: frame.w * 0.07 }]} />
+          )}
+          {guideKind === 'circle' && (
+            <View pointerEvents="none" style={[styles.guideCircle, { borderRadius: frame.w / 2 }]} />
+          )}
         </View>
 
-        <TouchableOpacity onPress={reset} activeOpacity={0.7} style={styles.reset}>
-          <Text style={styles.resetText}>{t('cropReset')}</Text>
-        </TouchableOpacity>
+        <View style={styles.zoomRow}>
+          <TouchableOpacity onPress={() => stepZoom(-0.05)} activeOpacity={0.7} style={styles.zoomBtn}
+            accessibilityRole="button" accessibilityLabel="-">
+            <Text style={styles.zoomText}>−</Text>
+          </TouchableOpacity>
+          <TouchableOpacity onPress={reset} activeOpacity={0.7} style={styles.reset}>
+            <Text style={styles.resetText}>{t('cropReset')}</Text>
+          </TouchableOpacity>
+          <TouchableOpacity onPress={() => stepZoom(0.05)} activeOpacity={0.7} style={styles.zoomBtn}
+            accessibilityRole="button" accessibilityLabel="+">
+            <Text style={styles.zoomText}>+</Text>
+          </TouchableOpacity>
+        </View>
 
         <View style={styles.actions}>
           <TouchableOpacity onPress={onCancel} activeOpacity={0.7} style={[styles.btn, styles.cancel]}>
@@ -252,6 +301,26 @@ const styles = StyleSheet.create({
   },
   title: { fontSize: 16, fontWeight: '800', color: COLORS.textPrimary },
   hint: { fontSize: 12, color: COLORS.textMuted, marginTop: 6, marginBottom: 18, textAlign: 'center' },
+  guideCard: {
+    ...StyleSheet.absoluteFillObject,
+    margin: 3,
+    borderWidth: 1.5,
+    borderStyle: 'dashed',
+    borderColor: 'rgba(233,213,255,0.75)',
+  },
+  guideCircle: {
+    ...StyleSheet.absoluteFillObject,
+    borderWidth: 1.5,
+    borderStyle: 'dashed',
+    borderColor: 'rgba(233,213,255,0.75)',
+  },
+  zoomRow: { flexDirection: 'row', alignItems: 'center', gap: 14, marginTop: 14 },
+  zoomBtn: {
+    width: 40, height: 40, borderRadius: 20,
+    alignItems: 'center', justifyContent: 'center',
+    borderWidth: 1, borderColor: COLORS.borderActive, backgroundColor: 'rgba(168,85,247,0.12)',
+  },
+  zoomText: { fontSize: 20, fontWeight: '800', color: COLORS.purple3, lineHeight: 22 },
   frame: {
     overflow: 'hidden',
     borderRadius: 12,
@@ -261,7 +330,7 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'center',
   },
-  reset: { marginTop: 14, paddingVertical: 6, paddingHorizontal: 12 },
+  reset: { paddingVertical: 6, paddingHorizontal: 12 },
   resetText: { fontSize: 12, fontWeight: '700', color: COLORS.purple3 },
   actions: { flexDirection: 'row', gap: 10, marginTop: 18, width: '100%', maxWidth: 380 },
   btn: { flex: 1, alignItems: 'center', paddingVertical: 13, borderRadius: 12 },

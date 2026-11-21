@@ -245,7 +245,7 @@ export default function NewCardScreen() {
       alert(t('newCardTitle'), t('newCardNeedImage'));
       return;
     }
-    alert(t('contributeTitle'), t('contributeRights'), [
+    alert(t('contributeTitle'), `${t('contributeRights')}\n\n${t('contributeTips')}`, [
       { text: t('cancel'), style: 'cancel' },
       {
         text: t('contributeConfirm'),
@@ -292,7 +292,7 @@ export default function NewCardScreen() {
     // Este aviso ES la aceptacion de terminos: submitNewCard() graba
     // terms_accepted_at y terms_version, y la constraint
     // card_submissions_has_terms no deja registrar la propuesta sin ellos.
-    alert(t('newCardTitle'), t('contributeRights'), [
+    alert(t('newCardTitle'), `${t('contributeRights')}\n\n${t('contributeTips')}`, [
       { text: t('cancel'), style: 'cancel' },
       {
         text: t('newCardSend'),
