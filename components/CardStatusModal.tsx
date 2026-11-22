@@ -82,7 +82,7 @@ export default function CardStatusModal({
                         style={styles.thumb}
                         contentFit="cover"
                         transition={150}
-                        blurRadius={imageSource === 'legacy' ? LEGACY_BLUR_RADIUS : 0}
+                        blurRadius={imageSource === 'legacy' ? LEGACY_BLUR_RADIUS : undefined}
                       />
                     ) : (
                       <View style={[styles.thumb, styles.placeholder, { backgroundColor: card.album_color + '33' }]}>
