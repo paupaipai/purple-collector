@@ -1,3 +1,4 @@
+import { Platform } from 'react-native';
 import { MemberInfo } from './types';
 
 // Single switch to launch v1 fully unlocked without ripping out the paywall/RevenueCat code.
@@ -38,7 +39,12 @@ export const LEGACY_TREATMENT_ENABLED = true;
 // El velo es bajo a proposito porque se APILA con el de las cards no adquiridas
 // (NOT_OWNED_IMAGE_OPACITY 0.65 + NOT_OWNED_OVERLAY_OPACITY 0.32). Con 0.30 las
 // legacy no adquiridas quedaban casi negras.
-export const LEGACY_BLUR_RADIUS = 2.4;
+// En Android NO hay desenfoque: expo-image lo hace con BlurTransformation de
+// glide-transformations, que usa RenderScript (deprecado), y en Android 16 /
+// Samsung S26 eso crashea la app con SIGSEGV en rsdScriptSetGlobalVar (Sentry,
+// 2026-11-22). Ojo: expo-image en Android solo se salta el desenfoque si
+// blurRadius es undefined; con 0 igual ejecuta RenderScript. Por eso nunca pasar 0.
+export const LEGACY_BLUR_RADIUS: number | undefined = Platform.OS === 'android' ? undefined : 2.4;
 export const LEGACY_VEIL_COLOR = 'rgba(11,0,36,0.16)';
 
 // Flujo de aporte de imagenes (FASE D).

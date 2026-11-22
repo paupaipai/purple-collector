@@ -78,7 +78,7 @@ export default function Photocard({
                 contentFit="contain"
                 cachePolicy="disk"
                 transition={150}
-                blurRadius={showLegacy ? LEGACY_BLUR_RADIUS : 0}
+                blurRadius={showLegacy ? LEGACY_BLUR_RADIUS : undefined}
               />
               {!isOwned && <View style={styles.purpleOverlay} />}
               {showLegacy && <View style={styles.legacyVeil} />}
