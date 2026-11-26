@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useState } from 'react';
 
 import { COMMUNITY_REVIEW_BUCKET } from '../lib/constants';
+import { getContributionsSeenAt } from '../lib/contributionsSeen';
 import { getCardImageUrl, supabase } from '../lib/supabase';
 import { t } from '../lib/i18n';
 import { ImageStatus } from '../lib/types';
@@ -35,6 +36,8 @@ export interface MyContribution {
   /** Album y miembro, para ubicarla sin abrir nada. */
   subtitle: string;
   createdAt: string;
+  /** Cuando se aprobo o rechazo; null si sigue en revision. */
+  reviewedAt: string | null;
   /** Firmada si sigue en revision, publica si ya se aprobo. */
   thumbUrl: string | null;
   rejectionReason: string | null;
@@ -93,14 +96,14 @@ export function useMyContributions(userId: string | null) {
     const [images, subs] = await Promise.all([
       supabase
         .from('card_images')
-        .select('id, card_id, status, rejection_reason, created_at, bucket_id, storage_path')
+        .select('id, card_id, status, rejection_reason, created_at, reviewed_at, bucket_id, storage_path')
         .eq('contributed_by', userId)
         .eq('source_type', 'community')
         .order('created_at', { ascending: false }),
       supabase
         .from('card_submissions')
         .select(`
-          id, status, rejection_reason, created_at, bucket_id, storage_path,
+          id, status, rejection_reason, created_at, reviewed_at, bucket_id, storage_path,
           member, card_name, album_id, created_card_id, album_unlisted, notes,
           albums ( name )
         `)
@@ -191,6 +194,7 @@ export function useMyContributions(userId: string | null) {
         title: card?.card_name ?? `#${row.card_id}`,
         subtitle: [card?.album_name, card?.member].filter(Boolean).join(' · '),
         createdAt: row.created_at,
+        reviewedAt: row.reviewed_at ?? null,
         thumbUrl: thumbFor(row),
         rejectionReason: row.rejection_reason,
         albumId: card?.album_id ?? null,
@@ -218,6 +222,7 @@ export function useMyContributions(userId: string | null) {
         subtitle: [row.album_unlisted ? t('albumUnlistedTag') : row.albums?.name, row.member]
           .filter(Boolean).join(' · '),
         createdAt: row.created_at,
+        reviewedAt: row.reviewed_at ?? null,
         thumbUrl: thumb,
         rejectionReason: row.rejection_reason,
         albumId: row.album_id ?? null,
@@ -249,4 +254,59 @@ export function useMyContributions(userId: string | null) {
     refetch: refetchNow,
     silentRefetch: refetchSilently,
   };
+}
+
+/**
+ * Resultados nuevos (aprobados o rechazados desde la ultima visita a "Mis
+ * aportes") y cuantos siguen en revision. Para la fila del perfil.
+ *
+ * Solo cuenta (`head: true`), no baja filas: el perfil no necesita la lista.
+ *
+ * Las propuestas APROBADAS no se cuentan aparte: aprobar una crea su fila en
+ * card_images (approved, con reviewed_at), que ya entra en el primer conteo.
+ * Contarla tambien en card_submissions la sumaria dos veces.
+ */
+export function useContributionsSummary(userId: string | null) {
+  const [newCount, setNewCount] = useState(0);
+  const [pendingCount, setPendingCount] = useState(0);
+
+  const fetchSummary = useCallback(async () => {
+    if (!userId) {
+      setNewCount(0);
+      setPendingCount(0);
+      return;
+    }
+    const seenAt = await getContributionsSeenAt(userId);
+
+    let images = supabase.from('card_images').select('id', { count: 'exact', head: true })
+      .eq('contributed_by', userId).eq('source_type', 'community')
+      .in('status', ['approved', 'rejected']);
+    let subs = supabase.from('card_submissions').select('id', { count: 'exact', head: true })
+      .eq('submitted_by', userId).eq('status', 'rejected');
+    if (seenAt) {
+      images = images.gt('reviewed_at', seenAt);
+      subs = subs.gt('reviewed_at', seenAt);
+    }
+
+    const [newImages, newSubs, pendImages, pendSubs] = await Promise.all([
+      images,
+      subs,
+      supabase.from('card_images').select('id', { count: 'exact', head: true })
+        .eq('contributed_by', userId).eq('source_type', 'community').eq('status', 'pending'),
+      supabase.from('card_submissions').select('id', { count: 'exact', head: true })
+        .eq('submitted_by', userId).eq('status', 'pending'),
+    ]);
+
+    // Ante un error se deja lo que habia: mejor eso que un contador en 0 falso.
+    if (!newImages.error && !newSubs.error) {
+      setNewCount((newImages.count ?? 0) + (newSubs.count ?? 0));
+    }
+    if (!pendImages.error && !pendSubs.error) {
+      setPendingCount((pendImages.count ?? 0) + (pendSubs.count ?? 0));
+    }
+  }, [userId]);
+
+  useEffect(() => { fetchSummary(); }, [fetchSummary]);
+
+  return { newCount, pendingCount, refetch: fetchSummary };
 }

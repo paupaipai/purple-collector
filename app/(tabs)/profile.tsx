@@ -16,10 +16,11 @@ import { useAuth } from '../../hooks/useAuth';
 import { useCollection } from '../../hooks/useCollection';
 import { useWishlist } from '../../hooks/useWishlist';
 import { useBias } from '../../lib/BiasContext';
-import { BIAS_ENABLED, COLORS, getMemberByKey, MEMBERS, PREMIUM_ENABLED, PRIVACY_URL, RARITIES, RARITY_LABEL_KEY } from '../../lib/constants';
+import { BIAS_ENABLED, COLORS, CONTRIBUTIONS_ENABLED, getMemberByKey, MEMBERS, PREMIUM_ENABLED, PRIVACY_URL, RARITIES, RARITY_LABEL_KEY } from '../../lib/constants';
 import { useDialog } from '../../lib/DialogContext';
 import { useI18n } from '../../lib/I18nContext';
 import { saveUsername, USERNAME_RE } from '../../lib/username';
+import { useContributionsSummary } from '../../hooks/useMyContributions';
 import UsernameSuggestions from '../../components/UsernameSuggestions';
 import ImageCropper, { CropRect } from '../../components/ImageCropper';
 import { removeAvatar, uploadAvatar, useMyAvatar } from '../../lib/avatar';
@@ -260,11 +261,14 @@ export default function ProfileScreen() {
 
   // Solo funciones estables (useCallback) en las dependencias: un objeto nuevo
   // en cada render volveria a disparar todas estas consultas en bucle.
+  const contributions = useContributionsSummary(userId);
+  const refetchContributions = contributions.refetch;
   useFocusEffect(useCallback(() => {
+    refetchContributions();
     silentRefetchCollection();
     silentRefetchAlbums();
     refreshIfStale(keys.memberCounts);
-  }, [silentRefetchCollection, silentRefetchAlbums]));
+  }, [silentRefetchCollection, silentRefetchAlbums, refetchContributions]));
 
   const rarityCounts = useMemo(() => {
     const c: Record<string, number> = { Common: 0, Rare: 0, 'Ultra Rare': 0, Limited: 0 };
@@ -328,6 +332,29 @@ export default function ProfileScreen() {
               {handle ? `@${handle}` : t('usernameAdd')}
             </Text>
           </TouchableOpacity>
+
+          {/* Mis aportes: en que quedo cada uno. El contador son los
+              resultados (aprobado / rechazado) desde la ultima visita. */}
+          {CONTRIBUTIONS_ENABLED && (
+            <TouchableOpacity
+              onPress={() => router.push('/my-contributions')}
+              activeOpacity={0.85}
+              style={styles.contribRow}
+            >
+              <Ionicons name="images-outline" size={16} color={COLORS.purple3} />
+              <Text style={styles.contribRowText}>{t('myContributionsTitle')}</Text>
+              {contributions.newCount > 0 ? (
+                <Text style={styles.contribRowNew}>
+                  {t('contributionsNewCount', { n: contributions.newCount })}
+                </Text>
+              ) : contributions.pendingCount > 0 ? (
+                <Text style={styles.contribRowPending}>
+                  {t('contributionsPendingCount', { n: contributions.pendingCount })}
+                </Text>
+              ) : null}
+              <Ionicons name="chevron-forward" size={14} color={COLORS.textMuted} />
+            </TouchableOpacity>
+          )}
 
           {/* Premium badge or CTA */}
           {!PREMIUM_ENABLED ? null : isPremium ? (
@@ -685,6 +712,20 @@ const styles = StyleSheet.create({
   container: { flex: 1, backgroundColor: 'transparent' },
   scroll: { paddingHorizontal: 16, paddingBottom: 120 },
 
+  contribRow: {
+    flexDirection: 'row', alignItems: 'center', gap: 7,
+    marginTop: 10, paddingVertical: 8, paddingHorizontal: 14,
+    borderRadius: 999,
+    borderWidth: 1, borderColor: COLORS.borderActive,
+    backgroundColor: 'rgba(168,85,247,0.12)',
+  },
+  contribRowText: { fontSize: 12, fontWeight: '800', color: COLORS.purple3 },
+  contribRowNew: {
+    fontSize: 11, fontWeight: '800', color: '#fff',
+    backgroundColor: COLORS.purple1,
+    paddingHorizontal: 7, paddingVertical: 2, borderRadius: 9, overflow: 'hidden',
+  },
+  contribRowPending: { fontSize: 11, fontWeight: '700', color: COLORS.textMuted },
   usernameBtn: { marginTop: 6, paddingVertical: 4, paddingHorizontal: 12 },
   username: { fontSize: 14, fontWeight: '800', color: COLORS.purple3 },
   usernameEmpty: { fontSize: 12, fontWeight: '700', color: COLORS.textMuted },

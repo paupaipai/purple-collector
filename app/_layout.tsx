@@ -235,6 +235,7 @@ function AppShell({ session, loading, authLoading, signInWithGoogle, signInWithA
           <Stack.Screen name="challenge/index" />
           <Stack.Screen name="challenge/ranking" />
           <Stack.Screen name="challenge/rules" />
+          <Stack.Screen name="my-contributions" />
           <Stack.Screen
             name="paywall"
             options={{ presentation: 'modal', animation: 'slide_from_bottom' }}
