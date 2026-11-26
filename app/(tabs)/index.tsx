@@ -131,7 +131,10 @@ export default function HomeScreen() {
   const [username, setUsername] = useState<string | null>(null);
   const loadUsername = useCallback(() => {
     let cancelled = false;
-    fetchUsername(userId).then(u => { if (!cancelled) setUsername(u); });
+    fetchUsername(userId)
+      .then(u => { if (!cancelled) setUsername(u); })
+      // Si falla se deja el que habia: mejor eso que borrarlo por un corte de red.
+      .catch(() => {});
     return () => { cancelled = true; };
   }, [userId]);
 

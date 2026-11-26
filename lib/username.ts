@@ -50,10 +50,21 @@ export async function saveUsername(
   const username = raw.trim().toLowerCase();
   if (!USERNAME_RE.test(username)) return { ok: false, reason: 'invalid' };
 
-  const { error } = await supabase
+  // `.select('id')` para saber si de verdad se toco una fila. Sin perfil
+  // (el trigger de alta puede no haberlo creado), el UPDATE afecta 0 filas SIN
+  // error: la app daba el nombre por guardado y lo volvia a pedir en cada
+  // arranque. En ese caso se crea el perfil (policy "user_profiles insert own").
+  let { data: updated, error } = await supabase
     .from('user_profiles')
     .update({ username })
-    .eq('id', userId);
+    .eq('id', userId)
+    .select('id');
+
+  if (!error && (!updated || updated.length === 0)) {
+    ({ error } = await supabase
+      .from('user_profiles')
+      .insert({ id: userId, username }));
+  }
 
   if (error) {
     const code = (error as any).code;
@@ -79,14 +90,22 @@ export async function saveUsername(
   return { ok: true, username };
 }
 
-/** El nombre de usuario actual, o null si todavia no eligio uno. */
+/**
+ * El nombre de usuario actual, o null si todavia no eligio uno (o no tiene
+ * perfil).
+ *
+ * LANZA si la consulta falla. Antes un error de red devolvia null, igual que
+ * "no tiene nombre", y la app volvia a pedirlo a quien ya lo tenia. Quien
+ * llama decide que hacer ante la duda (el arranque, no preguntar).
+ */
 export async function fetchUsername(userId: string | null): Promise<string | null> {
   if (!userId) return null;
-  const { data } = await supabase
+  const { data, error } = await supabase
     .from('user_profiles')
     .select('username')
     .eq('id', userId)
-    .single();
+    .maybeSingle();
+  if (error) throw error;
   return data?.username ?? null;
 }
 
