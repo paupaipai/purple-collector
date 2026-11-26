@@ -197,7 +197,7 @@ export type PickedImage =
  * el que nos sacaba de ahi era `quality: 0.9`.
  *
  * Poner 1 no empeora nada: normalizeToPhotocard() recorta y reencoda despues
- * con compress 0.85, asi que pedirle al picker que reencode primero era
+ * con compress 0.75, asi que pedirle al picker que reencode primero era
  * comprimir dos veces y perder calidad para nada.
  *
  * Sin el cropper nativo: se comporta distinto en cada plataforma. El encuadre

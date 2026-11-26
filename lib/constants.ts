@@ -54,8 +54,8 @@ export const LEGACY_VEIL_COLOR = 'rgba(11,0,36,0.16)';
 //
 // ENCENDIDO el 2026-09-29, una vez que FASE G dejo el circuito cerrado: la edge
 // function moderate-card-image mueve el objeto del bucket privado de revision al
-// publico al aprobar, y la bandeja de /admin/moderation permite aprobar y
-// rechazar. Antes de eso habilitar el boton solo habria acumulado envios que
+// publico al aprobar, y la bandeja de moderacion permite aprobar y rechazar
+// (desde 2026-11 vive en el mantenedor, otro repo). Antes de eso habilitar el boton solo habria acumulado envios que
 // nadie podia aprobar.
 //
 // OJO: expo-image-picker es un modulo NATIVO. En un dev client o un build

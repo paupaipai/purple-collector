@@ -19,8 +19,6 @@ import { useBias } from '../../lib/BiasContext';
 import { BIAS_ENABLED, COLORS, getMemberByKey, MEMBERS, PREMIUM_ENABLED, PRIVACY_URL, RARITIES, RARITY_LABEL_KEY } from '../../lib/constants';
 import { useDialog } from '../../lib/DialogContext';
 import { useI18n } from '../../lib/I18nContext';
-import { usePendingModerationCount } from '../../hooks/useMyContributions';
-import { useIsAdmin } from '../../hooks/useIsAdmin';
 import { saveUsername, USERNAME_RE } from '../../lib/username';
 import UsernameSuggestions from '../../components/UsernameSuggestions';
 import ImageCropper, { CropRect } from '../../components/ImageCropper';
@@ -198,8 +196,6 @@ export default function ProfileScreen() {
     ];
     alert(t('avatarTitle'), t('avatarDesc'), buttons);
   };
-  const { isAdmin } = useIsAdmin(userId);
-  const moderation = usePendingModerationCount(isAdmin);
   const { isPremium } = usePremium();
   const { biases, saveBiases } = useBias();
   const { cards: ownedCards, silentRefetch: silentRefetchCollection } = useCollection(userId);
@@ -262,17 +258,13 @@ export default function ProfileScreen() {
     return { totalByMember: byMember, totalGroup: group };
   }, [memberCountsQuery.data, myCards.userCards, myCards.details]);
 
-  // Ojo con las dependencias: `moderation` es un objeto nuevo en cada render.
-  // Con el objeto aqui, cada respuesta (que provoca un render) volvia a
-  // disparar TODAS estas consultas: un bucle que saturaba Supabase mientras el
-  // perfil estaba abierto. Solo funciones estables (useCallback).
-  const refetchModeration = moderation.refetch;
+  // Solo funciones estables (useCallback) en las dependencias: un objeto nuevo
+  // en cada render volveria a disparar todas estas consultas en bucle.
   useFocusEffect(useCallback(() => {
-    refetchModeration();
     silentRefetchCollection();
     silentRefetchAlbums();
     refreshIfStale(keys.memberCounts);
-  }, [silentRefetchCollection, silentRefetchAlbums, refetchModeration]));
+  }, [silentRefetchCollection, silentRefetchAlbums]));
 
   const rarityCounts = useMemo(() => {
     const c: Record<string, number> = { Common: 0, Rare: 0, 'Ultra Rare': 0, Limited: 0 };
@@ -336,36 +328,6 @@ export default function ProfileScreen() {
               {handle ? `@${handle}` : t('usernameAdd')}
             </Text>
           </TouchableOpacity>
-
-          {/* Moderacion. Va en la cabecera, pegada a quien eres, porque es un
-              ROL, no un ajuste: lo primero que quiere ver un mantenedor al
-              entrar es si hay algo esperando. El gate real esta en la RLS y en
-              la edge function; esto solo decide si se muestra. */}
-          {isAdmin && (
-            <TouchableOpacity
-              onPress={() => router.push('/admin/moderation')}
-              activeOpacity={0.85}
-              style={styles.modBanner}
-            >
-              <Ionicons name="shield-checkmark" size={16} color={COLORS.purple3} />
-              <Text style={styles.modBannerText}>{t('moderation')}</Text>
-              {moderation.count > 0 && (
-                <Text style={styles.modBannerCount}>{moderation.count}</Text>
-              )}
-              <Ionicons name="chevron-forward" size={14} color={COLORS.textMuted} />
-            </TouchableOpacity>
-          )}
-          {isAdmin && (
-            <TouchableOpacity
-              onPress={() => router.push('/admin/challenge')}
-              activeOpacity={0.85}
-              style={styles.modBanner}
-            >
-              <Ionicons name="trophy" size={16} color={COLORS.gold} />
-              <Text style={styles.modBannerText}>{t('challengeAdmin')}</Text>
-              <Ionicons name="chevron-forward" size={14} color={COLORS.textMuted} />
-            </TouchableOpacity>
-          )}
 
           {/* Premium badge or CTA */}
           {!PREMIUM_ENABLED ? null : isPremium ? (
@@ -724,19 +686,6 @@ const styles = StyleSheet.create({
   scroll: { paddingHorizontal: 16, paddingBottom: 120 },
 
   usernameBtn: { marginTop: 6, paddingVertical: 4, paddingHorizontal: 12 },
-  modBanner: {
-    flexDirection: 'row', alignItems: 'center', gap: 7,
-    marginTop: 10, paddingVertical: 8, paddingHorizontal: 14,
-    borderRadius: 999,
-    borderWidth: 1, borderColor: COLORS.borderActive,
-    backgroundColor: 'rgba(168,85,247,0.12)',
-  },
-  modBannerText: { fontSize: 12, fontWeight: '800', color: COLORS.purple3 },
-  modBannerCount: {
-    fontSize: 11, fontWeight: '800', color: '#fff',
-    backgroundColor: COLORS.purple1,
-    paddingHorizontal: 7, paddingVertical: 2, borderRadius: 9, overflow: 'hidden',
-  },
   username: { fontSize: 14, fontWeight: '800', color: COLORS.purple3 },
   usernameEmpty: { fontSize: 12, fontWeight: '700', color: COLORS.textMuted },
   avatarSection: { alignItems: 'center', marginTop: 8, marginBottom: 20, paddingBottom: 24, overflow: 'hidden' },
@@ -836,8 +785,6 @@ const styles = StyleSheet.create({
   infoLabel: { color: COLORS.textMuted, fontSize: 13 },
   infoValue: { color: COLORS.textSecondary, fontSize: 13, fontWeight: '600', maxWidth: '60%' },
   rowSep: { height: 1, backgroundColor: 'rgba(255,255,255,0.04)', marginVertical: 4 },
-  adminRow: { flexDirection: 'row', alignItems: 'center', gap: 9 },
-  adminText: { flex: 1, fontSize: 13, fontWeight: '800', color: COLORS.textPrimary },
   providerBadge: {
     backgroundColor: COLORS.purple1 + '55',
     paddingHorizontal: 10, paddingVertical: 3,

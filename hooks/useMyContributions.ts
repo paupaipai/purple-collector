@@ -250,33 +250,3 @@ export function useMyContributions(userId: string | null) {
     silentRefetch: refetchSilently,
   };
 }
-
-/**
- * Cuanto hay esperando revision, para el acceso de admin.
- *
- * `head: true` con `count: 'exact'`: no se bajan las filas, solo se cuentan. La
- * bandeja ya las trae enteras cuando se abre; aca solo hace falta el numero.
- */
-export function usePendingModerationCount(isAdmin: boolean) {
-  const [count, setCount] = useState(0);
-
-  const fetchCount = useCallback(async () => {
-    if (!isAdmin) {
-      setCount(0);
-      return;
-    }
-    const [images, subs, reports] = await Promise.all([
-      supabase.from('card_images').select('id', { count: 'exact', head: true })
-        .eq('status', 'pending').eq('source_type', 'community'),
-      supabase.from('card_submissions').select('id', { count: 'exact', head: true })
-        .eq('status', 'pending'),
-      supabase.from('image_reports').select('id', { count: 'exact', head: true })
-        .eq('status', 'open'),
-    ]);
-    setCount((images.count ?? 0) + (subs.count ?? 0) + (reports.count ?? 0));
-  }, [isAdmin]);
-
-  useEffect(() => { fetchCount(); }, [fetchCount]);
-
-  return { count, refetch: fetchCount };
-}
