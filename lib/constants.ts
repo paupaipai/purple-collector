@@ -99,7 +99,9 @@ export const CONTRIBUTION_MIME_TYPES = ['image/jpeg', 'image/png', 'image/webp']
 // Version de los terminos que el usuario acepta al enviar. Se guarda en
 // card_images.terms_version, asi queda registrado QUE texto acepto. Subir esta
 // constante cada vez que cambien los terminos de contribucion.
-export const CONTRIBUTION_TERMS_VERSION = '2026-09-29';
+// '2026-09-29' = terminos originales; '2026-11-26' = incluye las reglas v2 del
+// Community Challenge. Las filas viejas conservan la version que se acepto.
+export const CONTRIBUTION_TERMS_VERSION = '2026-11-26';
 
 // Hosted from the paupaipai/purple-collector-legal repo (GitHub Pages), not this repo.
 export const PRIVACY_URL = 'https://paupaipai.github.io/purple-collector-legal/';

@@ -69,6 +69,33 @@ export async function fetchCurrentChallenge(): Promise<Challenge | null> {
   return (row as Challenge) ?? null;
 }
 
+export type ImageChallengeState =
+  'scoring' | 'pending' | 'rejected' | 'taken_down' | 'replaced' | 'not_eligible' | 'voided';
+
+export type MyImageState = { state: ImageChallengeState; points: number; changedAt: string | null };
+
+/**
+ * Estado de cada imagen propia en el concurso vigente (RPC
+ * challenge_my_image_states): si suma 0,5 hoy y, si no, por que. Un fallo
+ * (sin concurso, sin sesion, o la RPC aun no desplegada) devuelve un mapa
+ * vacio: "Mis aportes" sigue funcionando, solo sin el detalle del concurso.
+ */
+export async function fetchMyImageStates(): Promise<Map<number, MyImageState>> {
+  const out = new Map<number, MyImageState>();
+  try {
+    const challenge = await fetchCurrentChallenge();
+    if (!challenge) return out;
+    const { data, error } = await supabase.rpc('challenge_my_image_states', { p_challenge_id: challenge.id });
+    if (error) return out;
+    for (const r of (data ?? []) as any[]) {
+      out.set(Number(r.card_image_id), { state: r.state, points: Number(r.points), changedAt: r.changed_at ?? null });
+    }
+  } catch {
+    // sin detalle del concurso
+  }
+  return out;
+}
+
 /**
  * Concurso vigente. Se relee al volver a la pantalla (el estado y el contador
  * de la comunidad cambian con cada aprobacion). Un fallo de red no rompe la

@@ -4,6 +4,7 @@ import { COMMUNITY_REVIEW_BUCKET } from '../lib/constants';
 import { getContributionsSeenAt } from '../lib/contributionsSeen';
 import { ReportReason, ReportStatus } from '../lib/types';
 import { getCardImageUrl, supabase } from '../lib/supabase';
+import { fetchMyImageStates, ImageChallengeState } from '../lib/challenge';
 import { t } from '../lib/i18n';
 import { ImageStatus } from '../lib/types';
 
@@ -46,6 +47,12 @@ export interface MyContribution {
   rejectionReason: string | null;
   /** Para saltar al album cuando ya esta publicada. */
   albumId: number | null;
+  /** Estado en el concurso vigente (solo imagenes); null si no hay concurso. */
+  challengeState: ImageChallengeState | null;
+  /** Puntos que da hoy en el concurso (0 o 0,5). */
+  challengePoints: number;
+  /** Cuando se reemplazo o retiro: cuenta como resultado nuevo. */
+  changedAt: string | null;
 }
 
 // 10 minutos: lo que dura mirar la lista, sin dejar URLs vivas de mas.
@@ -96,7 +103,7 @@ export function useMyContributions(userId: string | null) {
     // Las dos policies de lectura ("contributor reads own" y "submitter reads
     // own") ya devuelven solo lo propio; el filtro explicito esta para que la
     // consulta diga lo que quiere, no para protegerla.
-    const [images, subs] = await Promise.all([
+    const [images, subs, states] = await Promise.all([
       supabase
         .from('card_images')
         .select('id, card_id, status, rejection_reason, created_at, reviewed_at, bucket_id, storage_path')
@@ -112,6 +119,7 @@ export function useMyContributions(userId: string | null) {
         `)
         .eq('submitted_by', userId)
         .order('created_at', { ascending: false }),
+      fetchMyImageStates(),
     ]);
 
     if (images.error || subs.error) {
@@ -190,7 +198,11 @@ export function useMyContributions(userId: string | null) {
       .filter((row: any) => !publicadaPorPropuesta.has(nombreArchivo(row.storage_path)))
       .map((row: any) => {
       const card = cardById.get(row.card_id);
+      const st = states.get(row.id);
       return {
+        challengeState: st?.state ?? null,
+        challengePoints: st?.points ?? 0,
+        changedAt: st?.changedAt ?? null,
         key: `img-${row.id}`,
         kind: 'image' as const,
         imageId: row.id as number,
@@ -218,6 +230,9 @@ export function useMyContributions(userId: string | null) {
         : thumbFor(row);
 
       return {
+        challengeState: null,
+        challengePoints: 0,
+        changedAt: null,
         key: `sub-${row.id}`,
         kind: 'card' as const,
         imageId: null,
@@ -293,7 +308,7 @@ export function useContributionsSummary(userId: string | null) {
       subs = subs.gt('reviewed_at', seenAt);
     }
 
-    const [newImages, newSubs, pendImages, pendSubs, reports] = await Promise.all([
+    const [newImages, newSubs, pendImages, pendSubs, reports, states] = await Promise.all([
       images,
       subs,
       supabase.from('card_images').select('id', { count: 'exact', head: true })
@@ -302,13 +317,18 @@ export function useContributionsSummary(userId: string | null) {
         .eq('submitted_by', userId).eq('status', 'pending'),
       // Pocos por persona: se traen y se cuentan aca.
       fetchMyReports(userId),
+      fetchMyImageStates(),
     ]);
+    // Reemplazos por calidad: no cambian reviewed_at de la imagen propia, asi
+    // que se cuentan aparte. (Los retiros si lo cambian y ya entran arriba.)
+    const newReplaced = [...states.values()].filter(s =>
+      s.state === 'replaced' && !!s.changedAt && (!seenAt || s.changedAt > seenAt)).length;
     const newReports = reports.filter(r =>
       r.status !== 'open' && !!r.resolvedAt && (!seenAt || r.resolvedAt > seenAt)).length;
 
     // Ante un error se deja lo que habia: mejor eso que un contador en 0 falso.
     if (!newImages.error && !newSubs.error) {
-      setNewCount((newImages.count ?? 0) + (newSubs.count ?? 0) + newReports);
+      setNewCount((newImages.count ?? 0) + (newSubs.count ?? 0) + newReports + newReplaced);
     }
     if (!pendImages.error && !pendSubs.error) {
       setPendingCount((pendImages.count ?? 0) + (pendSubs.count ?? 0));

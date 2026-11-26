@@ -57,6 +57,18 @@ const STATUS_STYLE: Record<ImageStatus, { color: string; icon: any; key: string 
   rejected: { color: COLORS.pink,  icon: 'close-circle-outline',     key: 'statusRejected' },
 };
 
+/** Estados que el concurso distingue dentro de "aprobada" o "rechazada". */
+const REPLACED_STYLE = { color: COLORS.purple3, icon: 'swap-horizontal-outline', key: 'statusReplaced' };
+const TAKEN_DOWN_STYLE = { color: COLORS.pink, icon: 'remove-circle-outline', key: 'statusTakenDown' };
+
+/** Por que una imagen no suma (o dejo de sumar). Solo si ya se reviso. */
+const CHALLENGE_NOTE_KEY: Partial<Record<string, string>> = {
+  replaced: 'contributionReplacedNote',
+  taken_down: 'contributionTakenDownNote',
+  voided: 'contributionVoidedNote',
+  not_eligible: 'contributionNotEligibleNote',
+};
+
 /**
  * En que quedo un reporte, dicho para quien lo hizo. "Se mantiene" junta
  * resolved_kept y dismissed: para quien reporto la diferencia no cambia nada.
@@ -100,11 +112,12 @@ export default function MyContributionsScreen({ variant = 'tab' }: { variant?: '
     return () => { cancelled = true; };
   }, [userId]));
 
-  const isNew = (item: MyContribution) =>
-    prevSeenAt !== undefined
-    && item.status !== 'pending'
-    && !!item.reviewedAt
-    && (prevSeenAt === null || item.reviewedAt > prevSeenAt);
+  const isNew = (item: MyContribution) => {
+    if (prevSeenAt === undefined || item.status === 'pending') return false;
+    // Lo ultimo que le paso: aprobada/rechazada, o despues reemplazada/retirada.
+    const last = [item.reviewedAt, item.changedAt].filter(Boolean).sort().pop();
+    return !!last && (prevSeenAt === null || last > prevSeenAt);
+  };
 
   // Volver de la bandeja de moderacion es justo cuando esta lista cambia: lo
   // que estaba "en revision" pasa a aprobado o rechazado. Sin esto se quedaba
@@ -214,7 +227,10 @@ export default function MyContributionsScreen({ variant = 'tab' }: { variant?: '
             </GlassCard>
           ) : (
             items.map(item => {
-              const status = STATUS_STYLE[item.status];
+              const status = item.challengeState === 'replaced' ? REPLACED_STYLE
+                : item.challengeState === 'taken_down' ? TAKEN_DOWN_STYLE
+                : STATUS_STYLE[item.status];
+              const noteKey = item.status !== 'pending' && item.challengeState ? CHALLENGE_NOTE_KEY[item.challengeState] : undefined;
               const openable = item.status === 'approved' && item.albumId != null;
               return (
                 <TouchableOpacity
@@ -256,6 +272,11 @@ export default function MyContributionsScreen({ variant = 'tab' }: { variant?: '
                             </View>
                           )}
                         </View>
+
+                        {/* Lo que suma hoy en el concurso: 0,5 por lado vigente. */}
+                        {item.challengeState === 'scoring' && (
+                          <Text style={styles.scoring}>{t('contributionScoring')}</Text>
+                        )}
                       </View>
 
                       {openable && (
@@ -278,6 +299,10 @@ export default function MyContributionsScreen({ variant = 'tab' }: { variant?: '
                     {item.status === 'rejected' && item.rejectionReason ? (
                       <Text style={styles.reason}>{reasonText(item.rejectionReason)}</Text>
                     ) : null}
+
+                    {/* Por que no suma: reemplazada, retirada, anulada o fuera
+                        del concurso. Se conserva en el historial igual. */}
+                    {noteKey ? <Text style={styles.reason}>{t(noteKey as any)}</Text> : null}
                   </GlassCard>
                 </TouchableOpacity>
               );
@@ -375,6 +400,7 @@ const styles = StyleSheet.create({
   kind: { fontSize: 9, color: COLORS.textMuted, marginTop: 3, letterSpacing: 0.3 },
   statusRow: { flexDirection: 'row', alignItems: 'center', gap: 4, marginTop: 5 },
   statusText: { fontSize: 11, fontWeight: '800' },
+  scoring: { fontSize: 11, fontWeight: '800', color: COLORS.purple3, marginTop: 3 },
   reportedRow: {
     flexDirection: 'row', alignItems: 'center', gap: 5,
     marginTop: 9, marginLeft: 57,

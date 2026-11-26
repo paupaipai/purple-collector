@@ -10,7 +10,7 @@ import { withSupabase } from "@supabase/server";
  * puede hacer desde el cliente ni desde el dashboard con comodidad, y es la
  * razón por la que CONTRIBUTIONS_ENABLED estaba apagado.
  *
- *   POST { action: "approve",  cardImageId: number }
+ *   POST { action: "approve",  cardImageId: number, mode?: "new" | "replace", note?: string }
  *   POST { action: "reject",   cardImageId: number, reason: string }
  *   POST { action: "takedown", cardImageId: number, reason: string, reportId?: number }
  */
@@ -76,6 +76,37 @@ async function copyToPublicBucket(
   return { ok: true };
 }
 
+/**
+ * Push a quien aportó la imagen reemplazada, a todos sus dispositivos. Es el
+ * mismo canal (Expo) que send-notification, pero dirigido a una persona.
+ */
+async function notifyReplaced(admin: any, userId: string, cardId: number, lostPoints: boolean) {
+  const { data: rows, error } = await admin.from("push_tokens").select("token").eq("user_id", userId);
+  if (error) {
+    console.error("[moderate-card-image] push_tokens select failed:", error);
+    return;
+  }
+  const tokens = Array.from(new Set((rows ?? []).map((r: { token: string }) => r.token))).filter(Boolean);
+  if (tokens.length === 0) return;
+  const res = await fetch("https://exp.host/--/api/v2/push/send", {
+    method: "POST",
+    headers: { "Content-Type": "application/json", Accept: "application/json" },
+    body: JSON.stringify(tokens.map((to) => ({
+      to,
+      title: "Tu aporte fue reemplazado",
+      body: lostPoints
+        ? "Tu aporte ha sido reemplazado por una imagen de mejor calidad. Los 0,5 puntos correspondientes se han reasignado a la nueva contribución. ¡Gracias por ayudarnos a mejorar nuestro catálogo! 💜"
+        : "Tu aporte ha sido reemplazado por una imagen de mejor calidad. ¡Gracias por ayudarnos a mejorar nuestro catálogo! 💜",
+      data: { type: "contribution_replaced", cardId, url: "/my-contributions" },
+      sound: "default",
+    }))),
+  }).catch((e) => {
+    console.error("[moderate-card-image] push failed:", e);
+    return null;
+  });
+  if (res && !res.ok) console.error("[moderate-card-image] push failed:", res.status, await res.text().catch(() => ""));
+}
+
 const protectedHandler = withSupabase({ auth: ["user"] }, async (req, ctx) => {
   const userId = ctx.userClaims?.id;
   if (!userId) {
@@ -99,6 +130,8 @@ const protectedHandler = withSupabase({ auth: ["user"] }, async (req, ctx) => {
   const cardImageId = typeof body.cardImageId === "number" ? body.cardImageId : null;
   const reason = typeof body.reason === "string" ? body.reason.trim() : "";
   const reportId = typeof body.reportId === "number" ? body.reportId : null;
+  const mode = body.mode === "new" || body.mode === "replace" ? body.mode : "auto";
+  const note = typeof body.note === "string" ? body.note.trim().slice(0, 500) : "";
 
   if (action !== "approve" && action !== "reject" && action !== "takedown") {
     return Response.json(
@@ -297,45 +330,42 @@ const protectedHandler = withSupabase({ auth: ["user"] }, async (req, ctx) => {
     );
   }
 
-  // La primaria es única por (card_id, source_type, side) entre las aprobadas,
-  // así que hay que bajar la community primaria anterior DEL MISMO LADO antes de
-  // subir esta: aprobar un reverso no puede quitarle la primaria al frente. La
-  // legacy no se toca: es otro source_type y sigue siendo el fallback.
-  const { error: demoteError } = await ctx.supabaseAdmin
-    .from("card_images")
-    .update({ is_primary: false })
-    .eq("card_id", row.card_id)
-    .eq("side", row.side)
-    .eq("source_type", "community")
-    .eq("status", "approved")
-    .eq("is_primary", true);
+  // Bajar la primaria anterior del mismo lado y subir esta se hace en UNA
+  // transacción, con la fila bloqueada (moderate_approve_image). Antes eran dos
+  // updates sueltos: con un doble clic en el mantenedor, la segunda llamada
+  // bajaba la imagen que la primera acababa de aprobar y el lado quedaba vacío
+  // (pasó en la card 2186). Ahora la segunda sale con already_moderated.
+  //
+  // mode: "new" (el lado no tiene imagen community vigente), "replace"
+  // (reemplazo por calidad: los 0,5 pasan a esta) o, si no viene, "auto" para
+  // el mantenedor viejo: reemplaza si hay vigente, como antes.
+  const { data: approved, error: approveError } = await ctx.supabaseAdmin
+    .rpc("moderate_approve_image", {
+      p_image_id: row.id,
+      p_mode: mode,
+      p_bucket: PUBLIC_BUCKET,
+      p_path: publicPath,
+      p_actor: userId,
+      p_note: note || null,
+    })
+    .single<{ approved_id: number; replaced_id: number | null; replaced_user: string | null; replaced_was_scoring: boolean; mode: string }>();
 
-  if (demoteError) {
-    console.error("[moderate-card-image] demote previous primary failed:", demoteError);
+  if (approveError || !approved) {
+    // La fila no cambió: se deshace la copia pública y no queda nada servido.
     await ctx.supabaseAdmin.storage.from(PUBLIC_BUCKET).remove([publicPath]);
+    const message = approveError?.message ?? "";
+    const known = ["already_moderated", "side_has_image", "side_empty"].find((code) => message.includes(code));
+    if (known) {
+      return Response.json({ success: false, error: known }, { status: 409 });
+    }
+    console.error("[moderate-card-image] approve failed:", approveError);
     return Response.json({ success: false, error: "Could not approve the image" }, { status: 500 });
   }
 
-  const { error: updateError } = await ctx.supabaseAdmin
-    .from("card_images")
-    .update({
-      status: "approved",
-      bucket_id: PUBLIC_BUCKET,
-      storage_path: publicPath,
-      is_primary: true,
-      reviewed_by: userId,
-      reviewed_at: reviewedAt,
-      rejection_reason: null,
-    })
-    .eq("id", row.id)
-    .eq("status", "pending");
-
-  if (updateError) {
-    // La fila sigue apuntando al bucket privado, así que el estado es coherente:
-    // se deshace la copia pública y no queda nada servido por error.
-    console.error("[moderate-card-image] approve update failed:", updateError);
-    await ctx.supabaseAdmin.storage.from(PUBLIC_BUCKET).remove([publicPath]);
-    return Response.json({ success: false, error: "Could not approve the image" }, { status: 500 });
+  // Aviso a quien perdió el lado por un reemplazo de calidad. No a quien
+  // mejoró su propia imagen: no perdió nada. Best-effort: la aprobación ya está.
+  if (approved.replaced_user && approved.replaced_user !== row.contributed_by) {
+    await notifyReplaced(ctx.supabaseAdmin, approved.replaced_user, row.card_id, approved.replaced_was_scoring);
   }
 
   // Último paso y best-effort a propósito: la fila ya apunta al bucket público,
@@ -354,6 +384,8 @@ const protectedHandler = withSupabase({ auth: ["user"] }, async (req, ctx) => {
     cardImageId: row.id,
     cardId: row.card_id,
     storagePath: publicPath,
+    mode: approved.mode,
+    replacedImageId: approved.replaced_id,
   });
 });
 
