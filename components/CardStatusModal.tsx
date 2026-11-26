@@ -8,6 +8,7 @@ import {
 } from '../lib/constants';
 import { useI18n } from '../lib/I18nContext';
 import { getCardBackUrl, getCardImageUrl } from '../lib/supabase';
+import ImageZoomViewer, { ZoomSide } from './ImageZoomViewer';
 import { CardStatus, CardWithStatus } from '../lib/types';
 
 interface CardStatusModalProps {
@@ -40,7 +41,9 @@ export default function CardStatusModal({
 
   // Que lado se ve. Vuelve al frente cada vez que se abre otra card.
   const [showBack, setShowBack] = useState(false);
-  useEffect(() => { setShowBack(false); }, [card?.id]);
+  // Visor ampliado (la lupa). Se cierra al cambiar de card.
+  const [zoomSide, setZoomSide] = useState<ZoomSide | null>(null);
+  useEffect(() => { setShowBack(false); setZoomSide(null); }, [card?.id]);
 
   const dupCount = card?.duplicate_count ?? 0;
   const frontUrl = card ? getCardImageUrl(card) : null;
@@ -53,6 +56,11 @@ export default function CardStatusModal({
   // Procedencia de la imagen. Gated por la misma bandera que la grilla: con el
   // catalogo 100% legacy, mostrar "Legacy" en cada card no distingue nada.
   const imageSource = LEGACY_TREATMENT_ENABLED ? card?.primary_image_source : null;
+
+  // Solo se amplian las imagenes aportadas: las legacy rondan los 160 px y
+  // ampliadas solo se verian pixeladas.
+  const zoomFrontUrl = frontUrl && card?.primary_image_source !== 'legacy' ? frontUrl : null;
+  const zoomBackUrl = backUrl && card?.back_image_source !== 'legacy' ? backUrl : null;
 
   // Card con frente pero sin reverso: el recuadro vacio permite aportarlo. Con
   // un aporte pendiente se espera a que se resuelva.
@@ -107,6 +115,9 @@ export default function CardStatusModal({
                         </Text>
                       </View>
                     ) : null}
+                    {zoomFrontUrl && (
+                      <ZoomButton label={t('zoomImage')} onPress={() => setZoomSide('front')} />
+                    )}
                   </View>
                   <Text style={styles.sideLabel}>{t('sideFront')}</Text>
                 </TouchableOpacity>
@@ -125,6 +136,9 @@ export default function CardStatusModal({
                         contentFit="cover"
                         transition={150}
                       />
+                      {zoomBackUrl && (
+                        <ZoomButton label={t('zoomImage')} onPress={() => setZoomSide('back')} />
+                      )}
                     </View>
                   ) : (
                     <View style={[styles.thumbWrap, styles.emptyBack]}>
@@ -294,11 +308,41 @@ export default function CardStatusModal({
           )}
         </TouchableOpacity>
       </TouchableOpacity>
+      <ImageZoomViewer
+        side={zoomSide}
+        frontUrl={zoomFrontUrl}
+        backUrl={zoomBackUrl}
+        onChangeSide={setZoomSide}
+        onClose={() => setZoomSide(null)}
+      />
     </Modal>
   );
 }
 
+/** Lupa en la esquina de la miniatura: abre el visor ampliado. */
+function ZoomButton({ label, onPress }: { label: string; onPress: () => void }) {
+  return (
+    <TouchableOpacity
+      onPress={onPress}
+      activeOpacity={0.8}
+      style={styles.zoomBtn}
+      hitSlop={8}
+      accessibilityRole="button"
+      accessibilityLabel={label}
+    >
+      <Ionicons name="search" size={14} color="#fff" />
+    </TouchableOpacity>
+  );
+}
+
 const styles = StyleSheet.create({
+  zoomBtn: {
+    position: 'absolute', top: 5, right: 5,
+    width: 26, height: 26, borderRadius: 13,
+    alignItems: 'center', justifyContent: 'center',
+    backgroundColor: 'rgba(22,10,48,0.75)',
+    borderWidth: 1, borderColor: 'rgba(233,213,255,0.35)',
+  },
   backdrop: {
     flex: 1,
     backgroundColor: 'rgba(0,0,0,0.65)',
