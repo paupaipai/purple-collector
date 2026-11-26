@@ -685,7 +685,6 @@ export default function AlbumDetailScreen() {
         onContribute={() => handleContribute('front')}
         onContributeBack={() => handleContribute('back')}
         contributionPending={selectedCard ? pendingContrib.has(selectedCard.id) : false}
-        pendingSides={selectedCard ? pendingContrib.get(selectedCard.id) : undefined}
         onReport={handleReport}
         isReported={id => reported.has(id)}
       />
