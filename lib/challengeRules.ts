@@ -8,7 +8,7 @@
 
 type Section = { title: string; items: string[] };
 
-export const CHALLENGE_RULES_VERSION = '1';
+export const CHALLENGE_RULES_VERSION = '2';
 
 export const CHALLENGE_RULES: Record<'es' | 'en', Section[]> = {
   es: [
@@ -30,20 +30,21 @@ export const CHALLENGE_RULES: Record<'es' | 'en', Section[]> = {
     {
       title: '3. Qué aportes suman puntos',
       items: [
-        '1 photocard aprobada = 1 punto.',
+        'Cada lado aprobado suma 0,5 puntos: frente = 0,5, reverso = 0,5. Frente y reverso = 1 punto.',
         'La photocard debe ser parte del catálogo que existía al comenzar el concurso.',
-        'Debes enviar el frente y el reverso de la photocard, y ambos deben ser aprobados.',
         'El aporte debe enviarse mientras el concurso está recibiendo aportes.',
-        'Si varias personas envían la misma photocard, el punto es para el primer aporte completo (frente y reverso) enviado que termine siendo aprobado.',
+        'Cada lado tiene un solo dueño: sus 0,5 puntos son de quien aportó la imagen que se muestra en el catálogo para ese lado.',
+        'Si se aprueba una foto de mejor calidad para un lado, esos 0,5 puntos pasan a quien la aportó y se descuentan a quien los tenía.',
+        'Una photocard nunca da más de 1 punto en total (0,5 por el frente + 0,5 por el reverso), aunque tenga varias imágenes aprobadas.',
       ],
     },
     {
       title: '4. Qué aportes no cuentan',
       items: [
         'Imágenes rechazadas o que aún estén pendientes de revisión.',
-        'Aportes incompletos (solo frente o solo reverso).',
-        'Photocards que ya tenían un aporte válido anterior (duplicados) y reenvíos de la misma photocard.',
-        'Imágenes retiradas o invalidadas después de su aprobación: su punto se descuenta y el ranking se recalcula.',
+        'Imágenes duplicadas que no mejoran la que ya se muestra: se rechazan y no suman.',
+        'Imágenes reemplazadas por otra de mejor calidad: sus 0,5 puntos pasan a la nueva.',
+        'Imágenes retiradas o invalidadas después de su aprobación: sus puntos se descuentan y el ranking se recalcula.',
         'Photocards o álbumes agregados al catálogo después del cierre del concurso.',
         'Aportes enviados después del cierre del concurso.',
       ],
@@ -51,7 +52,7 @@ export const CHALLENGE_RULES: Record<'es' | 'en', Section[]> = {
     {
       title: '5. Desempate',
       items: [
-        'Si dos o más participantes terminan con los mismos puntos, gana quien alcanzó ese puntaje primero, según la fecha de envío registrada de su último aporte puntuado.',
+        'Si dos o más participantes terminan con los mismos puntos, gana quien alcanzó ese puntaje primero, según la fecha de envío registrada del último lado que le suma puntos.',
       ],
     },
     {
@@ -60,13 +61,14 @@ export const CHALLENGE_RULES: Record<'es' | 'en', Section[]> = {
         'El concurso se cierra cuando todas las photocards del catálogo inicial tengan un aporte aprobado, o antes si Purple Collector lo anuncia en Novedades.',
         'Al cerrar, se dejan de recibir aportes para el concurso y se revisan los que llegaron dentro del plazo.',
         'Las ganadoras se publican solo cuando no queden aportes del período pendientes de revisión.',
+        'Una vez publicados los resultados, el ranking definitivo ya no cambia.',
       ],
     },
     {
       title: '7. Revisión de las imágenes',
       items: [
         'Cada lado se revisa por separado. Se aprueban fotos que correspondan a la photocard indicada, se vean completas y nítidas y respeten las condiciones de uso.',
-        'El ranking es provisional hasta que el concurso termine y se revisen todos los aportes.',
+        'El ranking es provisional hasta que el concurso termine: se actualiza cada vez que se aprueba, reemplaza o retira una imagen.',
         'Purple Collector puede invalidar un aporte aprobado si luego se detecta que no cumple las reglas.',
       ],
     },
@@ -88,7 +90,7 @@ export const CHALLENGE_RULES: Record<'es' | 'en', Section[]> = {
     {
       title: '10. Privacidad y nombres de usuario',
       items: [
-        'El ranking es público para quienes usan la app y muestra solo tu @usuario y tu cantidad de photocards aprobadas.',
+        'El ranking es público para quienes usan la app y muestra solo tu @usuario y tus puntos.',
         'Nunca se publica tu correo ni tu nombre real. Te recomendamos que tu @usuario no sea tu nombre real.',
         'Puedes cambiar tu @usuario desde tu perfil en cualquier momento.',
       ],
@@ -113,20 +115,21 @@ export const CHALLENGE_RULES: Record<'es' | 'en', Section[]> = {
     {
       title: '3. What counts',
       items: [
-        '1 approved photocard = 1 point.',
+        'Each approved side is worth 0.5 points: front = 0.5, back = 0.5. Front and back = 1 point.',
         'The photocard must be part of the catalog that existed when the challenge started.',
-        'You must send the front and the back, and both must be approved.',
         'The contribution must be sent while the challenge is accepting contributions.',
-        'If several people send the same photocard, the point goes to the first complete contribution (front and back) sent that ends up approved.',
+        'Each side has a single owner: its 0.5 points belong to whoever contributed the image shown in the catalog for that side.',
+        'If a better-quality photo is approved for a side, those 0.5 points go to whoever contributed it and are taken from whoever had them.',
+        'A photocard never gives more than 1 point in total (0.5 for the front + 0.5 for the back), even if it has several approved images.',
       ],
     },
     {
       title: "4. What doesn't count",
       items: [
         'Rejected images, or images still pending review.',
-        'Incomplete contributions (front only or back only).',
-        'Photocards that already had a valid earlier contribution (duplicates), and resubmissions of the same photocard.',
-        'Images removed or invalidated after approval: their point is subtracted and the ranking recalculated.',
+        'Duplicate images that do not improve the one already shown: they are rejected and do not score.',
+        'Images replaced by a better-quality one: their 0.5 points go to the new one.',
+        'Images removed or invalidated after approval: their points are subtracted and the ranking recalculated.',
         'Photocards or albums added to the catalog after the challenge started.',
         'Contributions sent before after the close.',
       ],
@@ -134,7 +137,7 @@ export const CHALLENGE_RULES: Record<'es' | 'en', Section[]> = {
     {
       title: '5. Tie-break',
       items: [
-        'If two or more participants end with the same points, the one who reached that score first wins, according to the recorded send date of their last scoring contribution.',
+        'If two or more participants end with the same points, the one who reached that score first wins, according to the recorded send date of the last side that scores for them.',
       ],
     },
     {
@@ -143,13 +146,14 @@ export const CHALLENGE_RULES: Record<'es' | 'en', Section[]> = {
         'The challenge closes when every photocard in the initial catalog has an approved contribution, or earlier if Purple Collector announces it in News.',
         'Once closed, no new contributions count, and the ones sent in time are reviewed.',
         'Winners are published only when no contributions from the period are left pending.',
+        'Once results are published, the final ranking no longer changes.',
       ],
     },
     {
       title: '7. Image review',
       items: [
         'Each side is reviewed separately. Photos are approved when they match the photocard, look complete and sharp, and follow the usage terms.',
-        'The ranking is provisional until the challenge ends and every contribution is reviewed.',
+        'The ranking is provisional until the challenge ends: it updates every time an image is approved, replaced or removed.',
         'Purple Collector may invalidate an approved contribution if it later turns out not to follow the rules.',
       ],
     },
@@ -172,7 +176,7 @@ export const CHALLENGE_RULES: Record<'es' | 'en', Section[]> = {
     {
       title: '10. Privacy and usernames',
       items: [
-        'The ranking is public to app users and shows only your @username and your number of approved photocards.',
+        'The ranking is public to app users and shows only your @username and your points.',
         'Your email and real name are never published. We recommend your @username not be your real name.',
         'You can change your @username from your profile at any time.',
       ],

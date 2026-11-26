@@ -7,6 +7,7 @@ import GalaxyBackground from '../../components/GalaxyBackground';
 import ScreenHeader from '../../components/ScreenHeader';
 import {
   LeaderboardRow, PRIZE_MEDALS, useCurrentChallenge, useLeaderboard, useMyChallengeStats,
+  formatPoints,
 } from '../../lib/challenge';
 import { COLORS } from '../../lib/constants';
 import { useI18n } from '../../lib/I18nContext';
@@ -15,7 +16,9 @@ const TOP_COLORS: Record<number, string> = { 1: COLORS.gold, 2: '#C9C3E6', 3: '#
 
 /** Pantalla D: ranking publico, solo @usuario y puntos. */
 export default function RankingScreen() {
-  const { t } = useI18n();
+  const { t, lang } = useI18n();
+  const pointsLabel = (v: number | string) =>
+    t(Number(v) === 1 ? 'challengePointOne' : 'challengePoints', { n: formatPoints(v, lang) });
   const { challenge, loading: chLoading } = useCurrentChallenge();
   const id = challenge?.id ?? null;
   const lb = useLeaderboard(id);
@@ -36,7 +39,7 @@ export default function RankingScreen() {
           @{item.username ?? t('challengeNoHandle')}
           {item.is_me ? `  · ${t('challengeYou')}` : ''}
         </Text>
-        <Text style={styles.points}>{t('challengePcsApproved', { n: String(item.points) })}</Text>
+        <Text style={styles.points}>{pointsLabel(item.points)}</Text>
       </View>
     );
   };
@@ -68,7 +71,7 @@ export default function RankingScreen() {
                 <View style={[styles.row, styles.rowMe]}>
                   <Text style={styles.rank}>{stats.rank}.</Text>
                   <Text style={styles.handle}>{t('challengeYou')}</Text>
-                  <Text style={styles.points}>{t('challengePcsApproved', { n: String(stats.points) })}</Text>
+                  <Text style={styles.points}>{pointsLabel(stats.points)}</Text>
                 </View>
               )}
             </View>

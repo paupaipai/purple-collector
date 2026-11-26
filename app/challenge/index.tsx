@@ -10,7 +10,7 @@ import GalaxyBackground from '../../components/GalaxyBackground';
 import GlassCard from '../../components/GlassCard';
 import { NewsArt } from '../../components/NewsBanner';
 import ScreenHeader from '../../components/ScreenHeader';
-import { formatChallengeDate, useCurrentChallenge, useMyChallengeStats } from '../../lib/challenge';
+import { formatChallengeDate, formatPoints, useCurrentChallenge, useMyChallengeStats } from '../../lib/challenge';
 import { COLORS } from '../../lib/constants';
 import { useI18n } from '../../lib/I18nContext';
 
@@ -36,7 +36,7 @@ export default function ChallengeScreen() {
 
   const motivation = !stats ? ''
     : stats.rank != null && stats.rank <= 3 ? t('challengeMotivationTop')
-    : stats.points > 0 ? t('challengeMotivation')
+    : Number(stats.points) > 0 ? t('challengeMotivation')
     : t('challengeMotivationStart');
 
   return (
@@ -71,7 +71,7 @@ export default function ChallengeScreen() {
             <GlassCard style={[styles.card, styles.mineCard]}>
               <Text style={styles.cardTitle}>💜 {t('challengeMineTitle')}</Text>
               <View style={styles.statsRow}>
-                <Stat value={String(stats.points)} label={t('challengeMineApproved')} color={COLORS.purple3} />
+                <Stat value={formatPoints(stats.points, lang)} label={t('challengeMineApproved')} color={COLORS.purple3} />
                 <Stat value={stats.rank != null ? `#${stats.rank}` : '—'} label={t('challengeMineRank')} color={COLORS.gold} />
                 <Stat value={String(stats.pending_cards)} label={t('challengeMinePending')} color={COLORS.pink} />
               </View>

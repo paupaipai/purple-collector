@@ -31,6 +31,7 @@ export interface Challenge {
 }
 
 export interface MyChallengeStats {
+  /** Medios puntos posibles (0,5 por lado). Puede llegar como texto: usar formatPoints. */
   points: number;
   rank: number | null;
   pending_cards: number;
@@ -172,3 +173,15 @@ export function formatChallengeDate(iso: string | null, lang: string): string {
 }
 
 export const PRIZE_MEDALS: Record<number, string> = { 1: '🥇', 2: '🥈', 3: '🥉' };
+
+/**
+ * Puntos para mostrar. Desde las reglas v2 cada lado vale 0,5, asi que hay
+ * medios puntos: "3", "1,5" (es) / "1.5" (en). La base devuelve numeric, que
+ * puede llegar como numero o como texto: se normaliza aca.
+ */
+export function formatPoints(value: number | string | null | undefined, lang: string): string {
+  const n = Number(value ?? 0);
+  if (!Number.isFinite(n)) return '0';
+  const text = Number.isInteger(n) ? String(n) : n.toFixed(1);
+  return lang === 'en' ? text : text.replace('.', ',');
+}
