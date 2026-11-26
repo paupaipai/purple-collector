@@ -34,6 +34,9 @@ interface Props {
   side: ZoomSide | null;
   frontUrl: string | null;
   backUrl: string | null;
+  /** @ de quien aporto cada lado; null si no es un aporte o no tiene nombre. */
+  frontHandle?: string | null;
+  backHandle?: string | null;
   onChangeSide: (side: ZoomSide) => void;
   onClose: () => void;
 }
@@ -41,7 +44,9 @@ interface Props {
 const ASPECT = 2 / 3;
 const ZOOM = 2.5;
 
-export default function ImageZoomViewer({ side, frontUrl, backUrl, onChangeSide, onClose }: Props) {
+export default function ImageZoomViewer({
+  side, frontUrl, backUrl, frontHandle, backHandle, onChangeSide, onClose,
+}: Props) {
   const { t } = useI18n();
   const { width: sw, height: sh } = useWindowDimensions();
   const [zoomAt, setZoomAt] = useState<{ x: number; y: number } | null>(null);
@@ -51,6 +56,7 @@ export default function ImageZoomViewer({ side, frontUrl, backUrl, onChangeSide,
 
   const hasBoth = !!frontUrl && !!backUrl;
   const uri = side === 'back' ? backUrl : side === 'front' ? frontUrl : null;
+  const handle = side === 'back' ? backHandle : frontHandle;
 
   // Lo mas grande que quepa en 2:3, dejando sitio a las pestanas y la X.
   const frame = useMemo(() => {
@@ -130,6 +136,12 @@ export default function ImageZoomViewer({ side, frontUrl, backUrl, onChangeSide,
             contentFit="contain"
             transition={150}
           />
+          {/* Fuera del zoom: la firma no se agranda ni se sale del marco. */}
+          {handle ? (
+            <View style={styles.handleTag} pointerEvents="none">
+              <Text style={styles.handleTagText} numberOfLines={1}>@{handle}</Text>
+            </View>
+          ) : null}
         </Pressable>
 
         <Text style={styles.hint}>{t(zoomAt ? 'zoomHintOut' : 'zoomHintIn')}</Text>
@@ -162,5 +174,11 @@ const styles = StyleSheet.create({
   tabText: { fontSize: 12, fontWeight: '800', color: 'rgba(255,255,255,0.7)' },
   tabTextActive: { color: '#1E0B3B' },
   frame: { overflow: 'hidden', borderRadius: 14 },
+  handleTag: {
+    position: 'absolute', bottom: 10, left: 10, maxWidth: '80%',
+    paddingHorizontal: 10, paddingVertical: 4, borderRadius: 999,
+    backgroundColor: '#E9D5FF',
+  },
+  handleTagText: { fontSize: 13, fontWeight: '800', letterSpacing: 0.2, color: '#2E1065' },
   hint: { fontSize: 11, fontWeight: '600', color: 'rgba(255,255,255,0.5)' },
 });

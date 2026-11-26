@@ -1,3 +1,4 @@
+import { queryClient } from './queries';
 import { supabase } from './supabase';
 
 /**
@@ -66,6 +67,14 @@ export async function saveUsername(
     }
     return { ok: false, reason: 'failed' };
   }
+
+  // La base ya reescribio el @ de todos sus aportes (trigger
+  // user_profiles_sync_handle_trg), pero las cartas guardadas en cache
+  // seguirian mostrando el viejo hasta 2 min: se marcan viejas para que la
+  // persona vea su nombre nuevo enseguida.
+  queryClient.invalidateQueries({
+    predicate: q => q.queryKey[0] === 'myCardDetails' || q.queryKey[0] === 'albumCards',
+  });
 
   return { ok: true, username };
 }

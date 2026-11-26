@@ -136,6 +136,13 @@ export default function CardStatusModal({
                         contentFit="cover"
                         transition={150}
                       />
+                      {card.back_image_source === 'community' && card.back_image_handle ? (
+                        <View style={styles.handleTag} pointerEvents="none">
+                          <Text style={styles.handleTagText} numberOfLines={1}>
+                            @{card.back_image_handle}
+                          </Text>
+                        </View>
+                      ) : null}
                       {zoomBackUrl && (
                         <ZoomButton label={t('zoomImage')} onPress={() => setZoomSide('back')} />
                       )}
@@ -312,6 +319,8 @@ export default function CardStatusModal({
         side={zoomSide}
         frontUrl={zoomFrontUrl}
         backUrl={zoomBackUrl}
+        frontHandle={card?.primary_image_source === 'community' ? card.primary_image_handle : null}
+        backHandle={card?.back_image_source === 'community' ? card.back_image_handle ?? null : null}
         onChangeSide={setZoomSide}
         onClose={() => setZoomSide(null)}
       />
