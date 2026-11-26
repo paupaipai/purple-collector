@@ -2,6 +2,7 @@ import { useCallback, useEffect, useState } from 'react';
 
 import { COMMUNITY_REVIEW_BUCKET } from '../lib/constants';
 import { getContributionsSeenAt } from '../lib/contributionsSeen';
+import { ReportReason, ReportStatus } from '../lib/types';
 import { getCardImageUrl, supabase } from '../lib/supabase';
 import { t } from '../lib/i18n';
 import { ImageStatus } from '../lib/types';
@@ -30,6 +31,8 @@ export interface MyContribution {
   /** Unico entre las dos tablas: los ids se repiten. */
   key: string;
   kind: ContributionKind;
+  /** id de card_images; null en las propuestas de card nueva. */
+  imageId: number | null;
   status: ImageStatus;
   /** Nombre de la card: el propuesto, o el de la card que ya existia. */
   title: string;
@@ -190,6 +193,7 @@ export function useMyContributions(userId: string | null) {
       return {
         key: `img-${row.id}`,
         kind: 'image' as const,
+        imageId: row.id as number,
         status: row.status as ImageStatus,
         title: card?.card_name ?? `#${row.card_id}`,
         subtitle: [card?.album_name, card?.member].filter(Boolean).join(' · '),
@@ -216,6 +220,7 @@ export function useMyContributions(userId: string | null) {
       return {
         key: `sub-${row.id}`,
         kind: 'card' as const,
+        imageId: null,
         status: row.status as ImageStatus,
         // Sin album no hay nombre de card: se muestra la descripcion que dio.
         title: row.album_unlisted ? (row.notes ?? '') : row.card_name,
@@ -288,18 +293,22 @@ export function useContributionsSummary(userId: string | null) {
       subs = subs.gt('reviewed_at', seenAt);
     }
 
-    const [newImages, newSubs, pendImages, pendSubs] = await Promise.all([
+    const [newImages, newSubs, pendImages, pendSubs, reports] = await Promise.all([
       images,
       subs,
       supabase.from('card_images').select('id', { count: 'exact', head: true })
         .eq('contributed_by', userId).eq('source_type', 'community').eq('status', 'pending'),
       supabase.from('card_submissions').select('id', { count: 'exact', head: true })
         .eq('submitted_by', userId).eq('status', 'pending'),
+      // Pocos por persona: se traen y se cuentan aca.
+      fetchMyReports(userId),
     ]);
+    const newReports = reports.filter(r =>
+      r.status !== 'open' && !!r.resolvedAt && (!seenAt || r.resolvedAt > seenAt)).length;
 
     // Ante un error se deja lo que habia: mejor eso que un contador en 0 falso.
     if (!newImages.error && !newSubs.error) {
-      setNewCount((newImages.count ?? 0) + (newSubs.count ?? 0));
+      setNewCount((newImages.count ?? 0) + (newSubs.count ?? 0) + newReports);
     }
     if (!pendImages.error && !pendSubs.error) {
       setPendingCount((pendImages.count ?? 0) + (pendSubs.count ?? 0));
@@ -309,4 +318,63 @@ export function useContributionsSummary(userId: string | null) {
   useEffect(() => { fetchSummary(); }, [fetchSummary]);
 
   return { newCount, pendingCount, refetch: fetchSummary };
+}
+
+/** Un reporte que hizo esta persona, con lo minimo para ubicarlo. */
+export interface MyReport {
+  id: number;
+  status: ReportStatus;
+  reason: ReportReason;
+  createdAt: string;
+  resolvedAt: string | null;
+  cardName: string | null;
+  subtitle: string;
+  albumId: number | null;
+}
+
+/**
+ * Los reportes propios (RPC my_image_reports, SECURITY DEFINER: la imagen
+ * retirada ya no es legible por quien reporto, y aun asi hay que decirle de que
+ * card era). Si la funcion falla o no existe, la lista queda vacia y la seccion
+ * no se muestra: nunca rompe la pantalla de aportes.
+ */
+export async function fetchMyReports(userId: string | null): Promise<MyReport[]> {
+  if (!userId) return [];
+  const { data, error } = await supabase.rpc('my_image_reports');
+  if (error || !Array.isArray(data)) return [];
+  return data.map((r: any) => ({
+    id: r.id,
+    status: r.status as ReportStatus,
+    reason: r.reason as ReportReason,
+    createdAt: r.created_at,
+    resolvedAt: r.resolved_at ?? null,
+    cardName: r.card_name ?? null,
+    subtitle: [r.album_name, r.member].filter(Boolean).join(' · '),
+    albumId: r.album_id ?? null,
+  }));
+}
+
+export function useMyReports(userId: string | null) {
+  const [reports, setReports] = useState<MyReport[]>([]);
+  const load = useCallback(async () => {
+    setReports(await fetchMyReports(userId));
+  }, [userId]);
+  useEffect(() => { load(); }, [load]);
+  return { reports, refetch: load };
+}
+
+/**
+ * Ids de las imagenes propias con un reporte abierto (RPC my_reported_images).
+ * Solo eso: ni quien reporto ni el motivo. Si falla, conjunto vacio.
+ */
+export function useMyReportedImages(userId: string | null) {
+  const [ids, setIds] = useState<Set<number>>(new Set());
+  const load = useCallback(async () => {
+    if (!userId) { setIds(new Set()); return; }
+    const { data, error } = await supabase.rpc('my_reported_images');
+    if (error || !Array.isArray(data)) return;
+    setIds(new Set(data.map((r: any) => r.card_image_id as number)));
+  }, [userId]);
+  useEffect(() => { load(); }, [load]);
+  return { reportedIds: ids, refetch: load };
 }
