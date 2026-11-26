@@ -29,7 +29,8 @@ import { CARD_SUBMISSIONS_ENABLED, COLORS, MEMBERS, STATUS_LABEL_KEY, CONTRIBUTI
 import type { ImagePickerAsset } from 'expo-image-picker';
 import {
   captureContributionImage,
-  CardSide, ContributionFailure, fetchMyPendingContributions, pickContributionImage, submitContribution,
+  addPendingSides, CardSide, ContributionFailure, fetchMyPendingContributions, PendingContributions,
+  pickContributionImage, submitContribution,
 } from '../../lib/contributions';
 import { fetchMyReportedImages, submitImageReport } from '../../lib/reports';
 import { isChallengeOpen, useCurrentChallenge } from '../../lib/challenge';
@@ -90,7 +91,7 @@ export default function AlbumDetailScreen() {
   const [showFilters, setShowFilters] = useState(false);
   // card_id con una aportacion propia sin resolver. Vacio y sin consultar
   // mientras CONTRIBUTIONS_ENABLED este en false.
-  const [pendingContrib, setPendingContrib] = useState<Set<number>>(new Set());
+  const [pendingContrib, setPendingContrib] = useState<PendingContributions>(new Map());
   // card_images.id que esta persona ya reporto, para no ofrecerlo dos veces.
   const [reported, setReported] = useState<Set<number>>(new Set());
   // Foto elegida esperando encuadre. Guarda tambien la card, porque el modal de
@@ -196,6 +197,8 @@ export default function AlbumDetailScreen() {
     await nextPaint();
     let ok = false;
     let error: string | null = null;
+    // Lados que de verdad entraron: son los que quedan "en revision".
+    const sentSides: CardSide[] = [];
     try {
       if (front) {
         const sent = await submitContribution({ cardId, userId, asset: front.asset, crop: front.crop });
@@ -203,9 +206,11 @@ export default function AlbumDetailScreen() {
           error = contributionError(sent.reason);
           return;
         }
+        sentSides.push('front');
       }
       if (back) {
         const sentBack = await submitContribution({ cardId, userId, asset: back.asset, crop: back.crop, side: 'back' });
+        if (sentBack.ok) sentSides.push('back');
         if (!sentBack.ok) {
           // Si el frente ya entro, se dice que solo fallo el reverso.
           error = front ? t('contributeBackFailed') : contributionError(sentBack.reason);
@@ -216,7 +221,7 @@ export default function AlbumDetailScreen() {
     } finally {
       // Los avisos van despues de quitar el spinner, para que no queden tapados.
       setUploading(false);
-      if (ok) setPendingContrib(prev => new Set(prev).add(cardId));
+      if (ok) setPendingContrib(prev => addPendingSides(prev, cardId, sentSides));
       if (error) alert(t('contributeTitle'), error);
       else if (ok && isChallengeOpen(challenge)) {
         // Pantalla E: mientras hay concurso, el aviso explica que el punto
@@ -680,6 +685,7 @@ export default function AlbumDetailScreen() {
         onContribute={() => handleContribute('front')}
         onContributeBack={() => handleContribute('back')}
         contributionPending={selectedCard ? pendingContrib.has(selectedCard.id) : false}
+        pendingSides={selectedCard ? pendingContrib.get(selectedCard.id) : undefined}
         onReport={handleReport}
         isReported={id => reported.has(id)}
       />

@@ -25,6 +25,8 @@ interface CardStatusModalProps {
   onContributeBack?: () => void;
   /** true si el usuario ya tiene una aportacion sin resolver para esta card. */
   contributionPending?: boolean;
+  /** Lados con un aporte propio en revision. */
+  pendingSides?: ReadonlySet<'front' | 'back'>;
   /** Abre el flujo de reporte de la imagen que se esta viendo (frente o reverso). */
   onReport?: (cardImageId: number) => void;
   /** true si el usuario ya reporto esa imagen. */
@@ -33,7 +35,7 @@ interface CardStatusModalProps {
 
 export default function CardStatusModal({
   card, onClose, onSetStatus, onClearStatus, onSetDuplicates,
-  onContribute, onContributeBack, contributionPending, onReport, isReported,
+  onContribute, onContributeBack, contributionPending, pendingSides, onReport, isReported,
 }: CardStatusModalProps) {
   const { t } = useI18n();
   const visible = !!card;
@@ -64,6 +66,8 @@ export default function CardStatusModal({
 
   // Card con frente pero sin reverso: el recuadro vacio permite aportarlo. Con
   // un aporte pendiente se espera a que se resuelva.
+  const frontPending = !!pendingSides?.has('front');
+  const backPending = !!pendingSides?.has('back');
   const canContributeBack =
     CONTRIBUTIONS_ENABLED && !contributionPending && !!onContributeBack && !!frontUrl && !backUrl;
 
@@ -94,7 +98,16 @@ export default function CardStatusModal({
                       />
                     ) : (
                       <View style={[styles.thumb, styles.placeholder, { backgroundColor: card.album_color + '33' }]}>
-                        <Text style={styles.memberInitial}>{card.member?.charAt(0) || '?'}</Text>
+                        {frontPending ? (
+                          <>
+                            <Ionicons name="time-outline" size={22} color={COLORS.purple3} />
+                            <Text style={[styles.emptyBackText, { color: COLORS.purple3, marginTop: 6 }]}>
+                              {t('pendingSide')}
+                            </Text>
+                          </>
+                        ) : (
+                          <Text style={styles.memberInitial}>{card.member?.charAt(0) || '?'}</Text>
+                        )}
                       </View>
                     )}
                     {/* Aportada por la comunidad: se firma con el @ de quien la
@@ -148,14 +161,14 @@ export default function CardStatusModal({
                       )}
                     </View>
                   ) : (
-                    <View style={[styles.thumbWrap, styles.emptyBack]}>
+                    <View style={[styles.thumbWrap, styles.emptyBack, backPending && styles.pendingSlot]}>
                       <Ionicons
-                        name={canContributeBack ? 'add' : 'image-outline'}
+                        name={backPending ? 'time-outline' : canContributeBack ? 'add' : 'image-outline'}
                         size={22}
-                        color={canContributeBack ? COLORS.purple3 : 'rgba(255,255,255,0.25)'}
+                        color={backPending || canContributeBack ? COLORS.purple3 : 'rgba(255,255,255,0.25)'}
                       />
-                      <Text style={[styles.emptyBackText, canContributeBack && { color: COLORS.purple3 }]}>
-                        {canContributeBack ? t('contributeBackOnly') : t('noBack')}
+                      <Text style={[styles.emptyBackText, (backPending || canContributeBack) && { color: COLORS.purple3 }]}>
+                        {backPending ? t('pendingSide') : canContributeBack ? t('contributeBackOnly') : t('noBack')}
                       </Text>
                     </View>
                   )}
@@ -382,6 +395,7 @@ const styles = StyleSheet.create({
     borderStyle: 'dashed', borderColor: 'rgba(255,255,255,0.18)',
     backgroundColor: 'rgba(255,255,255,0.03)',
   },
+  pendingSlot: { borderColor: 'rgba(216,180,254,0.55)', backgroundColor: 'rgba(168,85,247,0.10)' },
   emptyBackText: {
     fontSize: 10, fontWeight: '700', textAlign: 'center',
     color: 'rgba(255,255,255,0.35)',

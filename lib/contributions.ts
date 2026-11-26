@@ -460,8 +460,24 @@ export async function submitContribution(params: {
   return { ok: true, storagePath: uploaded.storagePath };
 }
 
+/** Aportes propios sin resolver: card_id -> lados en revision. */
+export type PendingContributions = Map<number, Set<CardSide>>;
+
+/** Suma lados en revision a una card, sin mutar el mapa original. */
+export function addPendingSides(
+  prev: PendingContributions,
+  cardId: number,
+  sides: CardSide[],
+): PendingContributions {
+  if (sides.length === 0) return prev;
+  const next = new Map(prev);
+  next.set(cardId, new Set([...(prev.get(cardId) ?? []), ...sides]));
+  return next;
+}
+
 /**
- * Los card_id del usuario que tienen una aportacion propia sin resolver.
+ * Las cards del usuario con una aportacion propia sin resolver, y que lado
+ * (frente / reverso) esta en revision.
  *
  * La policy "card_images contributor reads own" es la que hace esto posible sin
  * exponer nada: solo devuelve las filas de quien consulta.
@@ -469,16 +485,22 @@ export async function submitContribution(params: {
 export async function fetchMyPendingContributions(
   userId: string | null,
   cardIds: number[],
-): Promise<Set<number>> {
-  if (!userId || cardIds.length === 0) return new Set();
+): Promise<PendingContributions> {
+  const result: PendingContributions = new Map();
+  if (!userId || cardIds.length === 0) return result;
 
   const { data, error } = await supabase
     .from('card_images')
-    .select('card_id')
+    .select('card_id, side')
     .eq('contributed_by', userId)
     .eq('status', 'pending')
     .in('card_id', cardIds);
 
-  if (error || !data) return new Set();
-  return new Set(data.map((row: any) => row.card_id as number));
+  if (error || !data) return result;
+  for (const row of data as { card_id: number; side: CardSide | null }[]) {
+    const sides = result.get(row.card_id) ?? new Set<CardSide>();
+    sides.add(row.side ?? 'front');
+    result.set(row.card_id, sides);
+  }
+  return result;
 }

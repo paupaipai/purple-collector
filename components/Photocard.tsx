@@ -129,6 +129,14 @@ export default function Photocard({
                   Va abajo a la IZQUIERDA porque el icono de estado ocupa la
                   derecha. Solo abre el modal, que es donde vive el flujo: la
                   pastilla es una pista, no un boton aparte. */}
+              {/* Aporte propio en revision: reemplaza a la invitacion, en el
+                  mismo sitio, para que se lea como "ya lo enviaste". */}
+              {CONTRIBUTIONS_ENABLED && contributionPending && (
+                <View style={[styles.addHint, styles.pendingHint]} pointerEvents="none">
+                  <Ionicons name="time-outline" size={10} color="#2E1065" />
+                  <Text style={[styles.addHintText, styles.pendingHintText]}>{t('pendingShort')}</Text>
+                </View>
+              )}
               {CONTRIBUTIONS_ENABLED && !contributionPending && (
                 <View style={styles.addHint} pointerEvents="none">
                   <Ionicons name="add" size={11} color="#fff" />
@@ -180,6 +188,17 @@ export default function Photocard({
               <Text style={styles.attributionText} numberOfLines={1}>
                 @{card.primary_image_handle}
               </Text>
+            </View>
+          )}
+
+          {/* Con imagen, un aporte propio en revision (p. ej. el reverso) va
+              arriba al centro: las cuatro esquinas ya estan ocupadas. */}
+          {CONTRIBUTIONS_ENABLED && contributionPending && hasImage && (
+            <View style={styles.pendingTop} pointerEvents="none">
+              <View style={[styles.addHint, styles.pendingHint, styles.pendingHintInline]}>
+                <Ionicons name="time-outline" size={10} color="#2E1065" />
+                <Text style={[styles.addHintText, styles.pendingHintText]}>{t('pendingShort')}</Text>
+              </View>
             </View>
           )}
 
@@ -289,6 +308,16 @@ const styles = StyleSheet.create({
     borderColor: 'rgba(255,255,255,0.45)',
     backgroundColor: 'rgba(0,0,0,0.22)',
   },
+  pendingHint: {
+    borderColor: 'rgba(233,213,255,0.9)',
+    backgroundColor: '#E9D5FF',
+  },
+  pendingHintText: { color: '#2E1065' },
+  pendingTop: {
+    position: 'absolute', top: 5, left: 0, right: 0,
+    alignItems: 'center',
+  },
+  pendingHintInline: { position: 'relative', bottom: 0, left: 0 },
   addHintText: {
     fontSize: 8.5,
     fontWeight: '800',
